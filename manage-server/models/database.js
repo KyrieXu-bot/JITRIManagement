@@ -7,15 +7,4 @@ const pool = mysql.createPool({
     database: 'jitri'
 });
 
-
-async function getCustomers() {
-    // 使用连接池执行 SQL 查询
-    const [rows] = await pool.query("SELECT * FROM customers");
-    return rows; // 返回查询结果
-}
-
-
-module.exports = {
-    pool,
-    getCustomers
-};
+module.exports = pool;
