@@ -1,0 +1,48 @@
+/* Base styling for the sidebar */
+.sidebar {
+    width: 20%;
+    float: left;
+    background-color: #f0f0f0;
+    height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* Styling for the header in the sidebar */
+.sidebar h1 {
+    color: #0366d6;
+    text-align: center;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #0366d6;
+}
+
+/* Unordered list styling */
+.sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+/* List item styling */
+.sidebar li {
+    padding: 10px;
+    background-color: #e8f4fa;
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+    border-radius: 5px;
+    color: #0366d6;
+    font-weight: bolder;
+}
+
+/* Hover effect for list items */
+.sidebar li:hover {
+    background-color: #0366d6;
+    color: #ffffff;
+}
+
+/* Optional: active class styling if needed for highlighting the current selection */
+.sidebar li.active {
+    background-color: #024d86;
+    color: #ffffff;
+}
