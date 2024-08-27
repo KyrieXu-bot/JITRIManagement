@@ -1,0 +1,75 @@
+/* ContentArea.css */
+
+/* 主内容区域的基础样式 */
+.content {
+    width: 80%; /* 占据除侧边栏外的剩余宽度 */
+    float: right; /* 使内容区在侧边栏右侧 */
+    padding: 20px; /* 内边距 */
+    background-color: #fff; /* 背景颜色 */
+    box-sizing: border-box;
+    overflow: auto; /* 添加滚动条 */
+}
+
+/* 表格样式 */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+th {
+    background-color: #e0f7ff; /* 天蓝色表头 */
+}
+
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+/* 按钮样式 */
+button {
+    border: none;
+    padding: 8px 16px;
+    margin: 4px;
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: #87CEFA; /* 天蓝色背景 */
+    color: white;
+}
+
+button:hover {
+    background-color: #b0e0e6;
+}
+
+/* 模态框和表单的样式 */
+.modal-header, .modal-footer {
+    color: white;
+    background-color: #87CEFA; /* 天蓝色 */
+}
+
+.modal-body {
+    padding: 20px;
+    background-color: #fff;
+}
+
+.form-group {
+    margin-bottom: 10px;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.form-control {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}

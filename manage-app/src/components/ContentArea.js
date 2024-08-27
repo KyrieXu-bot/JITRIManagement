@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap'; // 使用React Bootstrap进行模态弹窗和表单处理
-
+import '../css/ContentArea.css'
 const ContentArea = ({ selected }) => {
     const [data, setData] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -9,15 +9,18 @@ const ContentArea = ({ selected }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     useEffect(() => {
         if (selected === 'getCommission') {
-            fetchData();
+            fetchData('orders');
+        } else if (selected === 'getSamples') {
+            fetchData('samples');
+        } else if (selected === 'getTests') {
+            fetchData('tests');
         }
     }, [selected]);
 
-    const fetchData = async () => {
+    const fetchData = async (endpoint) => {
         try {
-            const response = await axios.get('http://localhost:3003/api/orders');
+            const response = await axios.get(`http://localhost:3003/api/${endpoint}`);
             setData(response.data);
-            console.log(response.data)
         } catch (error) {
             console.error('Error fetching data:', error);
         }
@@ -28,14 +31,14 @@ const ContentArea = ({ selected }) => {
         setShowModal(true);
     };
 
-    const handleDelete = (order_num) => {
+    const handleDelete = (identifier) => {
         setShowDeleteConfirm(true);
-        setCurrentItem({ order_num });
+        setCurrentItem({ identifier });
     };
 
     const updateItem = async () => {
         try {
-            await axios.put(`http://localhost:3003/api/orders/${currentItem.order_num}`, currentItem);
+            await axios.patch(`http://localhost:3003/api/${selected}/${currentItem.identifier}`, currentItem);
             setShowModal(false);
             fetchData();
         } catch (error) {
@@ -45,61 +48,91 @@ const ContentArea = ({ selected }) => {
 
     const deleteItem = async () => {
         try {
-            await axios.delete(`http://localhost:3003/api/orders/${currentItem.order_num}`);
+            await axios.delete(`http://localhost:3003/api/${selected}/${currentItem.identifier}`);
             setShowDeleteConfirm(false);
-            fetchData();
+            fetchData(selected);
         } catch (error) {
             console.error('Error deleting order:', error);
         }
     };
 
 
+    const renderTable = () => {
+        let headers = [];
+        let rows = [];
+        switch (selected) {
+            case 'getCommission':
+                headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "样品", "服务加急", "备注", "操作"];
+                 rows = data.map((item, index) => (
+                    <tr key={index}>
+                        <td>{item.order_num}</td>
+                        <td>{item.customer_name}</td>
+                        <td>{item.contact_name}</td>
+                        <td>{item.contact_phone_num}</td>
+                        <td>{item.contact_email}</td>
+                        <td>{item.payer_contact_name}</td>
+                        <td>{item.payer_contact_phone_num}</td>
+                        <td>{item.payer_address}</td>
+                        <td>{item.test_item}</td>
+                        <td>{item.material}</td>
+                        <td>{item.size}</td>
+                        <td>{item.service_type}</td>
+                        <td>{item.note}</td>
+                        <td>
+                            <Button onClick={() => handleEdit(item)}>修改</Button>
+                            <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
+                        </td>
+                    </tr>
+                ));
+                break;
+            case 'getSamples':
+                headers = ["样品名称", "材料","货号","材料规范","样品处置","材料类型", "订单编号", "操作"];
+                rows = data.map((item, index) => (
+                    <tr key={index}>
+                        <td>{item.sample_name}</td>
+                        <td>{item.material}</td>
+                        <td>{item.product_no}</td>
+                        <td>{item.material_spec}</td>
+                        <td>{item.sample_solution_type}</td>
+                        <td>{item.sample_type}</td>
+                        <td>{item.order_num}</td>
+                        <td>
+                            <Button onClick={() => handleEdit(item)}>修改</Button>
+                            <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
+                        </td>
+                    </tr>
+                ));
+                break;
+            case 'getTests':
+                headers = ["检测编号", "检测项目", "方法", "操作"];
+                rows = data.map((item, index) => (
+                    <tr key={index}>
+                        {/* Define each cell based on item properties */}
+                    </tr>
+                ));
+                break;
+                default:
+            headers = ["No data available"];
+            rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
+            break;
+        }
+        return { headers, rows };
+    };
+
+    const { headers, rows } = renderTable();
+
     return (
         <div style={{ width: '70%', float: 'right', overflow: 'auto' }}>
-            {selected === 'getCommission' && (
+            {selected && (
                 <div>
-                    <h2>详细信息</h2>
+                    <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
                     <table>
                         <thead>
-                            <tr>
-                                <th>委托单号</th>
-                                <th>委托单位</th>
-                                <th>联系人</th>
-                                <th>联系电话</th>
-                                <th>联系人邮箱</th>
-                                <th>付款人</th>
-                                <th>付款人电话</th>
-                                <th>地址</th>
-                                <th>检测项目</th>
-                                <th>材料类型</th>
-                                <th>样品</th>
-                                <th>服务加急</th>
-                                <th>备注</th>
-                                <th>操作</th>
-                            </tr>
+                            <tr>{headers.map(header => <th key={header}>{header}</th>)}</tr>
                         </thead>
                         <tbody>
-                            {data.map((item, index) => (
-                                <tr key={index}>
-                                    <td>{item.order_num}</td>
-                                    <td>{item.customer_name}</td>
-                                    <td>{item.contact_name}</td>
-                                    <td>{item.contact_phone_num}</td>
-                                    <td>{item.contact_email}</td>
-                                    <td>{item.payer_contact_name}</td>
-                                    <td>{item.payer_contact_phone_num}</td>
-                                    <td>{item.payer_address}</td>
-                                    <td>{item.test_item}</td>
-                                    <td>{item.material}</td>
-                                    <td>{item.size}</td>
-                                    <td>{item.service_type}</td>
-                                    <td>{item.note}</td>
-                                    <td>
-                                        <Button onClick={() => handleEdit(item)}>修改</Button>
-                                        <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
-                                    </td>
-                                </tr>
-                            ))}
+                            {rows}
+
                         </tbody>
                     </table>
 

@@ -32,15 +32,37 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.put('/:orderNum', async (req, res) => {
+router.patch('/:orderNum', async (req, res) => {
     try {
         const { orderNum } = req.params;
         const updateData = req.body;  // 获取更新的数据
-        await db.query(`
-            UPDATE orders SET
-            customer_id = ?, service_type = ?, sample_shipping_address = ?
-            WHERE order_num = ?
-        `, [updateData.customer_id, updateData.service_type, updateData.sample_shipping_address, orderNum]);
+
+        let updates = [];
+        let values = [];
+
+        // 遍历请求体中的每个字段，只添加已提供的字段到SQL更新语句中
+        Object.keys(updateData).forEach(key => {
+            if (updateData[key] !== undefined) { // 确保只处理不为 undefined 的字段
+                updates.push(`${key} = ?`);
+                values.push(updateData[key]);
+            }
+        });
+
+        // 如果没有提供有效的更新字段，返回错误响应
+        if (updates.length === 0) {
+            return res.status(400).send({ message: 'No valid fields provided for update' });
+        }
+
+        values.push(orderNum); // 将 orderId 添加到值数组的末尾用于 WHERE 子句
+        const sql = `UPDATE orders SET ${updates.join(', ')} WHERE order_num = ?`;
+
+        // 执行更新操作
+        await db.query(sql, values);
+        // await db.query(`
+        //     UPDATE orders SET
+        //     customer_id = ?, service_type = ?, sample_shipping_address = ?
+        //     WHERE order_num = ?
+        // `, [updateData.customer_id, updateData.service_type, updateData.sample_shipping_address, orderNum]);
         res.send({ message: 'Order updated successfully' });
     } catch (error) {
         console.error('Failed to update order:', error);

@@ -1,48 +1,50 @@
-/* Base styling for the sidebar */
+/* Sidebar.css */
+
+/* 侧边栏的基础样式 */
 .sidebar {
     width: 20%;
     float: left;
     background-color: #f0f0f0;
-    height: 100vh;
+    height: 100vh; /* 全屏高度 */
     padding: 20px;
     box-sizing: border-box;
 }
 
-/* Styling for the header in the sidebar */
+/* 侧边栏标题样式 */
 .sidebar h1 {
-    color: #0366d6;
+    color: #0366d6; /* 深蓝色 */
     text-align: center;
     padding-bottom: 20px;
     border-bottom: 2px solid #0366d6;
 }
 
-/* Unordered list styling */
+/* 无序列表样式 */
 .sidebar ul {
     list-style: none;
     padding: 0;
     margin-top: 20px;
 }
 
-/* List item styling */
+/* 列表项样式 */
 .sidebar li {
     padding: 10px;
-    background-color: #e8f4fa;
+    background-color: #e8f4fa; /* 浅天蓝色背景 */
     margin-bottom: 5px;
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s;
     border-radius: 5px;
-    color: #0366d6;
+    color: #0366d6; /* 深蓝色文字 */
     font-weight: bolder;
 }
 
-/* Hover effect for list items */
+/* 鼠标悬停效果 */
 .sidebar li:hover {
-    background-color: #0366d6;
-    color: #ffffff;
+    background-color: #0366d6; /* 深蓝色背景 */
+    color: #ffffff; /* 白色文字 */
 }
 
-/* Optional: active class styling if needed for highlighting the current selection */
+/* 当前选中的列表项 */
 .sidebar li.active {
-    background-color: #024d86;
+    background-color: #024d86; /* 更深的蓝色 */
     color: #ffffff;
 }

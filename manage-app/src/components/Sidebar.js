@@ -16,9 +16,9 @@ const Sidebar = ({ onSelect, selected }) => {
             <h1>集萃检测管理系统</h1>
             <ul>
                 <li className={selected === 'getCommission' ? 'active' : ''} onClick={() => onSelect('getCommission')}>委托单管理</li>
-                <li className={selected === 'samples' ? 'active' : ''} onClick={() => onSelect('samples')}>样品管理</li>
-                <li className={selected === 'testItems' ? 'active' : ''} onClick={() => onSelect('testItems')}>检测管理</li>
-                <li className={selected === 'reports' ? 'active' : ''} onClick={() => onSelect('reports')}>报告管理</li>
+                <li className={selected === 'getSamples' ? 'active' : ''} onClick={() => onSelect('getSamples')}>样品管理</li>
+                <li className={selected === 'getTests' ? 'active' : ''} onClick={() => onSelect('getTests')}>检测管理</li>
+                <li className={selected === 'getReports' ? 'active' : ''} onClick={() => onSelect('getReports')}>报告管理</li>
             </ul>
         </div>
     );
