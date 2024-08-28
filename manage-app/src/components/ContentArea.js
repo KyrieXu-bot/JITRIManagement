@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap'; // 使用React Bootstrap进行模态弹窗和表单处理
 import '../css/ContentArea.css'
+
 const ContentArea = ({ selected }) => {
     const [data, setData] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -21,7 +22,7 @@ const ContentArea = ({ selected }) => {
         try {
             const response = await axios.get(`http://localhost:3003/api/${endpoint}`);
             setData(response.data);
-        } catch (error) {
+        } catch (error) {       
             console.error('Error fetching data:', error);
         }
     };
@@ -57,6 +58,9 @@ const ContentArea = ({ selected }) => {
     };
 
 
+    const handleAssignment = async () =>{
+
+    }
     const renderTable = () => {
         let headers = [];
         let rows = [];
@@ -104,10 +108,19 @@ const ContentArea = ({ selected }) => {
                 ));
                 break;
             case 'getTests':
-                headers = ["检测编号", "检测项目", "方法", "操作"];
+                headers = ["检测编号", "检测项目", "方法", "委托单号", "操作"];
                 rows = data.map((item, index) => (
                     <tr key={index}>
-                        {/* Define each cell based on item properties */}
+                        <td>{item.original_no}</td>
+                        <td>{item.test_item}</td>
+                        <td>{item.test_method}</td>
+                        <td>{item.order_num}</td>
+                        <td>
+                            <Button onClick={() => handleAssignment(item.order_num)}>分配</Button>
+                            <Button onClick={() => handleEdit(item)}>修改</Button>
+                            <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
+
+                        </td>
                     </tr>
                 ));
                 break;
@@ -183,6 +196,8 @@ const ContentArea = ({ selected }) => {
                     <Button variant="danger" onClick={deleteItem}>Delete</Button>
                 </Modal.Footer>
             </Modal>
+
+
         </div>
     );
 };
