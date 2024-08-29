@@ -6,7 +6,7 @@ const db = require('../config/dbConfig'); // 确保路径正确
  * @returns {Promise<object>} 用户对象或null
  */
 async function findUserByAccount(account) {
-    const query = 'SELECT * FROM user WHERE account = ?';
+    const query = 'SELECT * FROM users WHERE account = ?';
     const [results] = await db.query(query, [account]);
     return results[0] || null;
 }
@@ -82,6 +82,7 @@ async function getAllSamples() {
 async function getAllTestItems() {
     const query = `
         SELECT 
+            t.test_item_id,
             t.original_no,
             t.test_item,
             t.test_method,
@@ -93,11 +94,34 @@ async function getAllTestItems() {
 }
 
 
+
+async function assignTestToUser(testId, userId) {
+    const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
+    await db.query(query, [testId, userId]);
+}
+
+async function getAssignedTestsByUser(userId) {
+    const query = `
+        SELECT 
+            ti.original_no,
+            ti.test_item,
+            ti.test_method,
+            ti.order_num
+        FROM assignments a
+        JOIN test_items ti ON a.test_item_id = ti.test_item_id
+        WHERE a.account = ?
+    `;
+    const [results] = await db.query(query, [userId]);
+    return results;
+}
+
 module.exports = {
     findUserByAccount,
     getAllOrders, 
     updateOrder, 
     deleteOrder,
+    assignTestToUser,
     getAllSamples,
-    getAllTestItems
+    getAllTestItems,
+    getAssignedTestsByUser
 };

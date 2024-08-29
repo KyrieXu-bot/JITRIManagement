@@ -10,10 +10,13 @@ function LoginForm({ onLoginSuccess }) {
       const response = await axios.post('http://localhost:3003/api/login', { account, password });
       console.log('登录成功:', response.data);
       // 处理登录后逻辑
-      onLoginSuccess(); // 调用App组件传递的方法，通知登录成功
+      // 存储用户信息和角色
+      localStorage.setItem('userRole', response.data.user.role); // 存储角色
+      onLoginSuccess(response.data.user); // 修改以传递用户信息
+      //onLoginSuccess(); // 调用App组件传递的方法，通知登录成功
 
     } catch (error) {
-      console.error('登录失败:', error.response.data.message);
+      console.error('登录失败:', error.response && error.response.data ? error.response.data.message : 'Login failed');
     }
   };
 

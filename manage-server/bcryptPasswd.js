@@ -12,4 +12,4 @@ async function generateHashedPassword(password) {
 }
 
 // 使用方法：将需要加密的密码替换成'your_plain_password'
-generateHashedPassword('jitri');
+generateHashedPassword('lmy');

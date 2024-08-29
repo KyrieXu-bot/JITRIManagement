@@ -9,7 +9,10 @@ router.post('/', async (req, res) => {
   const user = await findUserByAccount(account);
 
   if (user && await bcrypt.compare(password, user.password)) {
-    res.json({ success: true, message: '登录成功', user: user });
+    res.json({ success: true, message: '登录成功', user: {
+      role:user.role,
+      account:user.account,
+    } });
   } else {
     res.status(401).json({ success: false, message: '账号或密码错误' });
   }
