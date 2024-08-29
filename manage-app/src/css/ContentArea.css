@@ -13,22 +13,30 @@
 /* 表格样式 */
 table {
     width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 20px;
+    border-collapse: separate; /* 用于支持圆角边框 */
+    border-spacing: 0;
+    margin: 20px auto; /* 增加上下外边距并居中显示 */
+    /* border-radius: 10px; 整个表格的圆角 */
+    overflow: hidden; /* 保持内部元素如边框不溢出圆角 */
 }
 
 th, td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
+    border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
+    padding: 12px 15px; /* 增加填充以改善视觉效果 */
+    text-align: center; /* 文本居中 */
 }
 
 th {
-    background-color: #e0f7ff; /* 天蓝色表头 */
+    background-color: #5f87a0; /* 更深的天蓝色为表头 */
+    color: white; /* 表头文字颜色 */
+}
+
+tr:last-child th, tr:last-child td {
+    border-bottom: none; /* 移除最后一行的底部边框 */
 }
 
 tr:nth-child(even) {
-    background-color: #f9f9f9;
+    background-color: #f4f7f9; /* 更轻的条纹颜色提高对比度 */
 }
 
 /* 按钮样式 */
@@ -38,18 +46,18 @@ button {
     margin: 4px;
     border-radius: 5px;
     cursor: pointer;
-    background-color: #87CEFA; /* 天蓝色背景 */
+    background-color: #5f87a0; /* 深天蓝色背景与表头一致 */
     color: white;
 }
 
 button:hover {
-    background-color: #b0e0e6;
+    background-color: #87CEFA; /* 鼠标悬浮时颜色 */
 }
 
 /* 模态框和表单的样式 */
 .modal-header, .modal-footer {
     color: white;
-    background-color: #87CEFA; /* 天蓝色 */
+    background-color: #5f87a0; /* 与表头背景色一致 */
 }
 
 .modal-body {

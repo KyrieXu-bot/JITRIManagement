@@ -86,27 +86,40 @@ async function getAllTestItems() {
             t.original_no,
             t.test_item,
             t.test_method,
-            t.order_num
+            t.order_num,
+            t.status
         FROM test_items t
     `;
     const [results] = await db.query(query);
     return results;
 }
 
-
-
 async function assignTestToUser(testId, userId) {
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
     await db.query(query, [testId, userId]);
 }
 
+async function updateTestItemStatus(testId, status) {
+    const query = 'UPDATE test_items SET status =  ? WHERE test_item_id = ?';
+    try {
+        await db.query(query, [status, testId]);
+        console.log(`Status updated for test item ${testId} to ${status}`);
+    } catch (error) {
+        console.error('Failed to update test item status:', error);
+        throw error; // Rethrowing the error is important if you want to handle it further up, e.g., in an Express route.
+    }
+}
+
+
 async function getAssignedTestsByUser(userId) {
     const query = `
         SELECT 
+            ti.test_item_id,
             ti.original_no,
             ti.test_item,
             ti.test_method,
-            ti.order_num
+            ti.order_num,
+            ti.status
         FROM assignments a
         JOIN test_items ti ON a.test_item_id = ti.test_item_id
         WHERE a.account = ?
@@ -121,6 +134,7 @@ module.exports = {
     updateOrder, 
     deleteOrder,
     assignTestToUser,
+    updateTestItemStatus,
     getAllSamples,
     getAllTestItems,
     getAssignedTestsByUser

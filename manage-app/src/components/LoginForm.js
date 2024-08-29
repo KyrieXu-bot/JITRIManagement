@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-
+import '../css/Login.css'
 function LoginForm({ onLoginSuccess }) {
   const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
@@ -21,10 +21,15 @@ function LoginForm({ onLoginSuccess }) {
   };
 
   return (
-    <div>
-      <input type="text" value={account} onChange={e => setAccount(e.target.value)} placeholder="账号" />
-      <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="密码" />
-      <button onClick={handleLogin}>登录</button>
+    <div className="login-container">
+      <h1>集萃检测管理系统(Beta)</h1>
+      <div className="form-group">
+        <input type="text" value={account} onChange={e => setAccount(e.target.value)} placeholder="账号" />
+      </div>
+      <div className="form-group">
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="密码" />
+      </div>
+      <button class="loginButton" onClick={handleLogin}>登录</button>
     </div>
   );
 }

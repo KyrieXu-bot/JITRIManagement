@@ -10,10 +10,21 @@ const ContentArea = ({ account, selected, role }) => {
     const [currentItem, setCurrentItem] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
-    const [ setError ] = useState('');
+    const [error, setError ] = useState('');
 
     const [showAssignmentModal, setShowAssignmentModal] = useState(false);
     const [assignmentInfo, setAssignmentInfo] = useState('');
+
+    const statusLabels = {
+        0: '待检测', 
+        1: '已检测'
+    };
+
+    const serviceTypeLabels = {
+        1: '常规(正常排单周期)',
+        2:'加急',
+        3:'特急'
+    };
 
     const fetchData = useCallback(async (endpoint) => {
         try {
@@ -84,16 +95,27 @@ const ContentArea = ({ account, selected, role }) => {
         }
     };
 
-
     const handleAssignment = (testItemId) => {
         setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
         setShowAssignmentModal(true);
     };
 
+    const handleFinish = async (testId) => {
+        try {
+            await axios.post('http://localhost:3003/api/tests/update-status', { testId, status: 1 });
+            // 可能需要重新获取数据或更新UI
+            setShowSuccessToast(true); // 显示成功的Toast
+            setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast
+            fetchData(selected);
+
+        } catch (error) {
+            console.error('Error completing test:', error);
+        }
+    }
+
     const submitAssignment = useCallback(async () => {
         try {
             const payload = { testItemId: currentItem.testItemId, assignmentInfo };
-            console.log(payload)
             await axios.post(`http://localhost:3003/api/tests/assign`, payload);
             setShowAssignmentModal(false);
             setAssignmentInfo(''); // 清空分配信息
@@ -113,12 +135,16 @@ const ContentArea = ({ account, selected, role }) => {
         let rows = [];
         if (role === 'employee' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["检测编号", "分配给我的检测项目", "状态"];
+            headers = ["ID", "样品原号", "分配给我的检测项目", "状态", "操作"];
             rows = data.map((item, index) => (
                 <tr key={index}>
+                    <td>{item.test_item_id}</td>
                     <td>{item.original_no}</td>
                     <td>{item.test_item}</td>
-                    <td>{item.status}</td>
+                    <td>{statusLabels[item.status]}</td>
+                    <td>
+                        <Button onClick={() => handleFinish(item.test_item_id)}>完成</Button>
+                    </td>
                 </tr>
             ));
             return { headers, rows };
@@ -141,7 +167,7 @@ const ContentArea = ({ account, selected, role }) => {
                             <td>{item.test_item}</td>
                             <td>{item.material}</td>
                             <td>{item.size}</td>
-                            <td>{item.service_type}</td>
+                            <td>{serviceTypeLabels[item.service_type]}</td>
                             <td>{item.note}</td>
                             <td>
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
@@ -169,7 +195,7 @@ const ContentArea = ({ account, selected, role }) => {
                     ));
                     break;
                 case 'getTests':
-                    headers = ["ID", "样品原号", "检测项目", "方法", "委托单号", "操作"];
+                    headers = ["ID", "样品原号", "检测项目", "方法", "委托单号", "状态", "操作"];
                     rows = data.map((item, index) => (
                         <tr key={index}>
                             <td>{item.test_item_id}</td>
@@ -177,6 +203,7 @@ const ContentArea = ({ account, selected, role }) => {
                             <td>{item.test_item}</td>
                             <td>{item.test_method}</td>
                             <td>{item.order_num}</td>
+                            <td>{statusLabels[item.status]}</td>
                             <td>
                                 <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
@@ -198,7 +225,7 @@ const ContentArea = ({ account, selected, role }) => {
     const { headers, rows } = renderTable();
 
     return (
-        <div style={{ width: '70%', float: 'right', overflow: 'auto' }}>
+        <div style={{ width: '80%', float: 'left', overflow: 'auto' }}>
             {selected && (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
@@ -219,7 +246,7 @@ const ContentArea = ({ account, selected, role }) => {
             {/* 分配成功的Toast */}
             <Toast onClose={() => setShowSuccessToast(false)} show={showSuccessToast} delay={3000} autohide position="top-end" style={{ position: 'absolute', top: 20, right: 20 }}>
                 <Toast.Header>
-                    <strong className="me-auto">分配成功</strong>
+                    <strong className="me-auto">成功</strong>
                     <small>刚刚</small>
                 </Toast.Header>
                 <Toast.Body>检测项目已成功分配！</Toast.Body>
