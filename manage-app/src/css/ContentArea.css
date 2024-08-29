@@ -55,7 +55,7 @@ button:hover {
 }
 
 /* 模态框和表单的样式 */
-.modal-header, .modal-footer {
+.modal-header {
     color: white;
     background-color: #5f87a0; /* 与表头背景色一致 */
 }
