@@ -3,8 +3,9 @@ const router = express.Router();
 const db = require('../models/database'); // 确保数据库模块正确导入
 
 router.get('/', async (req, res) => {
+    let status = req.query.status; // 获取请求中的状态参数
     try {
-        const results = await db.getAllTestItems();
+        const results = await db.getAllTestItems(status);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch test items:', error);
@@ -27,9 +28,8 @@ router.post('/assign', async (req, res) => {
 
 //更新状态
 router.post('/update-status', async (req, res) => {
-    const { testId, status } = req.body;
     try {
-        await db.updateTestItemStatus(testId, status); // 更新状态
+        await db.updateTestItemStatus(req.body); // 更新状态
         res.status(200).json({ success: true, message: "Test status updated successfully" });
     } catch (error) {
         console.error('Failed to update test status:', error);
@@ -40,8 +40,10 @@ router.post('/update-status', async (req, res) => {
 
 // Get all test items assigned to a specific user
 router.get('/assignments/:userId', async (req, res) => {
+    let status = req.query.status; // 获取请求中的状态参数
     try {
-        const results = await db.getAssignedTestsByUser(req.params.userId);
+
+        const results = await db.getAssignedTestsByUser(req.params.userId, status);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch assignments:', error);

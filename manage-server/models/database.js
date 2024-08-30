@@ -79,18 +79,29 @@ async function getAllSamples() {
     return results;
 }
 
-async function getAllTestItems() {
-    const query = `
+async function getAllTestItems(status) {
+    let query = `
         SELECT 
             t.test_item_id,
             t.original_no,
             t.test_item,
             t.test_method,
             t.order_num,
-            t.status
+            t.status,
+            t.machine_hours,
+            t.work_hours,
+            t.listed_price,
+            t.discounted_price,
+            t.equipment_id
         FROM test_items t
     `;
-    const [results] = await db.query(query);
+    const params = [];
+
+    if (status !== undefined && status !== '') {
+        query += ' WHERE t.status = ?';
+        params.push(status);
+    }
+    const [results] = await db.query(query, params);
     return results;
 }
 
@@ -99,11 +110,17 @@ async function assignTestToUser(testId, userId) {
     await db.query(query, [testId, userId]);
 }
 
-async function updateTestItemStatus(testId, status) {
-    const query = 'UPDATE test_items SET status =  ? WHERE test_item_id = ?';
+async function updateTestItemStatus(finishData) {
+    const query = `UPDATE 
+                    test_items 
+                        SET 
+                            status =  ? ,
+                            machine_hours = ?,
+                            work_hours = ?,
+                            equipment_id = ?
+                            WHERE test_item_id = ?`;
     try {
-        await db.query(query, [status, testId]);
-        console.log(`Status updated for test item ${testId} to ${status}`);
+        await db.query(query, [finishData.status, finishData.machine_hours, finishData.work_hours, finishData.equipment_id, finishData.testId]);
     } catch (error) {
         console.error('Failed to update test item status:', error);
         throw error; // Rethrowing the error is important if you want to handle it further up, e.g., in an Express route.
@@ -111,20 +128,32 @@ async function updateTestItemStatus(testId, status) {
 }
 
 
-async function getAssignedTestsByUser(userId) {
-    const query = `
+async function getAssignedTestsByUser(userId, status) {
+    let query = `
         SELECT 
             ti.test_item_id,
             ti.original_no,
             ti.test_item,
             ti.test_method,
             ti.order_num,
-            ti.status
+            ti.status,
+            ti.machine_hours,
+            ti.work_hours,
+            ti.listed_price,
+            ti.discounted_price,
+            ti.equipment_id
         FROM assignments a
         JOIN test_items ti ON a.test_item_id = ti.test_item_id
         WHERE a.account = ?
     `;
-    const [results] = await db.query(query, [userId]);
+
+    const params = [];
+
+    if (status !== undefined && status !== '') {
+        query += ' AND ti.status = ?';
+        params.push(status);
+    }
+    const [results] = await db.query(query, [userId, status]);
     return results;
 }
 

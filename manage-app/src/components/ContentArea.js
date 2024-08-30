@@ -4,38 +4,47 @@ import { Modal, Button, Form, Toast } from 'react-bootstrap'; // 使用React Boo
 import '../css/ContentArea.css'
 
 
-const ContentArea = ({ account, selected, role }) => {
+const ContentArea = ({ account, selected, role}) => {
     const [data, setData] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [currentItem, setCurrentItem] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
-    const [error, setError ] = useState('');
+    const [error, setError] = useState('');
+    const [showFinishModal, setShowFinishModal] = useState(false);
+    const [filterStatus, setFilterStatus] = useState('');
+
+    const [finishData, setFinishData] = useState({
+        machine_hours: '',
+        work_hours: '',
+        operator: account, // 默认为当前登录的账户
+        equipment_id: ''
+    });
 
     const [showAssignmentModal, setShowAssignmentModal] = useState(false);
     const [assignmentInfo, setAssignmentInfo] = useState('');
 
     const statusLabels = {
-        0: '待检测', 
+        0: '待检测',
         1: '已检测'
     };
 
     const serviceTypeLabels = {
         1: '常规(正常排单周期)',
-        2:'加急',
-        3:'特急'
+        2: '加急',
+        3: '特急'
     };
 
     const fetchData = useCallback(async (endpoint) => {
         try {
-            const response = await axios.get(`http://localhost:3003/api/${endpoint}`);
+            const response = await axios.get(`http://localhost:3003/api/${endpoint}?status=${filterStatus}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching data:', error);
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [setError]);
+    }, [setError, filterStatus]);
 
 
     useEffect(() => {
@@ -50,15 +59,15 @@ const ContentArea = ({ account, selected, role }) => {
                 fetchData('tests');
             }
         }
-        
+
     }, [selected, account, role, fetchData]);
 
 
-    
+
 
     const fetchDataForEmployee = async (account) => {
         try {
-            const response = await axios.get(`http://localhost:3003/api/tests/assignments/${account}`);
+            const response = await axios.get(`http://localhost:3003/api/tests/assignments/${account}?status=${filterStatus}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
@@ -100,26 +109,18 @@ const ContentArea = ({ account, selected, role }) => {
         setShowAssignmentModal(true);
     };
 
-    const handleFinish = async (testId) => {
-        try {
-            await axios.post('http://localhost:3003/api/tests/update-status', { testId, status: 1 });
-            // 可能需要重新获取数据或更新UI
-            setShowSuccessToast(true); // 显示成功的Toast
-            setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast
-            fetchData(selected);
-
-        } catch (error) {
-            console.error('Error completing test:', error);
-        }
-    }
-
     const submitAssignment = useCallback(async () => {
         try {
             const payload = { testItemId: currentItem.testItemId, assignmentInfo };
             await axios.post(`http://localhost:3003/api/tests/assign`, payload);
             setShowAssignmentModal(false);
             setAssignmentInfo(''); // 清空分配信息
-            fetchData(selected); // 刷新数据
+            // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
+            if (role === 'employee' && selected === 'handleTests') {
+                fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
+            } else {
+                fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
+            }            
             setShowSuccessToast(true); // 显示成功的Toast
             setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast
         } catch (error) {
@@ -129,21 +130,71 @@ const ContentArea = ({ account, selected, role }) => {
         }
     }, [currentItem, assignmentInfo, selected, fetchData, setError]);
 
+    //定义打开和关闭 完成Modal 的函数
+    const handleOpenFinishModal = (item) => {
+        // 可以根据需要预填充已知数据
+        setFinishData({
+            test_item_id: item.test_item_id, // 保存当前项目ID以便提交时使用
+            machine_hours: '',
+            work_hours: '',
+            operator: account,
+            equipment_id: ''
+        });
+        setShowFinishModal(true);
+    };
+
+    const handleCloseFinishModal = () => {
+        setShowFinishModal(false);
+    };
+
+    //完成按钮
+    const handleFinishTest = async () => {
+        const { test_item_id, machine_hours, work_hours, operator, equipment_id } = finishData;
+        try {
+            await axios.post('http://localhost:3003/api/tests/update-status', {
+                testId: test_item_id,
+                status: 1,  // 标记为已检测
+                machine_hours,
+                work_hours,
+                operator,
+                equipment_id
+            });
+            setShowFinishModal(false); // 成功后关闭 Modal
+            setShowSuccessToast(true); // 显示成功提示
+            setTimeout(() => setShowSuccessToast(false), 3000);
+            // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
+            if (role === 'employee' && selected === 'handleTests') {
+                fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
+            } else {
+                fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
+            }
+        } catch (error) {
+            console.error('Error finishing test:', error);
+            setError('Failed to complete test'); // 更新错误状态
+            setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
+        }
+    };
+
 
     const renderTable = () => {
         let headers = [];
         let rows = [];
         if (role === 'employee' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["ID", "样品原号", "分配给我的检测项目", "状态", "操作"];
+            headers = ["ID", "样品原号", "分配给我的检测项目", "机时", "工时", "设备名称", "状态", "操作"];
             rows = data.map((item, index) => (
                 <tr key={index}>
                     <td>{item.test_item_id}</td>
                     <td>{item.original_no}</td>
                     <td>{item.test_item}</td>
+                    <td>{item.machine_hours}</td>
+                    <td>{item.work_hours}</td>
+                    <td>{item.equipment_id}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
-                        <Button onClick={() => handleFinish(item.test_item_id)}>完成</Button>
+                        <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
+                        <Button onClick={() => handleAssignment(item.test_item_id)}>转办</Button>
+
                     </td>
                 </tr>
             ));
@@ -195,7 +246,7 @@ const ContentArea = ({ account, selected, role }) => {
                     ));
                     break;
                 case 'getTests':
-                    headers = ["ID", "样品原号", "检测项目", "方法", "委托单号", "状态", "操作"];
+                    headers = ["ID", "样品原号", "检测项目", "方法", "委托单号",  "机时", "工时", "设备名称", "状态", "操作"];
                     rows = data.map((item, index) => (
                         <tr key={index}>
                             <td>{item.test_item_id}</td>
@@ -203,6 +254,9 @@ const ContentArea = ({ account, selected, role }) => {
                             <td>{item.test_item}</td>
                             <td>{item.test_method}</td>
                             <td>{item.order_num}</td>
+                            <td>{item.machine_hours}</td>
+                            <td>{item.work_hours}</td>
+                            <td>{item.equipment_id}</td>
                             <td>{statusLabels[item.status]}</td>
                             <td>
                                 <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
@@ -229,6 +283,12 @@ const ContentArea = ({ account, selected, role }) => {
             {selected && (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
+                    <span>请选择状态进行筛选：</span>
+                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                        <option value="">全部状态</option>
+                        <option value="0">待检测</option>
+                        <option value="1">已检测</option>
+                    </select>
                     <table>
                         <thead>
                             <tr>{headers.map(header => <th key={header}>{header}</th>)}</tr>
@@ -319,6 +379,52 @@ const ContentArea = ({ account, selected, role }) => {
                 </Modal.Footer>
             </Modal>
 
+            {/* 完成按钮modal */}
+            <Modal show={showFinishModal} onHide={handleCloseFinishModal}>
+                <Modal.Header closeButton>
+                    <Modal.Title>完成检测</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group>
+                            <Form.Label>机时</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={finishData.machine_hours}
+                                onChange={e => setFinishData({ ...finishData, machine_hours: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group>
+                            <Form.Label>工时</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={finishData.work_hours}
+                                onChange={e => setFinishData({ ...finishData, work_hours: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group>
+                            <Form.Label>操作员</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={finishData.operator}
+                                disabled // 操作员默认为登录账户，禁止编辑
+                            />
+                        </Form.Group>
+                        <Form.Group>
+                            <Form.Label>设备名称</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={finishData.equipment_id}
+                                onChange={e => setFinishData({ ...finishData, equipment_id: e.target.value })}
+                            />
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={handleCloseFinishModal}>取消</Button>
+                    <Button variant="primary" onClick={handleFinishTest}>保存</Button>
+                </Modal.Footer>
+            </Modal>
 
         </div>
     );
