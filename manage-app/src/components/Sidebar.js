@@ -13,7 +13,7 @@ const Sidebar = ({ onSelect, selected, role  }) => {
                         <li className={selected === 'getReports' ? 'active' : ''} onClick={() => onSelect('getReports')}>报告管理</li>
                     </>
                 )}
-                {role === 'employee' && (
+                {(role === 'employee' || role === 'supervisor')&& (
                     <li className={selected === 'handleTests' ? 'active' : ''} onClick={() => onSelect('handleTests')}>检测项目处理</li>
                 )}
             </ul>

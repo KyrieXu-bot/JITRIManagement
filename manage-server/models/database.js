@@ -79,7 +79,7 @@ async function getAllSamples() {
     return results;
 }
 
-async function getAllTestItems(status) {
+async function getAllTestItems(status, departmentId) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -97,9 +97,19 @@ async function getAllTestItems(status) {
     `;
     const params = [];
 
-    if (status !== undefined && status !== '') {
-        query += ' WHERE t.status = ?';
-        params.push(status);
+
+    if (departmentId !== undefined && departmentId !== '') {
+        query += ' WHERE t.department_id = ?';
+        params.push(departmentId);
+        if (status !== undefined && status !== '') {
+            query += ' AND t.status = ?';
+            params.push(status);
+        }
+    }else{
+        if (status !== undefined && status !== '') {
+            query += ' WHERE t.status = ?';
+            params.push(status);
+        }
     }
     const [results] = await db.query(query, params);
     return results;
@@ -109,6 +119,12 @@ async function assignTestToUser(testId, userId) {
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
     await db.query(query, [testId, userId]);
 }
+
+async function reassignTestToUser(newAccount, testItemId) {
+    const query = `UPDATE assignments SET account = ? WHERE test_item_id = ?`;
+    await db.query(query, [newAccount, testItemId]);
+}
+
 
 async function updateTestItemStatus(finishData) {
     const query = `UPDATE 
@@ -157,6 +173,13 @@ async function getAssignedTestsByUser(userId, status) {
     return results;
 }
 
+
+async function updateTestItemPrice(testItemId, listedPrice) {
+    const query = `UPDATE test_items SET listed_price = ? WHERE test_item_id = ?`;
+    const [results] = await db.query(query, [listedPrice, testItemId]);
+    return results;
+}
+
 module.exports = {
     findUserByAccount,
     getAllOrders, 
@@ -166,5 +189,7 @@ module.exports = {
     updateTestItemStatus,
     getAllSamples,
     getAllTestItems,
-    getAssignedTestsByUser
+    getAssignedTestsByUser,
+    reassignTestToUser,
+    updateTestItemPrice
 };

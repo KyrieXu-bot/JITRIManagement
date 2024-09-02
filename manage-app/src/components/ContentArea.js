@@ -4,7 +4,8 @@ import { Modal, Button, Form, Toast } from 'react-bootstrap'; // 使用React Boo
 import '../css/ContentArea.css'
 
 
-const ContentArea = ({ account, selected, role}) => {
+const ContentArea = ({departmentID, account, selected, role }) => {
+
     const [data, setData] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [currentItem, setCurrentItem] = useState({});
@@ -50,21 +51,24 @@ const ContentArea = ({ account, selected, role}) => {
     useEffect(() => {
         if (role === 'employee' && selected === 'handleTests') {
             fetchDataForEmployee(account);
+        } else if(role === 'supervisor'){
+            fetchDataForSupervisor(departmentID);
         } else {
             if (selected === 'getCommission') {
                 fetchData('orders');
             } else if (selected === 'getSamples') {
                 fetchData('samples');
             } else if (selected === 'getTests') {
+                console.log("ddddd")
                 fetchData('tests');
             }
         }
 
-    }, [selected, account, role, fetchData]);
+    }, [selected, account, departmentID, role, fetchData]);
 
 
 
-
+    //拉取工程师显示数据
     const fetchDataForEmployee = async (account) => {
         try {
             const response = await axios.get(`http://localhost:3003/api/tests/assignments/${account}?status=${filterStatus}`);
@@ -73,6 +77,23 @@ const ContentArea = ({ account, selected, role}) => {
             console.error('Error fetching assigned tests:', error);
         }
     };
+
+    //拉取组长显示数据
+    const fetchDataForSupervisor = useCallback(async (departmentId) => {
+        try {
+            const params = new URLSearchParams();
+            if (filterStatus) params.append('status', filterStatus);
+            if (departmentId) params.append('departmentId', departmentId);  // 添加部门ID到请求参数
+    
+            const response = await axios.get(`http://localhost:3003/api/tests?${params}`);
+            setData(response.data);
+        } catch (error) {
+            console.error('Error fetching data for supervisor:', error);
+            setError('Failed to fetch data');
+            setTimeout(() => setError(''), 3000);
+        }
+    }, [filterStatus, setError]);
+    
 
     const handleEdit = (item) => {
         setCurrentItem(item);
@@ -119,8 +140,8 @@ const ContentArea = ({ account, selected, role}) => {
             if (role === 'employee' && selected === 'handleTests') {
                 fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
             } else {
-                fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
-            }            
+                fetchData('tests'); // 对于非 handleTests 的情况，根据 selected 重新获取数据
+            }
             setShowSuccessToast(true); // 显示成功的Toast
             setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast
         } catch (error) {
@@ -128,9 +149,32 @@ const ContentArea = ({ account, selected, role}) => {
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [currentItem, assignmentInfo, selected, fetchData, setError]);
+    }, [currentItem, account, role, assignmentInfo, selected, fetchData, setError, fetchDataForEmployee]);
 
-    //定义打开和关闭 完成Modal 的函数
+    // 转办
+    const handleReassignment = async (testItemId) => {
+        const newAccount = prompt("请输入想要转办的人员工号/账号:");
+        if (newAccount && newAccount !== '') {
+            try {
+                await axios.post('http://localhost:3003/api/tests/reassign', { testItemId, newAccount });
+                // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
+                if (role === 'employee' && selected === 'handleTests') {
+                    fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
+                } else {
+                    fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
+                }
+                setShowSuccessToast(true); // Show success message
+                setTimeout(() => setShowSuccessToast(false), 3000);
+            } catch (error) {
+                console.error('Error reassigning test item:', error);
+                setError('Failed to reassign test item');
+                setTimeout(() => setError(''), 3000);
+            }
+        }
+    };
+
+
+    //定义打开和关闭 完成Modal 的函数 
     const handleOpenFinishModal = (item) => {
         // 可以根据需要预填充已知数据
         setFinishData({
@@ -176,6 +220,22 @@ const ContentArea = ({ account, selected, role}) => {
     };
 
 
+    // 在ContentArea.js或相应的组件中
+    const handleQuote = async (testItemId) => {
+        const newPrice = prompt("请输入价格:");
+        if (newPrice && !isNaN(parseFloat(newPrice))) {
+            try {
+                const response = await axios.patch(`http://localhost:3003/api/tests/${testItemId}/price`, { listedPrice: newPrice });
+                console.log(response.data.message);
+                fetchDataForSupervisor(departmentID); // 重新获取数据以更新UI
+            } catch (error) {
+                console.error('Error updating price:', error);
+            }
+        } else {
+            alert("请输入有效的价格");
+        }
+    };
+
     const renderTable = () => {
         let headers = [];
         let rows = [];
@@ -193,13 +253,35 @@ const ContentArea = ({ account, selected, role}) => {
                     <td>{statusLabels[item.status]}</td>
                     <td>
                         <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
-                        <Button onClick={() => handleAssignment(item.test_item_id)}>转办</Button>
-
+                        {/* 只有当状态不是'1'（已检测）时，才显示转办按钮 */}
+                        {item.status !== '1' && (
+                            <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
+                        )}
                     </td>
                 </tr>
             ));
             return { headers, rows };
-        } else {
+        } else if (role === 'supervisor' && selected === 'handleTests'){
+            // 为员工定制的视图逻辑
+            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "状态", "操作"];
+            rows = data.map((item, index) => (
+                <tr key={index}>
+                    <td>{item.test_item_id}</td>
+                    <td>{item.original_no}</td>
+                    <td>{item.test_item}</td>
+                    <td>{item.machine_hours}</td>
+                    <td>{item.work_hours}</td>
+                    <td>{item.equipment_id}</td>
+                    <td>{item.listed_price}</td>
+                    <td>{statusLabels[item.status]}</td>
+                    <td>
+                        <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
+                    </td>
+                </tr>
+            ));
+            return { headers, rows };
+        }
+        else {
             // 默认视图
 
             switch (selected) {
@@ -246,7 +328,7 @@ const ContentArea = ({ account, selected, role}) => {
                     ));
                     break;
                 case 'getTests':
-                    headers = ["ID", "样品原号", "检测项目", "方法", "委托单号",  "机时", "工时", "设备名称", "状态", "操作"];
+                    headers = ["ID", "样品原号", "检测项目", "方法", "委托单号", "机时", "工时", "设备名称", "状态", "操作"];
                     rows = data.map((item, index) => (
                         <tr key={index}>
                             <td>{item.test_item_id}</td>
@@ -259,7 +341,10 @@ const ContentArea = ({ account, selected, role}) => {
                             <td>{item.equipment_id}</td>
                             <td>{statusLabels[item.status]}</td>
                             <td>
-                                <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
+                                {/* 只有当状态不是'1'（已检测）时，才显示分配按钮 */}
+                                {item.status !== '1' && (
+                                    <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
+                                )}
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
                                 <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
                             </td>
