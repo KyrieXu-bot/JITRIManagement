@@ -117,7 +117,9 @@ async function getAllTestItems(status, departmentId) {
 
 async function assignTestToUser(testId, userId) {
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
+    const updateQuery = 'UPDATE test_items SET status = ? WHERE test_item_id = ?';
     await db.query(query, [testId, userId]);
+    await db.query(updateQuery, ['1', testId])
 }
 
 async function reassignTestToUser(newAccount, testItemId) {
@@ -127,6 +129,7 @@ async function reassignTestToUser(newAccount, testItemId) {
 
 
 async function updateTestItemStatus(finishData) {
+    console.log(finishData)
     const query = `UPDATE 
                     test_items 
                         SET 
@@ -180,6 +183,35 @@ async function updateTestItemPrice(testItemId, listedPrice) {
     return results;
 }
 
+
+
+async function getAllSupervisors(departmentId) {
+    const query = `
+        SELECT 
+            u.name,
+            u.account
+        FROM users u
+        WHERE u.role = 'supervisor' AND u.department_id = ?
+
+    `;
+    const [results] = await db.query(query, [departmentId]);
+    return results;
+}
+
+async function getAllEmployees(departmentId) {
+    const query = `
+        SELECT 
+            u.name,
+            u.account
+        FROM users u
+        WHERE u.role = 'employee' AND u.department_id = ?
+
+    `;
+    const [results] = await db.query(query, [departmentId]);
+    return results;
+}
+
+
 module.exports = {
     findUserByAccount,
     getAllOrders, 
@@ -191,5 +223,7 @@ module.exports = {
     getAllTestItems,
     getAssignedTestsByUser,
     reassignTestToUser,
-    updateTestItemPrice
+    updateTestItemPrice,
+    getAllSupervisors,
+    getAllEmployees
 };

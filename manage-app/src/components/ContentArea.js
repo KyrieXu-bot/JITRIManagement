@@ -4,16 +4,17 @@ import { Modal, Button, Form, Toast } from 'react-bootstrap'; // 使用React Boo
 import '../css/ContentArea.css'
 
 
-const ContentArea = ({departmentID, account, selected, role }) => {
+const ContentArea = ({ departmentID, account, selected, role }) => {
 
     const [data, setData] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [currentItem, setCurrentItem] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
-    const [error, setError] = useState('');
+    const [, setError] = useState('');
     const [showFinishModal, setShowFinishModal] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
+    const [assignableUsers, setAssignableUsers] = useState([]);
 
     const [finishData, setFinishData] = useState({
         machine_hours: '',
@@ -26,8 +27,10 @@ const ContentArea = ({departmentID, account, selected, role }) => {
     const [assignmentInfo, setAssignmentInfo] = useState('');
 
     const statusLabels = {
-        0: '待检测',
-        1: '已检测'
+        0: '待分配',
+        1: '已分配待检测',
+        2: '已检测待审批',
+        3: '审批通过'
     };
 
     const serviceTypeLabels = {
@@ -47,36 +50,15 @@ const ContentArea = ({departmentID, account, selected, role }) => {
         }
     }, [setError, filterStatus]);
 
-
-    useEffect(() => {
-        if (role === 'employee' && selected === 'handleTests') {
-            fetchDataForEmployee(account);
-        } else if(role === 'supervisor'){
-            fetchDataForSupervisor(departmentID);
-        } else {
-            if (selected === 'getCommission') {
-                fetchData('orders');
-            } else if (selected === 'getSamples') {
-                fetchData('samples');
-            } else if (selected === 'getTests') {
-                console.log("ddddd")
-                fetchData('tests');
-            }
-        }
-
-    }, [selected, account, departmentID, role, fetchData]);
-
-
-
     //拉取工程师显示数据
-    const fetchDataForEmployee = async (account) => {
+    const fetchDataForEmployee = useCallback(async (account) => {
         try {
             const response = await axios.get(`http://localhost:3003/api/tests/assignments/${account}?status=${filterStatus}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
         }
-    };
+    }, [filterStatus]);
 
     //拉取组长显示数据
     const fetchDataForSupervisor = useCallback(async (departmentId) => {
@@ -84,7 +66,7 @@ const ContentArea = ({departmentID, account, selected, role }) => {
             const params = new URLSearchParams();
             if (filterStatus) params.append('status', filterStatus);
             if (departmentId) params.append('departmentId', departmentId);  // 添加部门ID到请求参数
-    
+
             const response = await axios.get(`http://localhost:3003/api/tests?${params}`);
             setData(response.data);
         } catch (error) {
@@ -93,7 +75,59 @@ const ContentArea = ({departmentID, account, selected, role }) => {
             setTimeout(() => setError(''), 3000);
         }
     }, [filterStatus, setError]);
-    
+
+    // 拉取可分配的用户列表
+    const fetchAssignableUsers = useCallback(async () => {
+        try {
+            let endpoint = '';
+            if (role === 'leader') {
+                endpoint = `/api/users/supervisors?departmentId=${departmentID}`;
+            } else if (role === 'supervisor') {
+                endpoint = `/api/users/employees?departmentId=${departmentID}`;
+            }
+            const response = await axios.get(`http://localhost:3003${endpoint}`);
+            const users = response.data;
+            setAssignableUsers(users);
+            if (users && users.length > 0) {
+                setAssignmentInfo(users[0].account); // 设置默认选项为列表的第一个账号
+            } else {
+                setAssignmentInfo(''); // 如果没有可分配用户，清空当前选择
+            }
+        } catch (error) {
+            console.error('Failed to fetch assignable users:', error);
+        }
+    }, [role, departmentID]);
+
+
+    useEffect(() => {
+        if (role === 'employee' && selected === 'handleTests') {
+            fetchDataForEmployee(account);
+        } else if (role === 'supervisor' || role === 'leader') {
+            fetchDataForSupervisor(departmentID);
+        } else {
+            if (selected === 'getCommission') {
+                fetchData('orders');
+            } else if (selected === 'getSamples') {
+                fetchData('samples');
+            } else if (selected === 'getTests') {
+                fetchData('tests');
+            }
+        }
+        if (role === 'leader' || role === 'supervisor') {
+            fetchAssignableUsers();
+        }
+    }, [selected,
+        account,
+        departmentID,
+        role,
+        fetchData,
+        fetchDataForEmployee,
+        fetchDataForSupervisor,
+        fetchAssignableUsers
+    ]);
+
+
+
 
     const handleEdit = (item) => {
         setCurrentItem(item);
@@ -139,7 +173,10 @@ const ContentArea = ({departmentID, account, selected, role }) => {
             // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
             if (role === 'employee' && selected === 'handleTests') {
                 fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
-            } else {
+            } else if((role === 'supervisor' || role === 'leader' )&& selected === 'handleTests'){
+                fetchDataForSupervisor(departmentID)
+            }
+            else {
                 fetchData('tests'); // 对于非 handleTests 的情况，根据 selected 重新获取数据
             }
             setShowSuccessToast(true); // 显示成功的Toast
@@ -149,7 +186,16 @@ const ContentArea = ({departmentID, account, selected, role }) => {
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [currentItem, account, role, assignmentInfo, selected, fetchData, setError, fetchDataForEmployee]);
+    }, [currentItem, 
+        account, 
+        role, 
+        assignmentInfo, 
+        selected, 
+        fetchData, 
+        setError, 
+        fetchDataForEmployee, 
+        departmentID,
+        fetchDataForSupervisor]);
 
     // 转办
     const handleReassignment = async (testItemId) => {
@@ -197,7 +243,7 @@ const ContentArea = ({departmentID, account, selected, role }) => {
         try {
             await axios.post('http://localhost:3003/api/tests/update-status', {
                 testId: test_item_id,
-                status: 1,  // 标记为已检测
+                status: 2,  // 标记为已检测
                 machine_hours,
                 work_hours,
                 operator,
@@ -253,15 +299,15 @@ const ContentArea = ({departmentID, account, selected, role }) => {
                     <td>{statusLabels[item.status]}</td>
                     <td>
                         <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
-                        {/* 只有当状态不是'1'（已检测）时，才显示转办按钮 */}
-                        {item.status !== '1' && (
+                        {/* 只有当状态不是'2'（已检测）时，才显示转办按钮 */}
+                        {(item.status !== '2' || item.status !== '3') && (
                             <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
                         )}
                     </td>
                 </tr>
             ));
             return { headers, rows };
-        } else if (role === 'supervisor' && selected === 'handleTests'){
+        } else if (role === 'supervisor' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
             headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "状态", "操作"];
             rows = data.map((item, index) => (
@@ -274,8 +320,39 @@ const ContentArea = ({departmentID, account, selected, role }) => {
                     <td>{item.equipment_id}</td>
                     <td>{item.listed_price}</td>
                     <td>{statusLabels[item.status]}</td>
+
                     <td>
+                        {item.status === '0' && (
+                            <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
+                        )}
                         <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
+                    </td>
+                </tr>
+            ));
+            return { headers, rows };
+        } else if (role === 'leader' && selected === 'handleTests') {
+            // 为员工定制的视图逻辑
+            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "操作"];
+            rows = data.map((item, index) => (
+                <tr key={index}>
+                    <td>{item.test_item_id}</td>
+                    <td>{item.original_no}</td>
+                    <td>{item.test_item}</td>
+                    <td>{item.machine_hours}</td>
+                    <td>{item.work_hours}</td>
+                    <td>{item.equipment_id}</td>
+                    <td>{item.listed_price}</td>
+                    <td>{item.diescounted_price}</td>
+                    <td>{statusLabels[item.status]}</td>
+                    <td>
+                        {/* 只有当状态不是'1'（已检测）时，才显示分配按钮 */}
+                        {item.status === '0' && (
+                            <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
+                        )}
+                        {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
+                        {item.status === '2' && item.listed_price && (
+                            <Button onClick={() => handleReassignment(item.test_item_id)}>审核</Button>
+                        )}
                     </td>
                 </tr>
             ));
@@ -341,8 +418,8 @@ const ContentArea = ({departmentID, account, selected, role }) => {
                             <td>{item.equipment_id}</td>
                             <td>{statusLabels[item.status]}</td>
                             <td>
-                                {/* 只有当状态不是'1'（已检测）时，才显示分配按钮 */}
-                                {item.status !== '1' && (
+                                {/* 当状态是待检测时，显示分配按钮 */}
+                                {item.status === '0' && (
                                     <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                                 )}
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
@@ -371,8 +448,10 @@ const ContentArea = ({departmentID, account, selected, role }) => {
                     <span>请选择状态进行筛选：</span>
                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                         <option value="">全部状态</option>
-                        <option value="0">待检测</option>
-                        <option value="1">已检测</option>
+                        <option value="0">待分配</option>
+                        <option value="1">已分配待检测</option>
+                        <option value="2">已检测待审批</option>
+                        <option value="3">审批通过</option>
                     </select>
                     <table>
                         <thead>
@@ -448,12 +527,24 @@ const ContentArea = ({departmentID, account, selected, role }) => {
                     <Form>
                         <Form.Group controlId="formAssignmentInfo">
                             <Form.Label>将检测分配给：</Form.Label>
-                            <Form.Control
+                            {/* <Form.Control
                                 type="text"
                                 placeholder="请输入检测人员工号"
                                 value={assignmentInfo}
                                 onChange={(e) => setAssignmentInfo(e.target.value)}
-                            />
+                            /> */}
+
+                            <Form.Control
+                                as="select"
+                                value={assignmentInfo}
+                                onChange={(e) => setAssignmentInfo(e.target.value)}
+                            >
+                                {assignableUsers.map(user => (
+                                    <option key={user.account} value={user.account}>
+                                        {user.name} ({user.account})
+                                    </option>
+                                ))}
+                            </Form.Control>
                         </Form.Group>
                     </Form>
                 </Modal.Body>

@@ -6,6 +6,7 @@ const ordersRoutes = require('./routes/orders')
 const samplesRoutes = require('./routes/samples')
 const testsRoutes = require('./routes/tests')
 const loginRoutes = require('./routes/login')
+const usersRoutes = require('./routes/users')
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use('/api/orders', ordersRoutes);
 app.use('/api/samples', samplesRoutes);
 app.use('/api/tests', testsRoutes);
 app.use('/api/login', loginRoutes);
+app.use('/api/users', usersRoutes);
 
 app.listen(3003, () => {
     console.log('Server running on http://localhost:3003');

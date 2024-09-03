@@ -19,7 +19,6 @@ router.post('/assign', async (req, res) => {
     const { testItemId, assignmentInfo } = req.body;
     try {
         await db.assignTestToUser(testItemId, assignmentInfo);
-        await db.updateTestItemStatus(testItemId, 0); // 设置状态为“待检测”
         res.status(200).json({ success: true, message: "检测项目分配成功" });
     } catch (error) {
         console.error('Failed to assign test:', error);
