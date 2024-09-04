@@ -11,13 +11,15 @@ function App() {
   const [userRole, setUserRole] = useState('');
   const [userAccount, setUserAccount] = useState('');
   const [userDepartment, setUserDepartment] = useState('');
+  const [userGroup, setUserGroup] = useState('');
+
 
   const handleLoginSuccess = (user) => {
     setIsLoggedIn(true); // 登录成功时更新状态
     setUserRole(user.role); // 存储用户角色状态
     setUserAccount(user.account); // 存储用户角色状态
     setUserDepartment(user.department_id); // 存储用户角色状态
-    console.log(userDepartment)
+    setUserGroup(user.group_id);
     localStorage.setItem('userRole', user.role); // 可选：也可存储到localStorage以便页面刷新后仍可用
   };
   return (
@@ -26,7 +28,13 @@ function App() {
           // 登录后显示的界面
           <>
               <Sidebar onSelect={setSelected} role={userRole} account={userAccount} departmentID={userDepartment} />
-              <ContentArea selected={selected} role={userRole} account={userAccount} departmentID={userDepartment}/>
+              <ContentArea 
+              selected={selected} 
+              role={userRole} 
+              account={userAccount} 
+              departmentID={userDepartment}
+              groupId={userGroup}
+              />
           </>
       ) : (
           // 未登录时显示登录界面

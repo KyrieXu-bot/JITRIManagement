@@ -50,7 +50,17 @@ router.post('/update-status', async (req, res) => {
     }
 });
 
-
+//更新审批状态
+router.post('/update-check', async (req, res) => {
+    try {
+        const { testItemId, status, checkNote } = req.body;
+        await db.updateTestItemCheckStatus(testItemId, status, checkNote);
+        res.json({ success: true, message: 'Test status updated successfully' });
+    } catch (error) {
+        console.error('Failed to update test status:', error);
+        res.status(500).send({ message: 'Failed to update test status', error: error.message });
+    }
+});
 // Get all test items assigned to a specific user
 router.get('/assignments/:userId', async (req, res) => {
     let status = req.query.status; // 获取请求中的状态参数

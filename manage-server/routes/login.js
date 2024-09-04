@@ -12,7 +12,8 @@ router.post('/', async (req, res) => {
     res.json({ success: true, message: '登录成功', user: {
       role:user.role,
       account:user.account,
-      department_id:user.department_id
+      department_id:user.department_id,
+      group_id: user.group_id
     } });
   } else {
     res.status(401).json({ success: false, message: '账号或密码错误' });

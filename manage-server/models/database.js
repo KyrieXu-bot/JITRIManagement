@@ -92,7 +92,8 @@ async function getAllTestItems(status, departmentId) {
             t.work_hours,
             t.listed_price,
             t.discounted_price,
-            t.equipment_id
+            t.equipment_id,
+            t.check_note
         FROM test_items t
     `;
     const params = [];
@@ -146,6 +147,14 @@ async function updateTestItemStatus(finishData) {
     }
 }
 
+async function updateTestItemCheckStatus(testItemId, status, checkNote) {
+    const query = `
+        UPDATE test_items
+        SET status = ?, check_note = ?
+        WHERE test_item_id = ?
+    `;
+    await db.query(query, [status, checkNote, testItemId]);
+}
 
 async function getAssignedTestsByUser(userId, status) {
     let query = `
@@ -212,6 +221,19 @@ async function getAllEmployees(departmentId) {
 }
 
 
+async function getUsersByGroupId(groupId) {
+    const query = `
+        SELECT 
+            u.name,
+            u.account,
+            u.role
+        FROM users u
+        WHERE u.group_id = ?
+    `;
+    const [results] = await db.query(query, [groupId]);
+    return results;
+}
+
 module.exports = {
     findUserByAccount,
     getAllOrders, 
@@ -225,5 +247,7 @@ module.exports = {
     reassignTestToUser,
     updateTestItemPrice,
     getAllSupervisors,
-    getAllEmployees
+    getAllEmployees,
+    getUsersByGroupId,
+    updateTestItemCheckStatus
 };
