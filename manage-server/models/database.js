@@ -79,7 +79,7 @@ async function getAllSamples() {
     return results;
 }
 
-async function getAllTestItems(status, departmentId) {
+async function getAllTestItems(status, departmentId, account) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -98,7 +98,10 @@ async function getAllTestItems(status, departmentId) {
     `;
     const params = [];
 
-
+    if(account !== undefined && account !== ''){
+        query += ' JOIN assignments a ON t.test_item_id = a.test_item_id AND a.account = ? ';
+        params.push(account);
+    }
     if (departmentId !== undefined && departmentId !== '') {
         query += ' WHERE t.department_id = ?';
         params.push(departmentId);
@@ -112,9 +115,11 @@ async function getAllTestItems(status, departmentId) {
             params.push(status);
         }
     }
+
     const [results] = await db.query(query, params);
     return results;
 }
+
 
 async function assignTestToUser(testId, userId) {
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
@@ -234,6 +239,18 @@ async function getUsersByGroupId(groupId) {
     return results;
 }
 
+
+async function getAssignmentsInfo(testItemId, account) {
+    const query = `
+        SELECT 
+            test_item_id,
+            account
+        FROM assignments
+        WHERE test_item_id = ? AND account = ?
+    `;
+    await db.query(query, [testItemId, account]);
+}
+
 module.exports = {
     findUserByAccount,
     getAllOrders, 
@@ -249,5 +266,6 @@ module.exports = {
     getAllSupervisors,
     getAllEmployees,
     getUsersByGroupId,
-    updateTestItemCheckStatus
+    updateTestItemCheckStatus,
+    getAssignmentsInfo
 };

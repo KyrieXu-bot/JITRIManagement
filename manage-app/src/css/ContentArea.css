@@ -2,12 +2,13 @@
 
 /* 主内容区域的基础样式 */
 .content {
+    max-height: 800px;
     width: 80%; /* 占据除侧边栏外的剩余宽度 */
     float: right; /* 使内容区在侧边栏右侧 */
     padding: 20px; /* 内边距 */
     background-color: #fff; /* 背景颜色 */
     box-sizing: border-box;
-    overflow: auto; /* 添加滚动条 */
+    overflow: scroll; /* 添加滚动条 */
 }
 
 /* 表格样式 */

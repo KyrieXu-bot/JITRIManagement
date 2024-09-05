@@ -5,8 +5,9 @@ const db = require('../models/database'); // 确保数据库模块正确导入
 router.get('/', async (req, res) => {
     let status = req.query.status; // 获取请求中的状态参数
     let departmentId = req.query.departmentId; // 获取请求中的部门参数
+    let account = req.query.account;
     try {
-        const results = await db.getAllTestItems(status, departmentId);
+        const results = await db.getAllTestItems(status, departmentId, account);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch test items:', error);
@@ -18,8 +19,12 @@ router.get('/', async (req, res) => {
 router.post('/assign', async (req, res) => {
     const { testItemId, assignmentInfo } = req.body;
     try {
-        await db.assignTestToUser(testItemId, assignmentInfo);
+        const results = db.getAssignmentsInfo(testItemId, assignmentInfo)
+        if(!results){
+            await db.assignTestToUser(testItemId, assignmentInfo);
+        }
         res.status(200).json({ success: true, message: "检测项目分配成功" });
+
     } catch (error) {
         console.error('Failed to assign test:', error);
         res.status(500).json({ success: false, message: "Failed to assign test", error: error.message });

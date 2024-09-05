@@ -71,7 +71,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
             const params = new URLSearchParams();
             if (filterStatus) params.append('status', filterStatus);
             if (departmentId) params.append('departmentId', departmentId);  // 添加部门ID到请求参数
+            if(role === 'supervisor'){
+                params.append('account', account)
 
+            }
             const response = await axios.get(`http://localhost:3003/api/tests?${params}`);
             setData(response.data);
         } catch (error) {
@@ -79,7 +82,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
             setError('Failed to fetch data');
             setTimeout(() => setError(''), 3000);
         }
-    }, [filterStatus, setError]);
+    }, [role, account, filterStatus, setError]);
 
     // 拉取可分配的用户列表
     const fetchAssignableUsers = useCallback(async () => {
@@ -197,8 +200,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
             const payload = { testItemId: currentItem.testItemId, assignmentInfo };
             await axios.post(`http://localhost:3003/api/tests/assign`, payload);
             isAssignedToMeRef.current = (assignmentInfo === account); // Update the ref value based on the condition
+            console.log('assignmentINfo', assignmentInfo)
+            console.log("dd", isAssignedToMeRef.current)
             setShowAssignmentModal(false);
-            setAssignmentInfo(''); // 清空分配信息
+            //setAssignmentInfo(''); // 清空分配信息
             // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
             if (role === 'employee' && selected === 'handleTests') {
                 fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
@@ -338,7 +343,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
         }
     };
 
-
+    console.log("isit true", isAssignedToMeRef)
     const renderTable = () => {
         let headers = [];
         let rows = [];
@@ -357,7 +362,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
                     <td>
                         <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
                         {/* 只有当状态不是'2'（已检测）时，才显示转办按钮 */}
-                        {(item.status !== '2' || item.status !== '3') && (
+                        {(item.status === '0' || item.status === '1') && (
                             <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
                         )}
                     </td>
@@ -382,13 +387,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
                     <td>{item.check_note}</td>
 
                     <td>
-                        {item.status === '1' && isAssignedToMeRef && (
+                        {(item.status === '1' && isAssignedToMeRef.current) && (
                             <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
                         )}
                         {item.status === '1' && role === 'supervisor' && (
-                            <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
+                            <Button onClick={() => handleAssignment(item.test_item_id)}>指派</Button>
                         )}             
-                        <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
+                        {item.status !== '3' && (
+                            <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>  
+                        )}
                     </td>
                 </tr>
             ));
@@ -508,7 +515,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
     const { headers, rows } = renderTable();
 
     return (
-        <div style={{ width: '80%', float: 'left', overflow: 'auto' }}>
+        <div>
             {selected && (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
@@ -522,15 +529,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
                         <option value="4">审批失败</option>
 
                     </select>
-                    <table>
-                        <thead>
-                            <tr>{headers.map(header => <th key={header}>{header}</th>)}</tr>
-                        </thead>
-                        <tbody>
-                            {rows}
+                    <div class='content'>
+                        <table>
+                            <thead>
+                                <tr>{headers.map(header => <th key={header}>{header}</th>)}</tr>
+                            </thead>
+                            <tbody>
+                                {rows}
 
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
+                    
 
 
                 </div>
