@@ -4,7 +4,7 @@ import { Modal, Button, Form, Toast } from 'react-bootstrap'; // 使用React Boo
 import '../css/ContentArea.css'
 
 
-const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
+const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout }) => {
 
     const [data, setData] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -16,7 +16,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
     const [filterStatus, setFilterStatus] = useState('');
     const [assignableUsers, setAssignableUsers] = useState([]);
     const [checkNote, setCheckNote] = useState('');
-
+    const [showAlert, setShowAlert] = useState(false);
+    const [alertMessage, setAlertMessage] = useState('');
     const isAssignedToMeRef = useRef(false); // Use useRef to persist state across renders
 
     const [finishData, setFinishData] = useState({
@@ -71,7 +72,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
             const params = new URLSearchParams();
             if (filterStatus) params.append('status', filterStatus);
             if (departmentId) params.append('departmentId', departmentId);  // 添加部门ID到请求参数
-            if(role === 'supervisor'){
+            if (role === 'supervisor') {
                 params.append('account', account)
 
             }
@@ -137,7 +138,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
         }
         if (role === 'leader') {
             fetchAssignableUsers();
-        } else if (role === 'supervisor'){
+        } else if (role === 'supervisor') {
             fetchGroupUsers(groupId)
         }
     }, [selected,
@@ -198,39 +199,45 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
     const submitAssignment = useCallback(async () => {
         try {
             const payload = { testItemId: currentItem.testItemId, assignmentInfo };
-            await axios.post(`http://localhost:3003/api/tests/assign`, payload);
+            const response = await axios.post(`http://localhost:3003/api/tests/assign`, payload);
             isAssignedToMeRef.current = (assignmentInfo === account); // Update the ref value based on the condition
-            console.log('assignmentINfo', assignmentInfo)
-            console.log("dd", isAssignedToMeRef.current)
             setShowAssignmentModal(false);
             //setAssignmentInfo(''); // 清空分配信息
             // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
             if (role === 'employee' && selected === 'handleTests') {
                 fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
-            } else if((role === 'supervisor' || role === 'leader' )&& selected === 'handleTests'){
+            } else if ((role === 'supervisor' || role === 'leader') && selected === 'handleTests') {
                 fetchDataForSupervisor(departmentID)
             }
             else {
                 fetchData('tests'); // 对于非 handleTests 的情况，根据 selected 重新获取数据
             }
-            setShowSuccessToast(true); // 显示成功的Toast
-            setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast
+
+            if (response.data.success) {
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast
+            } else {
+                setAlertMessage(response.data.message); // 设置从后端接收到的错误消息
+                setShowAlert(true);
+            }
         } catch (error) {
             console.error('Error submitting assignment:', error);
             setError('Failed to fetch data'); // 更新错误状态
+            setAlertMessage('该项目已分配给指定成员，请勿重复分配！');
+            setShowAlert(true);
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [currentItem, 
-        account, 
-        role, 
-        assignmentInfo, 
-        selected, 
-        fetchData, 
-        setError, 
-        fetchDataForEmployee, 
+    }, [currentItem,
+        account,
+        role,
+        assignmentInfo,
+        selected,
+        fetchData,
+        setError,
+        fetchDataForEmployee,
         departmentID,
         fetchDataForSupervisor,
-        
+
     ]);
 
     // 转办
@@ -289,7 +296,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
             setShowSuccessToast(true); // 显示成功提示
             setTimeout(() => setShowSuccessToast(false), 3000);
             // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
-            if (role === 'employee' && selected === 'handleTests') {
+            if ((role === 'employee' || role === 'supervisor')&& selected === 'handleTests') {
                 fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
             } else {
                 fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
@@ -328,7 +335,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
         };
         updateTestStatus(payload);
     };
-    
+
     const updateTestStatus = async (payload) => {
         try {
             await axios.post(`http://localhost:3003/api/tests/update-check`, payload);
@@ -343,7 +350,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
         }
     };
 
-    console.log("isit true", isAssignedToMeRef)
     const renderTable = () => {
         let headers = [];
         let rows = [];
@@ -372,7 +378,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
         } else if (role === 'supervisor' && selected === 'handleTests') {
 
             // 为员工定制的视图逻辑
-            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "状态", "审批意见","操作"];
+            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "状态", "审批意见", "操作"];
             rows = data.map((item, index) => (
 
                 <tr key={index}>
@@ -392,9 +398,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
                         )}
                         {item.status === '1' && role === 'supervisor' && (
                             <Button onClick={() => handleAssignment(item.test_item_id)}>指派</Button>
-                        )}             
+                        )}
                         {item.status !== '3' && (
-                            <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>  
+                            <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
                         )}
                     </td>
                 </tr>
@@ -402,7 +408,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "审批意见","操作"];
+            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "审批意见", "操作"];
             rows = data.map((item, index) => (
                 <tr key={index}>
                     <td>{item.test_item_id}</td>
@@ -516,6 +522,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
 
     return (
         <div>
+            <nav>
+                <span>{account},欢迎访问集萃检测管理系统</span>
+                <button onClick={ onLogout }>登出</button>
+            </nav>
             {selected && (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
@@ -540,7 +550,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
                             </tbody>
                         </table>
                     </div>
-                    
+
 
 
                 </div>
@@ -708,6 +718,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId }) => {
                 </Modal.Footer>
             </Modal>
 
+
+
+            <Modal show={showAlert} onHide={() => setShowAlert(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>分配状态</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>{alertMessage}</Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowAlert(false)}>关闭</Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

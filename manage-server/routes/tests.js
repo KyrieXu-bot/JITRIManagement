@@ -19,11 +19,22 @@ router.get('/', async (req, res) => {
 router.post('/assign', async (req, res) => {
     const { testItemId, assignmentInfo } = req.body;
     try {
-        const results = db.getAssignmentsInfo(testItemId, assignmentInfo)
-        if(!results){
+        const results = await db.getAssignmentsInfo(testItemId, assignmentInfo)
+        if(!results || results.length === 0){
             await db.assignTestToUser(testItemId, assignmentInfo);
+            res.status(200).json({ success: true, message: "检测项目分配成功" });
+        }else{
+            const userResult = await db.findUserByAccount(assignmentInfo);
+            if(userResult.role != 'supervisor'){
+                // 如果数据库查询结果表明该项目已被分配并且不是组长指派的
+                console.log("im not supervisor")
+                res.status(409).json({ success: false, message: "项目已经被分配" });
+            }else{
+                console.log("im supervisor")
+                res.status(200).json({ success: true, message: "检测项目分配成功" });
+            }
+
         }
-        res.status(200).json({ success: true, message: "检测项目分配成功" });
 
     } catch (error) {
         console.error('Failed to assign test:', error);

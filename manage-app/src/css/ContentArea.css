@@ -82,3 +82,8 @@ button:hover {
     border: 1px solid #ddd;
     border-radius: 5px;
 }
+
+nav{
+    text-align: right;
+    padding:10px 20px 10px 10px;
+}

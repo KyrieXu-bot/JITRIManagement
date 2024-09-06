@@ -248,7 +248,8 @@ async function getAssignmentsInfo(testItemId, account) {
         FROM assignments
         WHERE test_item_id = ? AND account = ?
     `;
-    await db.query(query, [testItemId, account]);
+    const [results] = await db.query(query, [testItemId, account]);
+    return results;
 }
 
 module.exports = {
