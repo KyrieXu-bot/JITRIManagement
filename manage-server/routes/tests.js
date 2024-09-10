@@ -105,4 +105,17 @@ router.patch('/:testItemId/price', async (req, res) => {
     }
 });
 
+// 获取同一组的用户
+router.get('/equipments', async (req, res) => {
+    try {
+        const { departmentId } = req.query;
+        const equipments = await db.getEquipmentsByDepartment(departmentId);
+        res.json(equipments);
+    } catch (error) {
+        console.error('Failed to fetch equipments:', error);
+        res.status(500).send({ message: 'Failed to fetch equipments', error: error.message });
+    }
+});
+
+
 module.exports = router;

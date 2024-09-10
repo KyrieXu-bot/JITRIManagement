@@ -252,6 +252,19 @@ async function getAssignmentsInfo(testItemId, account) {
     return results;
 }
 
+async function getEquipmentsByDepartment(departmentId) {
+    const query = `
+        SELECT 
+            equipment_id,
+            equipment_name,
+            model
+        FROM equipment
+        WHERE department_id = ?
+    `;
+    const [results] = await db.query(query, departmentId);
+    return results;
+}
+
 module.exports = {
     findUserByAccount,
     getAllOrders, 
@@ -268,5 +281,6 @@ module.exports = {
     getAllEmployees,
     getUsersByGroupId,
     updateTestItemCheckStatus,
-    getAssignmentsInfo
+    getAssignmentsInfo,
+    getEquipmentsByDepartment
 };

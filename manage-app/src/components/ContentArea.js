@@ -19,6 +19,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const [showAlert, setShowAlert] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
     const isAssignedToMeRef = useRef(false); // Use useRef to persist state across renders
+    const [equipments, setEquipments] = useState([]);
 
     const [finishData, setFinishData] = useState({
         machine_hours: '',
@@ -122,6 +123,20 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     }, []);
 
 
+    const fetchEquipments = useCallback(async (departmentID) => {
+        try {
+            const response = await axios.get(`http://localhost:3003/api/tests/equipments?departmentId=${departmentID}`);
+            const equipments = response.data;
+            setEquipments(equipments);
+            if (equipments.length > 0) {
+                setAssignmentInfo(equipments[0].name); // 默认选中第一个
+            }
+        } catch (error) {
+            console.error('Error fetching equipments:', error);
+        }
+    }, []);
+
+
     useEffect(() => {
         if (role === 'employee' && selected === 'handleTests') {
             fetchDataForEmployee(account);
@@ -141,6 +156,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         } else if (role === 'supervisor') {
             fetchGroupUsers(groupId)
         }
+        fetchEquipments(departmentID);
     }, [selected,
         account,
         departmentID,
@@ -150,7 +166,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         fetchDataForEmployee,
         fetchDataForSupervisor,
         fetchAssignableUsers,
-        fetchGroupUsers
+        fetchGroupUsers,
+        fetchEquipments
     ]);
 
 
@@ -283,6 +300,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     //完成按钮
     const handleFinishTest = async () => {
         const { test_item_id, machine_hours, work_hours, operator, equipment_id } = finishData;
+        if(!machine_hours){
+            alert("请填写机时！")
+            return;
+        }
+        if(!work_hours){
+            alert("请填写工时！")
+            return;
+        }
+        if(!equipment_id){
+            alert("请选择设备！")
+            return;
+        }
         try {
             await axios.post('http://localhost:3003/api/tests/update-status', {
                 testId: test_item_id,
@@ -296,7 +325,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             setShowSuccessToast(true); // 显示成功提示
             setTimeout(() => setShowSuccessToast(false), 3000);
             // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
-            if ((role === 'employee' || role === 'supervisor')&& selected === 'handleTests') {
+            if ((role === 'employee' || role === 'supervisor') && selected === 'handleTests') {
                 fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
             } else {
                 fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
@@ -524,7 +553,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         <div>
             <nav>
                 <span>{account},欢迎访问集萃检测管理系统</span>
-                <button onClick={ onLogout }>登出</button>
+                <button onClick={onLogout}>登出</button>
             </nav>
             {selected && (
                 <div>
@@ -705,10 +734,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                         <Form.Group>
                             <Form.Label>设备名称</Form.Label>
                             <Form.Control
-                                type="text"
+                                as="select"
                                 value={finishData.equipment_id}
                                 onChange={e => setFinishData({ ...finishData, equipment_id: e.target.value })}
-                            />
+                            >
+                                <option value="">选择设备</option>
+                                {equipments.map(equipment => (
+                                    <option key={equipment.equipment_id} value={equipment.equipment_id}>
+                                        {equipment.equipment_name} ({equipment.model})
+                                    </option>
+                                ))}
+                            </Form.Control>
                         </Form.Group>
                     </Form>
                 </Modal.Body>
