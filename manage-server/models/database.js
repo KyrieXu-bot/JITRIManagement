@@ -265,6 +265,27 @@ async function getEquipmentsByDepartment(departmentId) {
     return results;
 }
 
+// 获取员工的总机时和工时
+async function getEmployeeWorkStats(departmentId) {
+    const query = `
+        SELECT 
+            a.account,
+            SUM(t.machine_hours) AS total_machine_hours,
+            SUM(t.work_hours) AS total_work_hours
+        FROM assignments a
+        JOIN test_items t ON a.test_item_id = t.test_item_id
+        where t.department_id = ?
+        GROUP BY a.account;
+    `;
+    try {
+        const [results] = await db.query(query, [departmentId]);
+        return results;
+    } catch (error) {
+        console.error('Failed to fetch employee work stats:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     findUserByAccount,
     getAllOrders, 
@@ -282,5 +303,6 @@ module.exports = {
     getUsersByGroupId,
     updateTestItemCheckStatus,
     getAssignmentsInfo,
-    getEquipmentsByDepartment
+    getEquipmentsByDepartment,
+    getEmployeeWorkStats
 };

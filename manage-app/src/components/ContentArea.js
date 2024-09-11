@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { Modal, Button, Form, Toast } from 'react-bootstrap'; // 使用React Bootstrap进行模态弹窗和表单处理
 import '../css/ContentArea.css'
+import DataStatistics from '../components/DataStatistics';
 
 
 const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout }) => {
 
     const [data, setData] = useState([]);
+
     const [showModal, setShowModal] = useState(false);
     const [currentItem, setCurrentItem] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -20,7 +22,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const [alertMessage, setAlertMessage] = useState('');
     const isAssignedToMeRef = useRef(false); // Use useRef to persist state across renders
     const [equipments, setEquipments] = useState([]);
-
+    const [statisticsData, setStatisticsData] = useState([]);
     const [finishData, setFinishData] = useState({
         machine_hours: '',
         work_hours: '',
@@ -137,10 +139,26 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     }, []);
 
 
+    const fetchStatistics = useCallback(async () => {
+        try {
+            const response = await axios.get(`http://localhost:3003/api/charts/statistics?departmentId=${departmentID}`);
+            const formattedData = response.data.map(item => ({
+                name: item.account,
+                value: parseFloat(item.total_machine_hours)  // Assuming you want to visualize machine hours
+            }));
+            setStatisticsData(formattedData);
+        } catch (error) {
+            console.error('Error fetching statistics data:', error);
+        }
+    }, [departmentID])
+
     useEffect(() => {
         if (role === 'employee' && selected === 'handleTests') {
             fetchDataForEmployee(account);
         } else if (role === 'supervisor' || role === 'leader') {
+            if(selected === 'dataStatistics'){
+                fetchStatistics()
+            }
             fetchDataForSupervisor(departmentID);
         } else {
             if (selected === 'getCommission') {
@@ -149,7 +167,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                 fetchData('samples');
             } else if (selected === 'getTests') {
                 fetchData('tests');
-            }
+            } 
         }
         if (role === 'leader') {
             fetchAssignableUsers();
@@ -167,7 +185,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         fetchDataForSupervisor,
         fetchAssignableUsers,
         fetchGroupUsers,
-        fetchEquipments
+        fetchEquipments,
+        fetchStatistics
     ]);
 
 
@@ -300,15 +319,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     //完成按钮
     const handleFinishTest = async () => {
         const { test_item_id, machine_hours, work_hours, operator, equipment_id } = finishData;
-        if(!machine_hours){
+        if (!machine_hours) {
             alert("请填写机时！")
             return;
         }
-        if(!work_hours){
+        if (!work_hours) {
             alert("请填写工时！")
             return;
         }
-        if(!equipment_id){
+        if (!equipment_id) {
             alert("请选择设备！")
             return;
         }
@@ -555,7 +574,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                 <span>{account},欢迎访问集萃检测管理系统</span>
                 <button onClick={onLogout}>登出</button>
             </nav>
-            {selected && (
+            {selected === 'dataStatistics' ? (
+                <DataStatistics data={statisticsData}/>
+            ) : (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
                     <span>请选择状态进行筛选：</span>
@@ -579,11 +600,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                             </tbody>
                         </table>
                     </div>
-
-
-
                 </div>
             )}
+
+
 
             {/* 分配成功的Toast */}
             <Toast onClose={() => setShowSuccessToast(false)} show={showSuccessToast} delay={3000} autohide position="top-end" style={{ position: 'absolute', top: 20, right: 20 }}>

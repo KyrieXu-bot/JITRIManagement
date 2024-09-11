@@ -54,7 +54,7 @@ function App() {
       {isLoggedIn ? (
           // 登录后显示的界面
           <>
-              <Sidebar onSelect={setSelected} role={userRole} account={userAccount} departmentID={userDepartment} />
+              <Sidebar onSelect={setSelected} selected={selected} role={userRole} account={userAccount} departmentID={userDepartment} />
               <ContentArea 
               selected={selected} 
               role={userRole} 
