@@ -144,7 +144,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             const response = await axios.get(`http://localhost:3003/api/charts/statistics?departmentId=${departmentID}`);
             const formattedData = response.data.map(item => ({
                 name: item.account,
-                value: parseFloat(item.total_machine_hours)  // Assuming you want to visualize machine hours
+                //value: parseFloat(item.total_machine_hours),  // Assuming you want to visualize machine hours
+                total_machine_hours: parseFloat(item.total_machine_hours),
+                total_work_hours: parseFloat(item.total_work_hours),
+                total_samples: parseFloat(item.total_samples),
+                total_listed_price: parseFloat(item.total_listed_price)
             }));
             setStatisticsData(formattedData);
         } catch (error) {

@@ -271,7 +271,9 @@ async function getEmployeeWorkStats(departmentId) {
         SELECT 
             a.account,
             SUM(t.machine_hours) AS total_machine_hours,
-            SUM(t.work_hours) AS total_work_hours
+            SUM(t.work_hours) AS total_work_hours,
+            SUM(t.size) AS total_samples,
+            SUM(t.listed_price) AS total_listed_price
         FROM assignments a
         JOIN test_items t ON a.test_item_id = t.test_item_id
         where t.department_id = ?

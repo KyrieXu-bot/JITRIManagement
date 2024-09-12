@@ -1,18 +1,21 @@
 .chart-container {
     display: flex;
     justify-content: space-around;
+    flex-wrap: wrap; /* Allows the charts to wrap onto the next line */
+
     align-items: center;
-    padding: 20px;
-    height: 400px; /* Adjust height as needed */
+    padding: 10px;
+    height: 760px; /* Adjust height as needed */
+    overflow: scroll;
 }
 
 .bar-chart, .pie-chart {
-    flex: 1; /* Ensures that each chart takes up half the space of the container */
-    height: 100%; /* Full height of the container */
-    margin: 10px;
-}
-
-/* Optional border for visual separation */
-.bar-chart {
+    flex: 1 1 50%; /* Sets the basis for each chart to 50% of the container's width */
+    max-width: 48%; /* Slightly less than half to fit two charts per line with padding/margin */
+    height: 360px; /* Adjust height as needed */
+    margin: 0px;
+    padding: 20px;
     border-right: 1px solid #ccc;
+    border-bottom: 1px solid #ccc;
+
 }
