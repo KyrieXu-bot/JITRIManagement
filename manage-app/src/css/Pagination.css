@@ -1,0 +1,36 @@
+/* Pagination.css */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+}
+
+.pagination {
+    margin: 20px 0px 0px 0px;
+    list-style: none;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.pagination li {
+    margin: 0 5px;
+    border: 1px solid #5f87a0; /* Blue border */
+    border-radius: 5px; /* Rounded corners */
+    overflow: hidden; /* Ensures no content spills out */
+}
+
+.pagination li a {
+    display: block;
+    padding: 6px 10px;
+    color: #5f87a0; /* Blue text */
+    text-decoration: none;
+    transition: background-color 0.3s, color 0.3s; /* Smooth transition for hover effect */
+}
+
+.pagination li a:hover,
+.pagination li a.active {
+    background-color: #5f87a0; /* Blue background */
+    color: white; /* White text */
+}

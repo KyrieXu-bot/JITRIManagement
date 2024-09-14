@@ -6,12 +6,20 @@ const db = require('../models/database'); // 确保路径正确
 router.get('/statistics', async (req, res) => {
     const { departmentId } = req.query;
     try {
-        const stats = await db.getEmployeeWorkStats(departmentId);
-        res.json(stats);
+        const employeePromise = db.getEmployeeWorkStats(departmentId);
+        const equipmentPromise = db.getMachineWorkStats(departmentId);
+        const [employeeStats, equipmentStats] = await Promise.all([employeePromise, equipmentPromise]);
+
+        res.json({
+            employeeStats,
+            equipmentStats
+        });
     } catch (error) {
         console.error('Failed to fetch statistics:', error);
         res.status(500).send({ message: 'Failed to fetch data', error: error.message });
     }
 });
+
+
 
 module.exports = router;

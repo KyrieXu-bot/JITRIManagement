@@ -1,8 +1,8 @@
 import React from 'react';
 import { BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import '../css/Statistics.css'
-const DataStatistics = ({ data }) => {
-    console.log("dd", data)
+const DataStatistics = ({ employeeData, equipmentData }) => {
+    console.log("dd", equipmentData)
     return (
 
         <div className="chart-container">
@@ -10,7 +10,7 @@ const DataStatistics = ({ data }) => {
             <div className="bar-chart">
                 <h2>委托金额</h2>
                 <ResponsiveContainer width="85%" height="85%">
-                    <BarChart data={data}>
+                    <BarChart data={employeeData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis />
@@ -23,7 +23,7 @@ const DataStatistics = ({ data }) => {
             <div className="bar-chart">
                 <h2>员工工时</h2>
                 <ResponsiveContainer width="85%" height="85%">
-                    <BarChart data={data}>
+                    <BarChart data={employeeData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis />
@@ -38,7 +38,7 @@ const DataStatistics = ({ data }) => {
             <div className="bar-chart">
                 <h2>样品数据</h2>
                 <ResponsiveContainer width="85%" height="85%">
-                    <BarChart data={data}>
+                    <BarChart data={employeeData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis />
@@ -50,19 +50,42 @@ const DataStatistics = ({ data }) => {
                 </ResponsiveContainer>
             </div>
 
-            <div className="pie-chart">
+
+            <div className="bar-chart equipment-bar">
+                <h2>设备数据</h2>
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={equipmentData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                            dataKey="equipment_name"
+                            angle={-45}
+                            textAnchor="end"
+                            interval={0}
+                            tick={{ fontSize: 12 }}
+                        />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="total_machine_hours" fill="#ffc658" name="机时数据" />
+                    </BarChart>
+                </ResponsiveContainer>
+
+            </div>
+
+
+            {/* <div className="pie-chart">
                 <h2>设备数据</h2>
                 <ResponsiveContainer width="85%" height="85%">
                     <PieChart>
                         <Pie
                             dataKey="total_machine_hours"
-                            data={data}
+                            data={equipmentData}
                             cx="50%"
                             cy="50%"
                             outerRadius={80}
                             fill="#82ca9d"
                             labelLine={true}
-                            label={({ name, value, cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                            label={({ equipment_name, total_machin_hours, cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
                                 const RADIAN = Math.PI / 180;
                                 const radius = outerRadius + 30; // Radius of the label
                                 const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -75,7 +98,7 @@ const DataStatistics = ({ data }) => {
                                         textAnchor={x > cx ? 'start' : 'end'}
                                         dominantBaseline="central"
                                     >
-                                        {`${name} (${value} hrs)`}
+                                        {`${equipment_name} (${total_machin_hours} hrs)`}
                                     </text>
                                 );
                             }}
@@ -84,7 +107,7 @@ const DataStatistics = ({ data }) => {
                         <Legend />
                     </PieChart>
                 </ResponsiveContainer>
-            </div>
+            </div> */}
 
         </div>
 

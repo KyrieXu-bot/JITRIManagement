@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { Modal, Button, Form, Toast } from 'react-bootstrap'; // 使用React Bootstrap进行模态弹窗和表单处理
 import '../css/ContentArea.css'
+import '../css/Pagination.css';
+
+import Pagination from 'react-js-pagination';
+
 import DataStatistics from '../components/DataStatistics';
 
 
@@ -22,7 +26,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const [alertMessage, setAlertMessage] = useState('');
     const isAssignedToMeRef = useRef(false); // Use useRef to persist state across renders
     const [equipments, setEquipments] = useState([]);
-    const [statisticsData, setStatisticsData] = useState([]);
+    const [employeeStats, setEmployeeStats] = useState([]);
+    const [equipmentStats, setEquipmentStats] = useState([]);
+
+
+    const [activePage, setActivePage] = useState(1);
+    const itemsCountPerPage = 10;
+    const totalItemsCount = data.length;
+
+    const indexOfLastItem = activePage * itemsCountPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
+    const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
+
+
     const [finishData, setFinishData] = useState({
         machine_hours: '',
         work_hours: '',
@@ -142,7 +158,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const fetchStatistics = useCallback(async () => {
         try {
             const response = await axios.get(`http://localhost:3003/api/charts/statistics?departmentId=${departmentID}`);
-            const formattedData = response.data.map(item => ({
+            const { employeeStats, equipmentStats } = response.data;
+            const formattedEmployee = employeeStats.map(item => ({
                 name: item.name,
                 //value: parseFloat(item.total_machine_hours),  // Assuming you want to visualize machine hours
                 total_machine_hours: parseFloat(item.total_machine_hours),
@@ -150,7 +167,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                 total_samples: parseFloat(item.total_samples),
                 total_listed_price: parseFloat(item.total_listed_price)
             }));
-            setStatisticsData(formattedData);
+
+            const formattedEquipment = equipmentStats.map(item => ({
+                equipment_name: item.equipment_name,
+                //value: parseFloat(item.total_machine_hours),  // Assuming you want to visualize machine hours
+                total_machine_hours: parseFloat(item.total_machine_hours),
+            }));
+            setEmployeeStats(formattedEmployee);
+            setEquipmentStats(formattedEquipment);
+
         } catch (error) {
             console.error('Error fetching statistics data:', error);
         }
@@ -160,7 +185,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         if (role === 'employee' && selected === 'handleTests') {
             fetchDataForEmployee(account);
         } else if (role === 'supervisor' || role === 'leader') {
-            if(selected === 'dataStatistics'){
+            if (selected === 'dataStatistics') {
                 fetchStatistics()
             }
             fetchDataForSupervisor(departmentID);
@@ -171,7 +196,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                 fetchData('samples');
             } else if (selected === 'getTests') {
                 fetchData('tests');
-            } 
+            }
         }
         if (role === 'leader') {
             fetchAssignableUsers();
@@ -179,6 +204,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             fetchGroupUsers(groupId)
         }
         fetchEquipments(departmentID);
+        const savedPage = localStorage.getItem('currentPage');
+        if (savedPage) {
+            setActivePage(parseInt(savedPage, 10)); // 从localStorage中读取页码，并确保转换为整数
+        }
     }, [selected,
         account,
         departmentID,
@@ -190,7 +219,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         fetchAssignableUsers,
         fetchGroupUsers,
         fetchEquipments,
-        fetchStatistics
+        fetchStatistics,
     ]);
 
 
@@ -402,13 +431,24 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         }
     };
 
+
+    const handlePageChange = (pageNumber) => {
+        setActivePage(pageNumber);
+        localStorage.setItem('currentPage', pageNumber); // 保存当前页码到localStorage
+    };
+
+    
+
+
+
+
     const renderTable = () => {
         let headers = [];
         let rows = [];
         if (role === 'employee' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
             headers = ["ID", "样品原号", "分配给我的检测项目", "机时", "工时", "设备名称", "状态", "操作"];
-            rows = data.map((item, index) => (
+            rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.test_item_id}</td>
                     <td>{item.original_no}</td>
@@ -431,7 +471,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
             // 为员工定制的视图逻辑
             headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "状态", "审批意见", "操作"];
-            rows = data.map((item, index) => (
+            rows = currentItems.map((item, index) => (
 
                 <tr key={index}>
                     <td>{item.test_item_id}</td>
@@ -461,7 +501,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
             headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "审批意见", "操作"];
-            rows = data.map((item, index) => (
+            rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.test_item_id}</td>
                     <td>{item.original_no}</td>
@@ -494,7 +534,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             switch (selected) {
                 case 'getCommission':
                     headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "样品", "服务加急", "备注", "操作"];
-                    rows = data.map((item, index) => (
+                    rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
                             <td>{item.customer_name}</td>
@@ -518,7 +558,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     break;
                 case 'getSamples':
                     headers = ["样品名称", "材料", "货号", "材料规范", "样品处置", "材料类型", "订单编号", "操作"];
-                    rows = data.map((item, index) => (
+                    rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.sample_name}</td>
                             <td>{item.material}</td>
@@ -536,7 +576,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     break;
                 case 'getTests':
                     headers = ["ID", "样品原号", "检测项目", "方法", "委托单号", "机时", "工时", "设备名称", "状态", "审批意见", "操作"];
-                    rows = data.map((item, index) => (
+                    rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.test_item_id}</td>
                             <td>{item.original_no}</td>
@@ -570,7 +610,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     };
 
-    const { headers, rows } = renderTable();
+    const { headers, rows } = renderTable(currentItems);
 
     return (
         <div>
@@ -579,7 +619,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                 <button onClick={onLogout}>登出</button>
             </nav>
             {selected === 'dataStatistics' ? (
-                <DataStatistics data={statisticsData}/>
+                <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} />
             ) : (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
@@ -593,6 +633,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                         <option value="4">审批失败</option>
 
                     </select>
+                    <Pagination
+                            activePage={activePage}
+                            itemsCountPerPage={itemsCountPerPage}
+                            totalItemsCount={totalItemsCount}
+                            pageRangeDisplayed={5}
+                            onChange={handlePageChange}
+                            innerClass="pagination"
+                        />
                     <div class='content'>
                         <table>
                             <thead>
@@ -603,8 +651,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
                             </tbody>
                         </table>
+
+
                     </div>
                 </div>
+
+
             )}
 
 

@@ -98,7 +98,7 @@ async function getAllTestItems(status, departmentId, account) {
     `;
     const params = [];
 
-    if(account !== undefined && account !== ''){
+    if (account !== undefined && account !== '') {
         query += ' JOIN assignments a ON t.test_item_id = a.test_item_id AND a.account = ? ';
         params.push(account);
     }
@@ -109,7 +109,7 @@ async function getAllTestItems(status, departmentId, account) {
             query += ' AND t.status = ?';
             params.push(status);
         }
-    }else{
+    } else {
         if (status !== undefined && status !== '') {
             query += ' WHERE t.status = ?';
             params.push(status);
@@ -268,18 +268,24 @@ async function getEquipmentsByDepartment(departmentId) {
 // 获取员工的总机时和工时
 async function getEmployeeWorkStats(departmentId) {
     const query = `
-        SELECT 
-            a.account,
-            u.name,
-            SUM(t.machine_hours) AS total_machine_hours,
-            SUM(t.work_hours) AS total_work_hours,
-            SUM(t.size) AS total_samples,
-            SUM(t.listed_price) AS total_listed_price
-        FROM assignments a
-        JOIN test_items t ON a.test_item_id = t.test_item_id
-        JOIN users u ON a.account = u.account
-        where t.department_id = ?
-        GROUP BY a.account;
+SELECT 
+    u.account,
+    u.name,
+    COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+    COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+    COALESCE(SUM(t.size), 0) AS total_samples,
+    COALESCE(SUM(t.listed_price), 0) AS total_listed_price
+FROM 
+    users u
+LEFT JOIN 
+    assignments a ON u.account = a.account
+LEFT JOIN 
+    test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+WHERE 
+    u.department_id = ?
+GROUP BY 
+    u.account, u.name;
+
     `;
     try {
         const [results] = await db.query(query, [departmentId]);
@@ -290,10 +296,38 @@ async function getEmployeeWorkStats(departmentId) {
     }
 }
 
+
+// 获取员工的总机时和工时
+async function getMachineWorkStats(departmentId) {
+    const query = `
+        SELECT
+            e.equipment_id,
+            e.equipment_name,
+            SUM(t.machine_hours) AS total_machine_hours
+        FROM
+            equipment e
+        LEFT JOIN
+            test_items t ON e.equipment_id = t.equipment_id
+        WHERE e.department_id = ?
+        GROUP BY
+            e.equipment_id, e.equipment_name;
+
+    `;
+    try {
+        const [results] = await db.query(query, [departmentId]);
+        return results;
+    } catch (error) {
+        console.error('Failed to fetch employee work stats:', error);
+        throw error;
+    }
+}
+
+
+
 module.exports = {
     findUserByAccount,
-    getAllOrders, 
-    updateOrder, 
+    getAllOrders,
+    updateOrder,
     deleteOrder,
     assignTestToUser,
     updateTestItemStatus,
@@ -308,5 +342,6 @@ module.exports = {
     updateTestItemCheckStatus,
     getAssignmentsInfo,
     getEquipmentsByDepartment,
-    getEmployeeWorkStats
+    getEmployeeWorkStats,
+    getMachineWorkStats
 };

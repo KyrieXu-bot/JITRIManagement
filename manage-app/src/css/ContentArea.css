@@ -2,13 +2,12 @@
 
 /* 主内容区域的基础样式 */
 .content {
-    max-height: 800px;
+    max-height: 760px;
     width: 80%; /* 占据除侧边栏外的剩余宽度 */
     float: right; /* 使内容区在侧边栏右侧 */
-    padding: 20px; /* 内边距 */
+    padding: 10px; /* 内边距 */
     background-color: #fff; /* 背景颜色 */
     box-sizing: border-box;
-    overflow: scroll; /* 添加滚动条 */
 }
 
 /* 表格样式 */
@@ -16,14 +15,15 @@ table {
     width: 100%;
     border-collapse: separate; /* 用于支持圆角边框 */
     border-spacing: 0;
-    margin: 20px auto; /* 增加上下外边距并居中显示 */
+    margin: 0px auto; /* 增加上下外边距并居中显示 */
     /* border-radius: 10px; 整个表格的圆角 */
-    overflow: hidden; /* 保持内部元素如边框不溢出圆角 */
+    overflow: scroll; /* 添加滚动条 */
+
 }
 
 th, td {
     border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
-    padding: 12px 15px; /* 增加填充以改善视觉效果 */
+    padding: 10px 15px; /* 增加填充以改善视觉效果 */
     text-align: center; /* 文本居中 */
 }
 
