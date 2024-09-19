@@ -496,7 +496,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{statusLabels[item.status]}</td>
 
                     <td>
-                        <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
+                        {(item.status !== '3') && (
+                            <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
+                        )}
                         {/* 只有当状态不是'2'（已检测）时，才显示转办按钮 */}
                         {(item.status === '0' || item.status === '1') && (
                             <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
