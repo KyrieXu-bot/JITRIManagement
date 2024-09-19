@@ -23,7 +23,7 @@ table {
 
 th, td {
     border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
-    padding: 10px 15px; /* 增加填充以改善视觉效果 */
+    padding: 9px 15px; /* 增加填充以改善视觉效果 */
     text-align: center; /* 文本居中 */
 }
 

@@ -34,9 +34,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const itemsCountPerPage = 10;
     const totalItemsCount = data.length;
 
+    //分页
     const indexOfLastItem = activePage * itemsCountPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
     const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
+
+    //按月份筛选
+    const [months, setMonths] = useState([]);
+    const [selectedMonth, setSelectedMonth] = useState('');
 
 
     const [finishData, setFinishData] = useState({
@@ -66,24 +71,38 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     const fetchData = useCallback(async (endpoint) => {
         try {
-            const response = await axios.get(`http://localhost:3003/api/${endpoint}?status=${filterStatus}`);
+            const params = new URLSearchParams();
+            if (filterStatus) {
+                params.append('status', filterStatus);
+            }
+            if (selectedMonth) {
+                params.append('month', selectedMonth);  // 添加月份到请求参数
+            }
+            const response = await axios.get(`http://localhost:3003/api/${endpoint}?${params}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching data:', error);
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [setError, filterStatus]);
+    }, [setError, filterStatus, selectedMonth]);
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
         try {
-            const response = await axios.get(`http://localhost:3003/api/tests/assignments/${account}?status=${filterStatus}`);
+            const params = new URLSearchParams();
+            if (filterStatus) {
+                params.append('status', filterStatus);
+            }
+            if (selectedMonth) {
+                params.append('month', selectedMonth);  // 添加月份到请求参数
+            }
+            const response = await axios.get(`http://localhost:3003/api/tests/assignments/${account}?${params}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
         }
-    }, [filterStatus]);
+    }, [filterStatus, selectedMonth]);
 
     //拉取组长显示数据
     const fetchDataForSupervisor = useCallback(async (departmentId) => {
@@ -91,6 +110,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             const params = new URLSearchParams();
             if (filterStatus) params.append('status', filterStatus);
             if (departmentId) params.append('departmentId', departmentId);  // 添加部门ID到请求参数
+            if (selectedMonth) {
+                params.append('month', selectedMonth);  // 添加月份到请求参数
+            }
             if (role === 'supervisor') {
                 params.append('account', account)
 
@@ -102,7 +124,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             setError('Failed to fetch data');
             setTimeout(() => setError(''), 3000);
         }
-    }, [role, account, filterStatus, setError]);
+    }, [role, account, filterStatus, setError, selectedMonth]);
 
     // 拉取可分配的用户列表
     const fetchAssignableUsers = useCallback(async () => {
@@ -181,6 +203,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         }
     }, [departmentID])
 
+
+    const fetchMonths = useCallback(async () => {
+        try {
+            const response = await axios.get(`http://localhost:3003/api/months`);
+            setMonths(response.data);
+        } catch (error) {
+            console.error('Error fetching months:', error);
+        }
+    }, []);
+
     useEffect(() => {
         if (role === 'employee' && selected === 'handleTests') {
             fetchDataForEmployee(account);
@@ -204,6 +236,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             fetchGroupUsers(groupId)
         }
         fetchEquipments(departmentID);
+        fetchMonths();
         const savedPage = localStorage.getItem('currentPage');
         if (savedPage) {
             setActivePage(parseInt(savedPage, 10)); // 从localStorage中读取页码，并确保转换为整数
@@ -220,8 +253,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         fetchGroupUsers,
         fetchEquipments,
         fetchStatistics,
+        fetchMonths
     ]);
-
 
 
 
@@ -268,6 +301,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const submitAssignment = useCallback(async () => {
         try {
             const payload = { testItemId: currentItem.testItemId, assignmentInfo };
+            console.log(assignmentInfo)
             const response = await axios.post(`http://localhost:3003/api/tests/assign`, payload);
             isAssignedToMeRef.current = (assignmentInfo === account); // Update the ref value based on the condition
             setShowAssignmentModal(false);
@@ -408,6 +442,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     //审批方法
     const submitCheck = (action) => {
+        if (action === 'approve' && !window.confirm('请再次确认此操作。点击通过后不可修改！')) {
+            return;  // 用户点击取消后，不执行任何操作
+        }
         const status = action === 'approve' ? 3 : 4; // 3 for approve, 4 for reject
         const payload = {
             testItemId: currentItem.testItemId,
@@ -437,7 +474,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         localStorage.setItem('currentPage', pageNumber); // 保存当前页码到localStorage
     };
 
-    
+
 
 
 
@@ -457,6 +494,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.work_hours}</td>
                     <td>{item.equipment_id}</td>
                     <td>{statusLabels[item.status]}</td>
+
                     <td>
                         <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
                         {/* 只有当状态不是'2'（已检测）时，才显示转办按钮 */}
@@ -470,7 +508,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         } else if (role === 'supervisor' && selected === 'handleTests') {
 
             // 为员工定制的视图逻辑
-            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "状态", "审批意见", "操作"];
+            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "状态", "实验员", "审批意见", "操作"];
             rows = currentItems.map((item, index) => (
 
                 <tr key={index}>
@@ -482,10 +520,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.equipment_id}</td>
                     <td>{item.listed_price}</td>
                     <td>{statusLabels[item.status]}</td>
+                    <td>
+                    {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
+
+                    </td>
                     <td>{item.check_note}</td>
 
                     <td>
-                        {(item.status === '1' && isAssignedToMeRef.current) && (
+                        {(item.status === '1') && (
                             <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
                         )}
                         {item.status === '1' && role === 'supervisor' && (
@@ -500,7 +542,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "审批意见", "操作"];
+            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "实验员", "审批意见", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.test_item_id}</td>
@@ -512,6 +554,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.listed_price}</td>
                     <td>{item.diescounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
+                    <td>
+                        {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
+                    </td>
                     <td>{item.check_note}</td>
 
                     <td>
@@ -520,7 +565,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                             <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                         )}
                         {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
-                        {item.status === '2' && item.listed_price && (
+                        {(item.status === '2' || item.status === '4') && item.listed_price && (
                             <Button onClick={() => handleCheck(item.test_item_id)}>审核</Button>
                         )}
                     </td>
@@ -586,7 +631,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
                             <td>{item.equipment_id}</td>
-                            <td>{statusLabels[item.status]}</td>
+                            <td>{statusLabels[item.status]}, 实验员：{item.assigned_accounts}</td>
                             <td>{item.check_note}</td>
 
                             <td>
@@ -623,7 +668,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             ) : (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
-                    <span>请选择状态进行筛选：</span>
+                    <span>筛选项目状态：</span>
                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                         <option value="">全部状态</option>
                         <option value="0">待分配</option>
@@ -632,15 +677,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                         <option value="3">审批通过</option>
                         <option value="4">审批失败</option>
 
+                    </select>&nbsp;&nbsp;&nbsp;
+                    <span>筛选月份：</span>
+                    <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                        <option value="">选择月份</option>
+                        {months.map(({ month }) => (
+                            <option key={month} value={month}>{month}</option>
+                        ))}
                     </select>
                     <Pagination
-                            activePage={activePage}
-                            itemsCountPerPage={itemsCountPerPage}
-                            totalItemsCount={totalItemsCount}
-                            pageRangeDisplayed={5}
-                            onChange={handlePageChange}
-                            innerClass="pagination"
-                        />
+                        activePage={activePage}
+                        itemsCountPerPage={itemsCountPerPage}
+                        totalItemsCount={totalItemsCount}
+                        pageRangeDisplayed={5}
+                        onChange={handlePageChange}
+                        innerClass="pagination"
+                    />
                     <div class='content'>
                         <table>
                             <thead>
@@ -733,7 +785,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                                 value={assignmentInfo}
                                 onChange={(e) => setAssignmentInfo(e.target.value)}
                             >
+                                <option value="">---选择人员---</option>
                                 {assignableUsers.map(user => (
+
                                     <option key={user.account} value={user.account}>
                                         {user.name} ({user.account})
                                     </option>

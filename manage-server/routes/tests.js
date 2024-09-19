@@ -6,9 +6,16 @@ router.get('/', async (req, res) => {
     let status = req.query.status; // 获取请求中的状态参数
     let departmentId = req.query.departmentId; // 获取请求中的部门参数
     let account = req.query.account;
+    let month = req.query.month;
     try {
-        const results = await db.getAllTestItems(status, departmentId, account);
-        res.json(results);
+        if(account != undefined && account != ''){
+            const results = await db.getEmployeeTestItems(status, departmentId, account,month);
+            res.json(results);
+
+        } else{
+            const results = await db.getAllTestItems(status, departmentId, account, month);
+            res.json(results);
+        }
     } catch (error) {
         console.error('Failed to fetch test items:', error);
         res.status(500).send({ message: 'Failed to fetch data', error: error.message });
@@ -27,10 +34,8 @@ router.post('/assign', async (req, res) => {
             const userResult = await db.findUserByAccount(assignmentInfo);
             if(userResult.role != 'supervisor'){
                 // 如果数据库查询结果表明该项目已被分配并且不是组长指派的
-                console.log("im not supervisor")
                 res.status(409).json({ success: false, message: "项目已经被分配" });
             }else{
-                console.log("im supervisor")
                 res.status(200).json({ success: true, message: "检测项目分配成功" });
             }
 

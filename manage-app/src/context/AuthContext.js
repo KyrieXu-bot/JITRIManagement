@@ -24,8 +24,6 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('userAccount');
         localStorage.removeItem('userRole');
         localStorage.removeItem('currentPage'); // 清除保存的页码
-
-        console.log("eeee",localStorage)
         setUser(null);
     };
 

@@ -79,7 +79,7 @@ async function getAllSamples() {
     return results;
 }
 
-async function getAllTestItems(status, departmentId, account) {
+async function getEmployeeTestItems(status, departmentId, account, month) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -93,15 +93,67 @@ async function getAllTestItems(status, departmentId, account) {
             t.listed_price,
             t.discounted_price,
             t.equipment_id,
-            t.check_note
-        FROM test_items t
+            t.check_note,
+            GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
+        FROM 
+            test_items t
+        JOIN 
+            assignments a ON t.test_item_id = a.test_item_id
+        JOIN 
+	        users u on u.account = a.account
+        WHERE 
+            EXISTS (
+                SELECT 1
+                FROM assignments suba
+                WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
+            )
+
     `;
     const params = [];
-
-    if (account !== undefined && account !== '') {
-        query += ' JOIN assignments a ON t.test_item_id = a.test_item_id AND a.account = ? ';
-        params.push(account);
+    params.push(account);
+    if (departmentId !== undefined && departmentId !== '') {
+        query += ' AND t.department_id = ?';
+        params.push(departmentId);
+        if (status !== undefined && status !== '') {
+            query += ' AND t.status = ?';
+            params.push(status);
+        }
     }
+    if(month !== undefined && month !== ''){
+        query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
+            params.push(month);
+    }
+    query += `GROUP BY t.test_item_id;`;
+    const [results] = await db.query(query, params);
+    return results;
+}
+
+
+
+async function getAllTestItems(status, departmentId, month) {
+    let query = `
+        SELECT 
+            t.test_item_id,
+            t.original_no,
+            t.test_item,
+            t.test_method,
+            t.order_num,
+            t.status,
+            t.machine_hours,
+            t.work_hours,
+            t.listed_price,
+            t.discounted_price,
+            t.equipment_id,
+            t.check_note,
+            COALESCE(GROUP_CONCAT(DISTINCT u.name ORDER BY u.name), '') AS assigned_accounts
+        FROM
+            test_items t
+        LEFT JOIN
+            assignments a ON t.test_item_id = a.test_item_id
+        left join 
+            users u on u.account = a.account 
+    `;
+    const params = [];
     if (departmentId !== undefined && departmentId !== '') {
         query += ' WHERE t.department_id = ?';
         params.push(departmentId);
@@ -115,6 +167,11 @@ async function getAllTestItems(status, departmentId, account) {
             params.push(status);
         }
     }
+    if(month !== undefined && month !== ''){
+        query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
+            params.push(month);
+    }
+    query += `GROUP BY t.test_item_id;`;
 
     const [results] = await db.query(query, params);
     return results;
@@ -135,7 +192,6 @@ async function reassignTestToUser(newAccount, testItemId) {
 
 
 async function updateTestItemStatus(finishData) {
-    console.log(finishData)
     const query = `UPDATE 
                     test_items 
                         SET 
@@ -174,7 +230,8 @@ async function getAssignedTestsByUser(userId, status) {
             ti.work_hours,
             ti.listed_price,
             ti.discounted_price,
-            ti.equipment_id
+            ti.equipment_id,
+            ti.check_note
         FROM assignments a
         JOIN test_items ti ON a.test_item_id = ti.test_item_id
         WHERE a.account = ?
@@ -268,23 +325,24 @@ async function getEquipmentsByDepartment(departmentId) {
 // 获取员工的总机时和工时
 async function getEmployeeWorkStats(departmentId) {
     const query = `
-SELECT 
-    u.account,
-    u.name,
-    COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
-    COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
-    COALESCE(SUM(t.size), 0) AS total_samples,
-    COALESCE(SUM(t.listed_price), 0) AS total_listed_price
-FROM 
-    users u
-LEFT JOIN 
-    assignments a ON u.account = a.account
-LEFT JOIN 
-    test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
-WHERE 
-    u.department_id = ?
-GROUP BY 
-    u.account, u.name;
+        SELECT 
+            u.account,
+            u.name,
+            COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+            COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+            COALESCE(SUM(t.size), 0) AS total_samples,
+            COALESCE(SUM(t.listed_price), 0) AS total_listed_price
+        FROM 
+            users u
+        LEFT JOIN 
+            assignments a ON u.account = a.account
+        LEFT JOIN 
+            test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+        WHERE 
+            u.department_id = ?
+        GROUP BY 
+            u.account, u.name
+        ;
 
     `;
     try {
@@ -324,6 +382,29 @@ async function getMachineWorkStats(departmentId) {
 
 
 
+// 获取所有月份
+async function getAllMonths() {
+    const query = `
+        SELECT DISTINCT 
+            DATE_FORMAT(create_time, '%Y-%m') as month
+        FROM 
+            test_items
+        WHERE 
+            create_time is not null
+        ORDER BY 
+            month DESC;
+
+    `;
+    try {
+        const [results] = await db.query(query);
+        return results;
+    } catch (error) {
+        console.error('Failed to fetch employee work stats:', error);
+        throw error;
+    }
+}
+
+
 module.exports = {
     findUserByAccount,
     getAllOrders,
@@ -333,6 +414,7 @@ module.exports = {
     updateTestItemStatus,
     getAllSamples,
     getAllTestItems,
+    getEmployeeTestItems,
     getAssignedTestsByUser,
     reassignTestToUser,
     updateTestItemPrice,
@@ -343,5 +425,6 @@ module.exports = {
     getAssignmentsInfo,
     getEquipmentsByDepartment,
     getEmployeeWorkStats,
-    getMachineWorkStats
+    getMachineWorkStats,
+    getAllMonths
 };
