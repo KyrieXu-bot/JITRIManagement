@@ -96,19 +96,33 @@ router.get('/assignments/:userId', async (req, res) => {
 });
 
 
-// 更新检测项目的价格
+// 更新检测项目的标准价格
 router.patch('/:testItemId/price', async (req, res) => {
     const { testItemId } = req.params;
     const { listedPrice } = req.body;
-
     try {
         await db.updateTestItemPrice(testItemId, listedPrice);
-        res.json({ success: true, message: '价格更新成功' });
+        res.json({ success: true, message: '标准价格更新成功' });
     } catch (error) {
         console.error('Failed to update test item price:', error);
-        res.status(500).send({ message: '价格更新失败', error: error.message });
+        res.status(500).send({ message: '标准价格更新失败', error: error.message });
     }
 });
+
+// 更新检测项目的优惠价格
+router.patch('/:testItemId/discount', async (req, res) => {
+    const { testItemId } = req.params;
+    const { discountedPrice } = req.body;
+    try {
+        await db.updateDiscountedPrice(testItemId, discountedPrice);
+        res.json({ success: true, message: '优惠价格更新成功' });
+    } catch (error) {
+        console.error('Failed to update test item price:', error);
+        res.status(500).send({ message: '优惠价格更新失败', error: error.message });
+    }
+});
+
+
 
 // 获取同一组的用户
 router.get('/equipments', async (req, res) => {

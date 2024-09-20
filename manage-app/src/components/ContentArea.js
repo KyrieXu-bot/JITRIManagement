@@ -214,14 +214,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     }, []);
 
     useEffect(() => {
-        if (role === 'employee' && selected === 'handleTests') {
+        if ((role === 'employee' || role ==='sales') && selected === 'handleTests') {
             fetchDataForEmployee(account);
         } else if (role === 'supervisor' || role === 'leader') {
             if (selected === 'dataStatistics') {
                 fetchStatistics()
+            } else if(selected === 'getCommission'){
+                fetchData('orders');
+            }else{
+                fetchDataForSupervisor(departmentID);
             }
-            fetchDataForSupervisor(departmentID);
         } else {
+            // 管理员情况
             if (selected === 'getCommission') {
                 fetchData('orders');
             } else if (selected === 'getSamples') {
@@ -424,9 +428,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     };
 
 
-    // 在ContentArea.js或相应的组件中
+    // 设置标价
     const handleQuote = async (testItemId) => {
-        const newPrice = prompt("请输入价格:");
+        const newPrice = prompt("请输入标准价格:");
         if (newPrice && !isNaN(parseFloat(newPrice))) {
             try {
                 const response = await axios.patch(`http://localhost:3003/api/tests/${testItemId}/price`, { listedPrice: newPrice });
@@ -440,6 +444,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         }
     };
 
+
+    // 设置优惠价
+    const handleDiscount = async (testItemId) => {
+        const newPrice = prompt("请输入优惠价格:");
+        if (newPrice && !isNaN(parseFloat(newPrice))) {
+            try {
+                const response = await axios.patch(`http://localhost:3003/api/tests/${testItemId}/discount`, { discountedPrice: newPrice });
+                console.log(response.data.message);
+                fetchDataForEmployee(account); // 重新获取数据以更新UI
+            } catch (error) {
+                console.error('Error updating price:', error);
+            }
+        } else {
+            alert("请输入有效的价格");
+        }
+    };
     //审批方法
     const submitCheck = (action) => {
         if (action === 'approve' && !window.confirm('请再次确认此操作。点击通过后不可修改！')) {
@@ -468,33 +488,76 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         }
     };
 
-
+    //设置分页
     const handlePageChange = (pageNumber) => {
         setActivePage(pageNumber);
         localStorage.setItem('currentPage', pageNumber); // 保存当前页码到localStorage
     };
 
 
-
-
+    //计算截止日期
+    const calculateRemainingDays = (deadlineDate) => {
+        const today = new Date();
+        const deadline = new Date(deadlineDate);
+        const timeDiff = deadline - today;
+        return Math.ceil(timeDiff / (1000 * 3600 * 24)); // 将毫秒转换为天数
+    };
+    
+    const renderDeadlineStatus = (deadlineDays, createDate) => {
+        if (!deadlineDays || !createDate) {
+            // 如果没有提供截止日期或创建日期，不显示任何内容
+            return null;
+        }
+        const deadlineDate = new Date(new Date(createDate).getTime() + deadlineDays * 24 * 60 * 60 * 1000);
+        const daysLeft = calculateRemainingDays(deadlineDate);
+    
+        let displayText;
+        let style;
+    
+        if (daysLeft < 0) {
+            // 已逾期
+            style = {
+                color: 'red', // 逾期字体为红色
+                fontWeight: 'bold' // 逾期字体加粗
+            };
+            displayText = `已逾期 ${Math.abs(daysLeft)} 天`; // 使用 Math.abs 来取得逾期的绝对天数
+        } else {
+            // 未逾期
+            style = {
+                color: daysLeft < 5 ? 'red' : 'black', // 少于3天字体为红色
+                fontWeight: daysLeft < 5 ? 'bold' : 'normal' // 少于3天字体加粗
+            };
+            displayText = `剩余 ${daysLeft} 天`;
+        }
+    
+        return <span style={style}>{displayText}</span>;
+    };
 
 
     const renderTable = () => {
         let headers = [];
         let rows = [];
+
         if (role === 'employee' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["ID", "样品原号", "分配给我的检测项目", "机时", "工时", "设备名称", "状态", "操作"];
+            headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "设备名称", "状态", "实验员", "审批意见", "创建日期", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
-                    <td>{item.test_item_id}</td>
+                    <td>{item.order_num}</td>
                     <td>{item.original_no}</td>
                     <td>{item.test_item}</td>
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
                     <td>{item.equipment_id}</td>
                     <td>{statusLabels[item.status]}</td>
-
+                    <td>
+                    {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
+                    </td>
+                    <td>{item.check_note}</td>
+                    <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
+                    <td>
+                        {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+                    </td>
                     <td>
                         {(item.status !== '3') && (
                             <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
@@ -510,23 +573,27 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         } else if (role === 'supervisor' && selected === 'handleTests') {
 
             // 为员工定制的视图逻辑
-            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "状态", "实验员", "审批意见", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "实验员", "审批意见", "创建时间", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
 
                 <tr key={index}>
-                    <td>{item.test_item_id}</td>
+                    <td>{item.order_num}</td>
                     <td>{item.original_no}</td>
                     <td>{item.test_item}</td>
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
                     <td>{item.equipment_id}</td>
                     <td>{item.listed_price}</td>
+                    <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
                     {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
-
                     </td>
                     <td>{item.check_note}</td>
+                    <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
+                    <td>
+                        {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+                    </td>
 
                     <td>
                         {(item.status === '1') && (
@@ -544,10 +611,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["ID", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "实验员", "审批意见", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "实验员", "审批意见", "创建时间", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
-                    <td>{item.test_item_id}</td>
+                    <td>{item.order_num}</td>
                     <td>{item.original_no}</td>
                     <td>{item.test_item}</td>
                     <td>{item.machine_hours}</td>
@@ -559,7 +626,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>
                         {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
                     </td>
+
                     <td>{item.check_note}</td>
+                    <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
+                    <td>
+                        {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+
+                    </td>
 
                     <td>
                         {/* 只有当状态不是'1'（已检测）时，才显示分配按钮 */}
@@ -568,7 +641,39 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                         )}
                         {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
                         {(item.status === '2' || item.status === '4') && item.listed_price && (
-                            <Button onClick={() => handleCheck(item.test_item_id)}>审核</Button>
+                            <Button variant="warning" onClick={() => handleCheck(item.test_item_id)}>审核</Button>
+                        )}
+                    </td>
+                </tr>
+            ));
+            return { headers, rows };
+        } else if (role === 'sales' && selected === 'handleTests') {
+            // 为员工定制的视图逻辑
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "实验员", "审批意见", "创建时间", "操作"];
+            rows = currentItems.map((item, index) => (
+                <tr key={index}>
+                    <td>{item.order_num}</td>
+                    <td>{item.original_no}</td>
+                    <td>{item.test_item}</td>
+                    <td>{item.machine_hours}</td>
+                    <td>{item.work_hours}</td>
+                    <td>{item.equipment_id}</td>
+                    <td>{item.listed_price}</td>
+                    <td>{item.discounted_price}</td>
+                    <td>{statusLabels[item.status]}</td>
+                    <td>
+                        {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
+                    </td>
+
+                    <td>{item.check_note}</td>
+                    <td>
+                        {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+
+                    </td>
+
+                    <td>
+                        {item.status !== '3' && (
+                            <Button onClick={() => handleDiscount(item.test_item_id)}>设置优惠价</Button>
                         )}
                     </td>
                 </tr>
@@ -577,7 +682,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         }
         else {
             // 默认视图
-
             switch (selected) {
                 case 'getCommission':
                     headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "样品", "服务加急", "备注", "操作"];
@@ -622,10 +726,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     ));
                     break;
                 case 'getTests':
-                    headers = ["ID", "样品原号", "检测项目", "方法", "委托单号", "机时", "工时", "设备名称", "状态", "审批意见", "操作"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "委托单号", "机时", "工时", "设备名称", "状态", "审批意见", "操作"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
-                            <td>{item.test_item_id}</td>
+                            <td>{item.order_num}</td>
                             <td>{item.original_no}</td>
                             <td>{item.test_item}</td>
                             <td>{item.test_method}</td>

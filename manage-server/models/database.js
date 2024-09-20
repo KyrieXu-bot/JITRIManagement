@@ -94,6 +94,8 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
             t.discounted_price,
             t.equipment_id,
             t.check_note,
+            t.create_time,
+            t.deadline,
             GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
         FROM 
             test_items t
@@ -145,6 +147,8 @@ async function getAllTestItems(status, departmentId, month) {
             t.discounted_price,
             t.equipment_id,
             t.check_note,
+            t.create_time,
+            t.deadline,
             COALESCE(GROUP_CONCAT(DISTINCT u.name ORDER BY u.name), '') AS assigned_accounts
         FROM
             test_items t
@@ -231,7 +235,9 @@ async function getAssignedTestsByUser(userId, status) {
             ti.listed_price,
             ti.discounted_price,
             ti.equipment_id,
-            ti.check_note
+            ti.check_note,
+            ti.create_time,
+            ti.deadline
         FROM assignments a
         JOIN test_items ti ON a.test_item_id = ti.test_item_id
         WHERE a.account = ?
@@ -254,6 +260,11 @@ async function updateTestItemPrice(testItemId, listedPrice) {
     return results;
 }
 
+async function updateDiscountedPrice(testItemId, listedPrice) {
+    const query = `UPDATE test_items SET discounted_price = ? WHERE test_item_id = ?`;
+    const [results] = await db.query(query, [listedPrice, testItemId]);
+    return results;
+}
 
 
 async function getAllSupervisors(departmentId) {
@@ -426,5 +437,6 @@ module.exports = {
     getEquipmentsByDepartment,
     getEmployeeWorkStats,
     getMachineWorkStats,
-    getAllMonths
+    getAllMonths,
+    updateDiscountedPrice
 };
