@@ -51,6 +51,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         equipment_id: ''
     });
     const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+    const [showReassignmentModal, setShowReassignmentModal] = useState(false);
+
     const [showCheckModal, setShowCheckModal] = useState(false);
     const [assignmentInfo, setAssignmentInfo] = useState('');
 
@@ -236,7 +238,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         }
         if (role === 'leader') {
             fetchAssignableUsers();
-        } else if (role === 'supervisor') {
+        } else if (role === 'supervisor' || role === 'employee') {
             fetchGroupUsers(groupId)
         }
         fetchEquipments(departmentID);
@@ -297,6 +299,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         setShowAssignmentModal(true);
     };
 
+
+    const handleReassignment = (testItemId) => {
+        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
+        setShowReassignmentModal(true);
+    };
+
+
     const handleCheck = (testItemId) => {
         setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
         setShowCheckModal(true);
@@ -305,7 +314,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const submitAssignment = useCallback(async () => {
         try {
             const payload = { testItemId: currentItem.testItemId, assignmentInfo };
-            console.log(assignmentInfo)
             const response = await axios.post(`http://localhost:3003/api/tests/assign`, payload);
             isAssignedToMeRef.current = (assignmentInfo === account); // Update the ref value based on the condition
             setShowAssignmentModal(false);
@@ -348,24 +356,24 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     ]);
 
     // 转办
-    const handleReassignment = async (testItemId) => {
-        const newAccount = prompt("请输入想要转办的人员工号/账号:");
-        if (newAccount && newAccount !== '') {
-            try {
-                await axios.post('http://localhost:3003/api/tests/reassign', { testItemId, newAccount });
-                // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
-                if (role === 'employee' && selected === 'handleTests') {
-                    fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
-                } else {
-                    fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
-                }
-                setShowSuccessToast(true); // Show success message
-                setTimeout(() => setShowSuccessToast(false), 3000);
-            } catch (error) {
-                console.error('Error reassigning test item:', error);
-                setError('Failed to reassign test item');
-                setTimeout(() => setError(''), 3000);
+    const submitReassignment = async () => {
+        try {
+            await axios.post('http://localhost:3003/api/tests/reassign', { testItemId: currentItem.testItemId, account, assignmentInfo });
+
+            setShowReassignmentModal(false);
+
+            // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
+            if (role === 'employee' && selected === 'handleTests') {
+                fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
+            } else {
+                fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
             }
+            setShowSuccessToast(true); // Show success message
+            setTimeout(() => setShowSuccessToast(false), 3000);
+        } catch (error) {
+            console.error('Error reassigning test item:', error);
+            setError('Failed to reassign test item');
+            setTimeout(() => setError(''), 3000);
         }
     };
 
@@ -540,7 +548,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
         if (role === 'employee' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "设备名称", "状态", "实验员", "审批意见", "创建日期", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "设备名称", "状态", "审批意见", "创建日期", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -550,9 +558,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.work_hours}</td>
                     <td>{item.equipment_id}</td>
                     <td>{statusLabels[item.status]}</td>
-                    <td>
-                    {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
-                    </td>
+
                     <td>{item.check_note}</td>
                     <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
                     <td>
@@ -573,7 +579,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         } else if (role === 'supervisor' && selected === 'handleTests') {
 
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "实验员", "审批意见", "创建时间", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
 
                 <tr key={index}>
@@ -611,7 +617,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "实验员", "审批意见", "创建时间", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -649,7 +655,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             return { headers, rows };
         } else if (role === 'sales' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "实验员", "审批意见", "创建时间", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -666,11 +672,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     </td>
 
                     <td>{item.check_note}</td>
-                    <td>
-                        {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
-
-                    </td>
-
+                    <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
                     <td>
                         {item.status !== '3' && (
                             <Button onClick={() => handleDiscount(item.test_item_id)}>设置优惠价</Button>
@@ -737,7 +739,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
                             <td>{item.equipment_id}</td>
-                            <td>{statusLabels[item.status]}, 实验员：{item.assigned_accounts}</td>
+                            <td>{statusLabels[item.status]}, 人员：{item.assigned_accounts}</td>
                             <td>{item.check_note}</td>
 
                             <td>
@@ -879,13 +881,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <Form>
                         <Form.Group controlId="formAssignmentInfo">
                             <Form.Label>将检测分配给：</Form.Label>
-                            {/* <Form.Control
-                                type="text"
-                                placeholder="请输入检测人员工号"
-                                value={assignmentInfo}
-                                onChange={(e) => setAssignmentInfo(e.target.value)}
-                            /> */}
-
                             <Form.Control
                                 as="select"
                                 value={assignmentInfo}
@@ -908,6 +903,40 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     </Button>
                 </Modal.Footer>
             </Modal>
+
+
+
+            <Modal show={showReassignmentModal} onHide={() => setShowReassignmentModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>检测人员转办</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group controlId="formAssignmentInfo">
+                            <Form.Label>将检测转办给：</Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={assignmentInfo}
+                                onChange={(e) => setAssignmentInfo(e.target.value)}
+                            >
+                                <option value="">---选择人员---</option>
+                                {assignableUsers.map(user => (
+
+                                    <option key={user.account} value={user.account}>
+                                        {user.name} ({user.account})
+                                    </option>
+                                ))}
+                            </Form.Control>
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowReassignmentModal(false)}>取消</Button>
+                    <Button variant="primary" onClick={submitReassignment}>转办
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
 
             {/* 审批按钮 */}
             <Modal show={showCheckModal} onHide={() => setShowCheckModal(false)}>

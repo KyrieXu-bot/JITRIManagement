@@ -189,9 +189,9 @@ async function assignTestToUser(testId, userId) {
     await db.query(updateQuery, ['1', testId])
 }
 
-async function reassignTestToUser(newAccount, testItemId) {
-    const query = `UPDATE assignments SET account = ? WHERE test_item_id = ?`;
-    await db.query(query, [newAccount, testItemId]);
+async function reassignTestToUser(newAccount, account, testItemId) {
+    const query = `UPDATE assignments SET account = ? WHERE test_item_id = ? AND account = ? `;
+    await db.query(query, [newAccount, testItemId, account]);
 }
 
 

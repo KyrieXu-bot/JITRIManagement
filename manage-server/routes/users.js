@@ -11,7 +11,7 @@ router.get('/supervisors', async (req, res) => {
         const results = await getAllSupervisors(departmentId);
         res.json(results);
     } catch (error) {
-        console.error('Failed to fetch samples:', error);
+        console.error('Failed to fetch employees:', error);
         res.status(500).send({ message: 'Failed to fetch data', error: error.message });
     }
 });
@@ -26,7 +26,7 @@ router.get('/employees', async (req, res) => {
         const results = await getAllEmployees(departmentId);
         res.json(results);
     } catch (error) {
-        console.error('Failed to fetch samples:', error);
+        console.error('Failed to fetch employees:', error);
         res.status(500).send({ message: 'Failed to fetch data', error: error.message });
     }
 });

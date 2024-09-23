@@ -49,9 +49,9 @@ router.post('/assign', async (req, res) => {
 
 // 在Node.js/Express后端，更新assignments表中的account字段
 router.post('/reassign', async (req, res) => {
-    const { testItemId, newAccount } = req.body;
+    const { testItemId, account, assignmentInfo } = req.body;
     try {
-        await db.reassignTestToUser(newAccount, testItemId);
+        await db.reassignTestToUser(assignmentInfo, account, testItemId);
         res.status(200).json({ message: 'Assignment successfully reassigned' });
     } catch (error) {
         console.error('Failed to reassign assignment:', error);

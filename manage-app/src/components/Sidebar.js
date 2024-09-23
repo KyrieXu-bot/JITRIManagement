@@ -22,7 +22,7 @@ const Sidebar = ({ onSelect, selected, role  }) => {
                 )}
                 {role !== 'admin' && role !== 'leader' && (
                     <>
-                        <li className={selected === 'dataStatistics' ? 'active' : ''} onClick={() => onSelect('dataStatistics')}>我的看板</li>
+                        {/* <li className={selected === 'dataStatistics' ? 'active' : ''} onClick={() => onSelect('dataStatistics')}>我的看板</li> */}
                         <li className={selected === 'handleTests' ? 'active' : ''} onClick={() => onSelect('handleTests')}>检测项目处理</li>
                     </>
                 )}
