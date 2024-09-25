@@ -87,3 +87,59 @@ nav{
     text-align: right;
     padding:10px 20px 10px 10px;
 }
+
+
+
+/* 基础样式调整，以适应移动设备 */
+@media (max-width: 768px) {
+    .content {
+        width: 100%; /* 在小屏幕上占满整个可视区域 */
+        float: none; /* 取消浮动 */
+        padding: 5px; /* 减少内边距 */
+        max-height: none; /* 移除最大高度限制 */
+    }
+
+    table {
+        width: 100%;
+        overflow-x: auto; /* 允许表格水平滚动 */
+        display: block;
+    }
+
+    th, td {
+        padding: 8px; /* 减小单元格内边距 */
+        white-space: nowrap; /* 防止内容换行 */
+    }
+
+    button {
+        padding: 6px 12px; /* 调整按钮大小 */
+        font-size: 14px; /* 调整字体大小 */
+    }
+
+    .form-control, select {
+        font-size: 14px; /* 调整表单控件的字体大小 */
+        padding: 6px; /* 减小填充 */
+    }
+
+    .modal-body, .modal-footer, .modal-header {
+        padding: 10px; /* 减少模态框内边距 */
+    }
+
+    nav {
+        padding: 5px 10px; /* 调整导航栏的内边距 */
+        display: flex;
+        justify-content: space-between; /* 改进导航项的布局 */
+    }
+}
+
+/* 设定特定的颜色、边框等美观元素 */
+.button, .form-control, select, input {
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+/* 调整导航和页脚 */
+footer, header {
+    text-align: center;
+    padding: 10px;
+    background-color: #f1f1f1;
+}
