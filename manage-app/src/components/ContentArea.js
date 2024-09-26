@@ -686,7 +686,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             // 默认视图
             switch (selected) {
                 case 'getCommission':
-                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "样品", "服务加急", "备注", "操作"];
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "样品", "服务加急", "备注"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -702,10 +702,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                             <td>{item.size}</td>
                             <td>{serviceTypeLabels[item.service_type]}</td>
                             <td>{item.note}</td>
-                            <td>
+                            {/* <td>
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
                                 <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
-                            </td>
+                            </td> */}
                         </tr>
                     ));
                     break;
