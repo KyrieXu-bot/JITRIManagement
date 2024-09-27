@@ -22,6 +22,7 @@ function LoginForm({ onLoginSuccess }) {
     }
     } catch (error) {
       console.error('登录失败:', error.response && error.response.data ? error.response.data.message : 'Login failed');
+      alert(`登录失败: ${error.response && error.response.data ? error.response.data.message : 'Login failed'}`);
     }
   };
 

@@ -627,7 +627,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.work_hours}</td>
                     <td>{item.equipment_id}</td>
                     <td>{item.listed_price}</td>
-                    <td>{item.diescounted_price}</td>
+                    <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
                         {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
