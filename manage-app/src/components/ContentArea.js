@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Modal, Button, Form, Toast } from 'react-bootstrap'; // 使用React Bootstrap进行模态弹窗和表单处理
 import '../css/ContentArea.css'
 import '../css/Pagination.css';
-
+import config from '../config/config'; // 确保路径正确
 import Pagination from 'react-js-pagination';
 
 import DataStatistics from '../components/DataStatistics';
@@ -56,6 +56,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const [showCheckModal, setShowCheckModal] = useState(false);
     const [assignmentInfo, setAssignmentInfo] = useState('');
 
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [selectedDetails, setSelectedDetails] = useState({});
+
     const statusLabels = {
         0: '待分配',
         1: '已分配待检测',
@@ -80,7 +83,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             if (selectedMonth) {
                 params.append('month', selectedMonth);  // 添加月份到请求参数
             }
-            const response = await axios.get(`http://localhost:3003/api/${endpoint}?${params}`);
+            const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -99,7 +102,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             if (selectedMonth) {
                 params.append('month', selectedMonth);  // 添加月份到请求参数
             }
-            const response = await axios.get(`http://localhost:3003/api/tests/assignments/${account}?${params}`);
+            const response = await axios.get(`${config.API_BASE_URL}/api/tests/assignments/${account}?${params}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
@@ -119,7 +122,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                 params.append('account', account)
 
             }
-            const response = await axios.get(`http://localhost:3003/api/tests?${params}`);
+            const response = await axios.get(`${config.API_BASE_URL}/api/tests?${params}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching data for supervisor:', error);
@@ -137,7 +140,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             } else if (role === 'supervisor') {
                 endpoint = `/api/users/employees?departmentId=${departmentID}`;
             }
-            const response = await axios.get(`http://localhost:3003${endpoint}`);
+            const response = await axios.get(`${config.API_BASE_URL}${endpoint}`);
             const users = response.data;
             setAssignableUsers(users);
             if (users && users.length > 0) {
@@ -153,7 +156,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     const fetchGroupUsers = useCallback(async (groupId) => {
         try {
-            const response = await axios.get(`http://localhost:3003/api/users/group/${groupId}`);
+            const response = await axios.get(`${config.API_BASE_URL}/api/users/group/${groupId}`);
             const users = response.data;
             setAssignableUsers(users);
             if (users.length > 0) {
@@ -167,7 +170,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     const fetchEquipments = useCallback(async (departmentID) => {
         try {
-            const response = await axios.get(`http://localhost:3003/api/tests/equipments?departmentId=${departmentID}`);
+            const response = await axios.get(`${config.API_BASE_URL}/api/tests/equipments?departmentId=${departmentID}`);
             const equipments = response.data;
             setEquipments(equipments);
             if (equipments.length > 0) {
@@ -181,7 +184,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     const fetchStatistics = useCallback(async () => {
         try {
-            const response = await axios.get(`http://localhost:3003/api/charts/statistics?departmentId=${departmentID}`);
+            const response = await axios.get(`${config.API_BASE_URL}/api/charts/statistics?departmentId=${departmentID}`);
             const { employeeStats, equipmentStats } = response.data;
             const formattedEmployee = employeeStats.map(item => ({
                 name: item.name,
@@ -208,7 +211,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     const fetchMonths = useCallback(async () => {
         try {
-            const response = await axios.get(`http://localhost:3003/api/months`);
+            const response = await axios.get(`${config.API_BASE_URL}/api/months`);
             setMonths(response.data);
         } catch (error) {
             console.error('Error fetching months:', error);
@@ -216,14 +219,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     }, []);
 
     useEffect(() => {
-        if ((role === 'employee' || role ==='sales') && selected === 'handleTests') {
+        if ((role === 'employee' || role === 'sales') && selected === 'handleTests') {
             fetchDataForEmployee(account);
         } else if (role === 'supervisor' || role === 'leader') {
             if (selected === 'dataStatistics') {
                 fetchStatistics()
-            } else if(selected === 'getCommission'){
+            } else if (selected === 'getCommission') {
                 fetchData('orders');
-            }else{
+            } else {
                 fetchDataForSupervisor(departmentID);
             }
         } else {
@@ -276,7 +279,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     const updateItem = async () => {
         try {
-            await axios.patch(`http://localhost:3003/api/${selected}/${currentItem.identifier}`, currentItem);
+            await axios.patch(`${config.API_BASE_URL}/api/${selected}/${currentItem.identifier}`, currentItem);
             setShowModal(false);
             fetchData();
         } catch (error) {
@@ -286,7 +289,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     const deleteItem = async () => {
         try {
-            await axios.delete(`http://localhost:3003/api/${selected}/${currentItem.identifier}`);
+            await axios.delete(`${config.API_BASE_URL}/api/${selected}/${currentItem.identifier}`);
             setShowDeleteConfirm(false);
             fetchData(selected);
         } catch (error) {
@@ -314,7 +317,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const submitAssignment = useCallback(async () => {
         try {
             const payload = { testItemId: currentItem.testItemId, assignmentInfo };
-            const response = await axios.post(`http://localhost:3003/api/tests/assign`, payload);
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/assign`, payload);
             isAssignedToMeRef.current = (assignmentInfo === account); // Update the ref value based on the condition
             setShowAssignmentModal(false);
             //setAssignmentInfo(''); // 清空分配信息
@@ -358,7 +361,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     // 转办
     const submitReassignment = async () => {
         try {
-            await axios.post('http://localhost:3003/api/tests/reassign', { testItemId: currentItem.testItemId, account, assignmentInfo });
+            await axios.post(`${config.API_BASE_URL}/api/tests/reassign`, { testItemId: currentItem.testItemId, account, assignmentInfo });
 
             setShowReassignmentModal(false);
 
@@ -411,7 +414,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             return;
         }
         try {
-            await axios.post('http://localhost:3003/api/tests/update-status', {
+            await axios.post(`${config.API_BASE_URL}/api/tests/update-status`, {
                 testId: test_item_id,
                 status: 2,  // 标记为已检测
                 machine_hours,
@@ -436,12 +439,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     };
 
 
+    // 查看事件处理函数
+    const handleShowDetails = (item) => {
+        setSelectedDetails(item);
+        setShowDetailsModal(true);
+      };
+      
+
     // 设置标价
     const handleQuote = async (testItemId) => {
         const newPrice = prompt("请输入标准价格:");
         if (newPrice && !isNaN(parseFloat(newPrice))) {
             try {
-                const response = await axios.patch(`http://localhost:3003/api/tests/${testItemId}/price`, { listedPrice: newPrice });
+                const response = await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/price`, { listedPrice: newPrice });
                 console.log(response.data.message);
                 fetchDataForSupervisor(departmentID); // 重新获取数据以更新UI
             } catch (error) {
@@ -458,7 +468,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         const newPrice = prompt("请输入优惠价格:");
         if (newPrice && !isNaN(parseFloat(newPrice))) {
             try {
-                const response = await axios.patch(`http://localhost:3003/api/tests/${testItemId}/discount`, { discountedPrice: newPrice });
+                const response = await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/discount`, { discountedPrice: newPrice });
                 console.log(response.data.message);
                 fetchDataForEmployee(account); // 重新获取数据以更新UI
             } catch (error) {
@@ -484,7 +494,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
     const updateTestStatus = async (payload) => {
         try {
-            await axios.post(`http://localhost:3003/api/tests/update-check`, payload);
+            await axios.post(`${config.API_BASE_URL}/api/tests/update-check`, payload);
             setShowCheckModal(false); // Close the modal after submission
             fetchDataForSupervisor(departmentID);
             setShowSuccessToast(true); // Optionally show a success message
@@ -510,7 +520,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         const timeDiff = deadline - today;
         return Math.ceil(timeDiff / (1000 * 3600 * 24)); // 将毫秒转换为天数
     };
-    
+
     const renderDeadlineStatus = (deadlineDays, createDate) => {
         if (!deadlineDays || !createDate) {
             // 如果没有提供截止日期或创建日期，不显示任何内容
@@ -518,10 +528,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         }
         const deadlineDate = new Date(new Date(createDate).getTime() + deadlineDays * 24 * 60 * 60 * 1000);
         const daysLeft = calculateRemainingDays(deadlineDate);
-    
+
         let displayText;
         let style;
-    
+
         if (daysLeft < 0) {
             // 已逾期
             style = {
@@ -537,7 +547,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             };
             displayText = `剩余 ${daysLeft} 天`;
         }
-    
+
         return <span style={style}>{displayText}</span>;
     };
 
@@ -548,7 +558,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
 
         if (role === 'employee' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "设备名称", "状态", "审批意见", "创建日期", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "状态", "审批意见", "创建日期", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -556,7 +566,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.test_item}</td>
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
-                    <td>{item.equipment_id}</td>
                     <td>{statusLabels[item.status]}</td>
 
                     <td>{item.check_note}</td>
@@ -565,6 +574,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                         {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
                     </td>
                     <td>
+                        <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                         {(item.status !== '3') && (
                             <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
                         )}
@@ -579,7 +589,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
         } else if (role === 'supervisor' && selected === 'handleTests') {
 
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
 
                 <tr key={index}>
@@ -588,12 +598,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.test_item}</td>
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
-                    <td>{item.equipment_id}</td>
                     <td>{item.listed_price}</td>
                     <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
-                    {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
+                        {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
                     </td>
                     <td>{item.check_note}</td>
                     <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
@@ -602,7 +611,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     </td>
 
                     <td>
-                        {(item.status === '1') && (
+                        <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+                        {(item.status !== '3') && (
                             <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
                         )}
                         {item.status === '1' && role === 'supervisor' && (
@@ -617,7 +627,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -625,7 +635,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.test_item}</td>
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
-                    <td>{item.equipment_id}</td>
                     <td>{item.listed_price}</td>
                     <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
@@ -641,6 +650,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     </td>
 
                     <td>
+                        <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                         {/* 只有当状态不是'1'（已检测）时，才显示分配按钮 */}
                         {item.status === '0' && (
                             <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
@@ -655,7 +665,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             return { headers, rows };
         } else if (role === 'sales' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "设备名称", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -663,7 +673,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     <td>{item.test_item}</td>
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
-                    <td>{item.equipment_id}</td>
                     <td>{item.listed_price}</td>
                     <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
@@ -728,7 +737,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                     ));
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "样品原号", "检测项目", "方法", "委托单号", "机时", "工时", "设备名称", "状态", "审批意见", "操作"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "委托单号", "机时", "工时", "状态", "审批意见", "操作"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -738,7 +747,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                             <td>{item.order_num}</td>
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
-                            <td>{item.equipment_id}</td>
                             <td>{statusLabels[item.status]}, 人员：{item.assigned_accounts}</td>
                             <td>{item.check_note}</td>
 
@@ -1019,7 +1027,27 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                 </Modal.Footer>
             </Modal>
 
-
+            {/* 查看按钮 */}
+            <Modal show={showDetailsModal} onHide={() => setShowDetailsModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>详细信息</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>委托单号：{selectedDetails.order_num}</p>
+                    <p>样品原号：{selectedDetails.original_no}</p>
+                    <p>检测项目：{selectedDetails.test_item}</p>
+                    <p>机时：{selectedDetails.machine_hours}</p>
+                    <p>工时：{selectedDetails.work_hours}</p>
+                    <p>设备名称：{selectedDetails.equipment_name}({selectedDetails.model})</p>
+                    <p>状态：{statusLabels[selectedDetails.status]}</p>
+                    <p>审批意见：{selectedDetails.check_note}</p>
+                    <p>创建时间：{selectedDetails.create_time}</p>
+                    <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.create_time)}</p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>关闭</Button>
+                </Modal.Footer>
+            </Modal>
 
             <Modal show={showAlert} onHide={() => setShowAlert(false)}>
                 <Modal.Header closeButton>

@@ -9,6 +9,7 @@ const loginRoutes = require('./routes/login')
 const usersRoutes = require('./routes/users')
 const chartsRoutes = require('./routes/charts')
 const monthsRoutes = require('./routes/months')
+const path = require('path');
 
 const app = express();
 
@@ -24,6 +25,17 @@ app.use('/api/login', loginRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/charts', chartsRoutes);
 app.use('/api/months', monthsRoutes);
+
+
+// 提供静态文件（前端的build目录）
+app.use(express.static(path.join(__dirname, '../manage-app/build')));
+
+// 捕获所有其他路由并返回 React 的 index.html
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../manage-app/build', 'index.html'));
+});
+
+const PORT = process.env.PORT || 3003;
 
 app.listen(3003, () => {
     console.log('Server running on http://localhost:3003');

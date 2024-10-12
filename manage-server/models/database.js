@@ -79,6 +79,61 @@ async function getAllSamples() {
     return results;
 }
 
+// async function getEmployeeTestItems(status, departmentId, account, month) {
+//     let query = `
+//         SELECT 
+//             t.test_item_id,
+//             t.original_no,
+//             t.test_item,
+//             t.test_method,
+//             t.order_num,
+//             t.status,
+//             t.machine_hours,
+//             t.work_hours,
+//             t.listed_price,
+//             t.discounted_price,
+//             t.equipment_id,
+//             t.check_note,
+//             t.create_time,
+//             t.deadline,
+//             e.equipment_name,
+//             e.model,
+//             GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
+//         FROM 
+//             test_items t
+//         JOIN 
+//             assignments a ON t.test_item_id = a.test_item_id
+//         JOIN 
+//             equipment e ON e.equipment_id = t.equipment_id
+//         JOIN 
+// 	        users u on u.account = a.account
+//         WHERE 
+//             EXISTS (
+//                 SELECT 1
+//                 FROM assignments suba
+//                 WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
+//             )
+
+//     `;
+//     const params = [];
+//     params.push(account);
+//     if (departmentId !== undefined && departmentId !== '') {
+//         query += ' AND t.department_id = ?';
+//         params.push(departmentId);
+//         if (status !== undefined && status !== '') {
+//             query += ' AND t.status = ?';
+//             params.push(status);
+//         }
+//     }
+//     if(month !== undefined && month !== ''){
+//         query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
+//             params.push(month);
+//     }
+//     query += `GROUP BY t.test_item_id;`;
+//     const [results] = await db.query(query, params);
+//     return results;
+// }
+
 async function getEmployeeTestItems(status, departmentId, account, month) {
     let query = `
         SELECT 
@@ -96,39 +151,103 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
             t.check_note,
             t.create_time,
             t.deadline,
+            IFNULL(e.equipment_name, '') AS equipment_name,  -- 当 equipment_id 为空时显示空字符串
+            e.model,
             GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
         FROM 
             test_items t
-        JOIN 
+        LEFT JOIN 
             assignments a ON t.test_item_id = a.test_item_id
+        LEFT JOIN 
+            equipment e ON e.equipment_id = t.equipment_id  -- 使用 LEFT JOIN 使得没有 equipment 的 test_items 依然显示
         JOIN 
-	        users u on u.account = a.account
+	        users u ON u.account = a.account
         WHERE 
             EXISTS (
                 SELECT 1
                 FROM assignments suba
                 WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
             )
-
     `;
-    const params = [];
-    params.push(account);
+    
+    const params = [account];  // 将 account 添加为第一个参数
+
+    // 动态构建 WHERE 子句
     if (departmentId !== undefined && departmentId !== '') {
         query += ' AND t.department_id = ?';
         params.push(departmentId);
-        if (status !== undefined && status !== '') {
-            query += ' AND t.status = ?';
-            params.push(status);
-        }
     }
-    if(month !== undefined && month !== ''){
+    
+    if (status !== undefined && status !== '') {
+        query += ' AND t.status = ?';
+        params.push(status);
+    }
+    
+    if (month !== undefined && month !== '') {
         query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
-            params.push(month);
+        params.push(month);
     }
-    query += `GROUP BY t.test_item_id;`;
+
+    // 按 test_item_id 进行分组
+    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model;`;
+
     const [results] = await db.query(query, params);
     return results;
 }
+
+
+// async function getAllTestItems(status, departmentId, month) {
+//     let query = `
+//         SELECT 
+//             t.test_item_id,
+//             t.original_no,
+//             t.test_item,
+//             t.test_method,
+//             t.order_num,
+//             t.status,
+//             t.machine_hours,
+//             t.work_hours,
+//             t.listed_price,
+//             t.discounted_price,
+//             t.equipment_id,
+//             t.check_note,
+//             t.create_time,
+//             t.deadline,
+//             e.equipment_name,
+//             e.model,
+//             COALESCE(GROUP_CONCAT(DISTINCT u.name ORDER BY u.name), '') AS assigned_accounts
+//         FROM
+//             test_items t
+//         LEFT JOIN
+//             assignments a ON t.test_item_id = a.test_item_id
+//         LEFT JOIN 
+//             equipment e ON e.equipment_id = t.equipment_id
+//         left join 
+//             users u on u.account = a.account 
+//     `;
+//     const params = [];
+//     if (departmentId !== undefined && departmentId !== '') {
+//         query += ' WHERE t.department_id = ?';
+//         params.push(departmentId);
+//         if (status !== undefined && status !== '') {
+//             query += ' AND t.status = ?';
+//             params.push(status);
+//         }
+//     } else {
+//         if (status !== undefined && status !== '') {
+//             query += ' WHERE t.status = ?';
+//             params.push(status);
+//         }
+//     }
+//     if(month !== undefined && month !== ''){
+//         query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
+//             params.push(month);
+//     }
+//     query += `GROUP BY t.test_item_id;`;
+
+//     const [results] = await db.query(query, params);
+//     return results;
+// }
 
 
 
@@ -149,38 +268,46 @@ async function getAllTestItems(status, departmentId, month) {
             t.check_note,
             t.create_time,
             t.deadline,
+            IFNULL(e.equipment_name, '') AS equipment_name,  -- 当 equipment_id 为空时显示空字符串
+            e.model,
             COALESCE(GROUP_CONCAT(DISTINCT u.name ORDER BY u.name), '') AS assigned_accounts
         FROM
             test_items t
         LEFT JOIN
             assignments a ON t.test_item_id = a.test_item_id
-        left join 
-            users u on u.account = a.account 
+        LEFT JOIN 
+            equipment e ON e.equipment_id = t.equipment_id  -- 使用 LEFT JOIN 保证没有 equipment_id 的 test_items 依然会显示
+        LEFT JOIN 
+            users u ON u.account = a.account 
     `;
+    
     const params = [];
+    let whereClauseAdded = false;
+
+    // 动态添加 WHERE 条件
     if (departmentId !== undefined && departmentId !== '') {
         query += ' WHERE t.department_id = ?';
         params.push(departmentId);
-        if (status !== undefined && status !== '') {
-            query += ' AND t.status = ?';
-            params.push(status);
-        }
-    } else {
-        if (status !== undefined && status !== '') {
-            query += ' WHERE t.status = ?';
-            params.push(status);
-        }
+        whereClauseAdded = true;
     }
-    if(month !== undefined && month !== ''){
-        query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
-            params.push(month);
+
+    if (status !== undefined && status !== '') {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.status = ?';
+        params.push(status);
+        whereClauseAdded = true;
     }
-    query += `GROUP BY t.test_item_id;`;
+
+    if (month !== undefined && month !== '') {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ` DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
+        params.push(month);
+    }
+
+    // 按照 test_item_id 和 equipment_name 分组
+    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model;`;
 
     const [results] = await db.query(query, params);
     return results;
 }
-
 
 async function assignTestToUser(testId, userId) {
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
@@ -223,24 +350,39 @@ async function updateTestItemCheckStatus(testItemId, status, checkNote) {
 
 async function getAssignedTestsByUser(userId, status) {
     let query = `
-        SELECT 
-            ti.test_item_id,
-            ti.original_no,
-            ti.test_item,
-            ti.test_method,
-            ti.order_num,
-            ti.status,
-            ti.machine_hours,
-            ti.work_hours,
-            ti.listed_price,
-            ti.discounted_price,
-            ti.equipment_id,
-            ti.check_note,
-            ti.create_time,
-            ti.deadline
-        FROM assignments a
-        JOIN test_items ti ON a.test_item_id = ti.test_item_id
-        WHERE a.account = ?
+ SELECT 
+        t.test_item_id,
+        t.original_no,
+        t.test_item,
+        t.test_method,
+        t.order_num,
+        t.status,
+        t.machine_hours,
+        t.work_hours,
+        t.listed_price,
+        t.discounted_price,
+        t.equipment_id,
+        t.check_note,
+        t.create_time,
+        t.deadline,
+        IFNULL(e.equipment_name, '') AS equipment_name,  -- 如果 equipment_id 为空，则不显示 name
+        e.model,
+        GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
+    FROM 
+        test_items t
+    LEFT JOIN 
+        equipment e ON e.equipment_id = t.equipment_id  -- 使用 LEFT JOIN 以处理 equipment_id 为空的情况
+    JOIN 
+        assignments a ON t.test_item_id = a.test_item_id
+    JOIN 
+        users u ON u.account = a.account
+    WHERE 
+        EXISTS (
+            SELECT 1
+            FROM assignments suba
+            WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
+        )
+
     `;
 
     const params = [];
@@ -249,6 +391,7 @@ async function getAssignedTestsByUser(userId, status) {
         query += ' AND ti.status = ?';
         params.push(status);
     }
+    query += '    GROUP BY t.test_item_id';
     const [results] = await db.query(query, [userId, status]);
     return results;
 }
