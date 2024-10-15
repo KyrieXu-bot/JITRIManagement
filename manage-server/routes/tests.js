@@ -7,13 +7,14 @@ router.get('/', async (req, res) => {
     let departmentId = req.query.departmentId; // 获取请求中的部门参数
     let account = req.query.account;
     let month = req.query.month;
+    let employeeName = req.query.employeeName
     try {
         if(account != undefined && account != ''){
-            const results = await db.getEmployeeTestItems(status, departmentId, account,month);
+            const results = await db.getEmployeeTestItems(status, departmentId, account,month, employeeName);
             res.json(results);
 
         } else{
-            const results = await db.getAllTestItems(status, departmentId, account, month);
+            const results = await db.getAllTestItems(status, departmentId, month, employeeName);
             res.json(results);
         }
     } catch (error) {

@@ -151,7 +151,7 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
             t.check_note,
             t.create_time,
             t.deadline,
-            IFNULL(e.equipment_name, '') AS equipment_name,  -- 当 equipment_id 为空时显示空字符串
+            IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
             GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
         FROM 
@@ -159,7 +159,7 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
         LEFT JOIN 
             assignments a ON t.test_item_id = a.test_item_id
         LEFT JOIN 
-            equipment e ON e.equipment_id = t.equipment_id  -- 使用 LEFT JOIN 使得没有 equipment 的 test_items 依然显示
+            equipment e ON e.equipment_id = t.equipment_id
         JOIN 
 	        users u ON u.account = a.account
         WHERE 
@@ -251,7 +251,7 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
 
 
 
-async function getAllTestItems(status, departmentId, month) {
+async function getAllTestItems(status, departmentId, month, employeeName) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -268,22 +268,24 @@ async function getAllTestItems(status, departmentId, month) {
             t.check_note,
             t.create_time,
             t.deadline,
-            IFNULL(e.equipment_name, '') AS equipment_name,  -- 当 equipment_id 为空时显示空字符串
+            IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
-            COALESCE(GROUP_CONCAT(DISTINCT u.name ORDER BY u.name), '') AS assigned_accounts
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id) AS assigned_accounts
         FROM
             test_items t
         LEFT JOIN
             assignments a ON t.test_item_id = a.test_item_id
         LEFT JOIN 
-            equipment e ON e.equipment_id = t.equipment_id  -- 使用 LEFT JOIN 保证没有 equipment_id 的 test_items 依然会显示
+            equipment e ON e.equipment_id = t.equipment_id
         LEFT JOIN 
             users u ON u.account = a.account 
     `;
     
     const params = [];
     let whereClauseAdded = false;
-
     // 动态添加 WHERE 条件
     if (departmentId !== undefined && departmentId !== '') {
         query += ' WHERE t.department_id = ?';
@@ -300,12 +302,18 @@ async function getAllTestItems(status, departmentId, month) {
     if (month !== undefined && month !== '') {
         query += (whereClauseAdded ? ' AND' : ' WHERE') + ` DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
         params.push(month);
+        whereClauseAdded = true;
     }
 
+    if (employeeName !== undefined && employeeName !== '') {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' u.name LIKE ?';
+        params.push(`%${employeeName}%`);
+        whereClauseAdded = true;
+    }
     // 按照 test_item_id 和 equipment_name 分组
     query += ` GROUP BY t.test_item_id, e.equipment_name, e.model;`;
-
     const [results] = await db.query(query, params);
+
     return results;
 }
 
@@ -365,13 +373,13 @@ async function getAssignedTestsByUser(userId, status) {
         t.check_note,
         t.create_time,
         t.deadline,
-        IFNULL(e.equipment_name, '') AS equipment_name,  -- 如果 equipment_id 为空，则不显示 name
+        IFNULL(e.equipment_name, '') AS equipment_name,
         e.model,
         GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
     FROM 
         test_items t
     LEFT JOIN 
-        equipment e ON e.equipment_id = t.equipment_id  -- 使用 LEFT JOIN 以处理 equipment_id 为空的情况
+        equipment e ON e.equipment_id = t.equipment_id
     JOIN 
         assignments a ON t.test_item_id = a.test_item_id
     JOIN 

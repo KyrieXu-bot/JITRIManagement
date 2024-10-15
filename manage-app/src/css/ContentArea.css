@@ -2,12 +2,13 @@
 
 /* 主内容区域的基础样式 */
 .content {
-    max-height: 760px;
+    max-height: 700px;
     width: 80%; /* 占据除侧边栏外的剩余宽度 */
     float: right; /* 使内容区在侧边栏右侧 */
     padding: 10px; /* 内边距 */
     background-color: #fff; /* 背景颜色 */
     box-sizing: border-box;
+    overflow: scroll; /* 隐藏内容溢出 */
 }
 
 /* 表格样式 */
@@ -16,8 +17,6 @@ table {
     border-collapse: separate; /* 用于支持圆角边框 */
     border-spacing: 0;
     margin: 0px auto; /* 增加上下外边距并居中显示 */
-    /* border-radius: 10px; 整个表格的圆角 */
-    overflow: scroll; /* 添加滚动条 */
 
 }
 

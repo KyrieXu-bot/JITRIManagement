@@ -13,7 +13,8 @@ router.post('/', async (req, res) => {
       role:user.role,
       account:user.account,
       department_id:user.department_id,
-      group_id: user.group_id
+      group_id: user.group_id,
+      name:user.name
     } });
   } else {
     res.status(401).json({ success: false, message: '账号或密码错误' });

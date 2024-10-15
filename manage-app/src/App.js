@@ -13,6 +13,7 @@ function App() {
   const [userAccount, setUserAccount] = useState('');
   const [userDepartment, setUserDepartment] = useState('');
   const [userGroup, setUserGroup] = useState('');
+  const [userName, setUserName] = useState('');
 
 
   useEffect(() => {
@@ -24,6 +25,7 @@ function App() {
       setUserAccount(userData.account);
       setUserDepartment(userData.department_id);
       setUserGroup(userData.group_id);
+      setUserName(userData.name)
     }
 }, []); // 依赖于user状态
 
@@ -33,6 +35,7 @@ function App() {
     setUserAccount(user.account); // 存储用户角色状态
     setUserDepartment(user.department_id); // 存储用户角色状态
     setUserGroup(user.group_id);
+    setUserName(user.name);
     localStorage.setItem('user', JSON.stringify(user));
     localStorage.setItem('userRole', user.role); // 可选：也可存储到localStorage以便页面刷新后仍可用
   };
@@ -54,13 +57,18 @@ function App() {
       {isLoggedIn ? (
           // 登录后显示的界面
           <>
-              <Sidebar onSelect={setSelected} selected={selected} role={userRole} account={userAccount} departmentID={userDepartment} />
+              <Sidebar 
+              onSelect={setSelected} selected={selected} 
+              role={userRole} 
+              account={userAccount} 
+              departmentID={userDepartment} />
               <ContentArea 
               selected={selected} 
               role={userRole} 
               account={userAccount} 
               departmentID={userDepartment}
               groupId={userGroup}
+              name={userName}
               onLogout={handleLogout}
               />
           </>

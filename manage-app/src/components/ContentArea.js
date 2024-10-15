@@ -9,7 +9,7 @@ import Pagination from 'react-js-pagination';
 import DataStatistics from '../components/DataStatistics';
 
 
-const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout }) => {
+const ContentArea = ({ departmentID, account, selected, role, groupId, name, onLogout }) => {
 
     const [data, setData] = useState([]);
 
@@ -28,7 +28,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const [equipments, setEquipments] = useState([]);
     const [employeeStats, setEmployeeStats] = useState([]);
     const [equipmentStats, setEquipmentStats] = useState([]);
-
+    const [filterEmployee, setFilterEmployee] = useState('');
 
     const [activePage, setActivePage] = useState(1);
     const itemsCountPerPage = 10;
@@ -83,6 +83,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             if (selectedMonth) {
                 params.append('month', selectedMonth);  // 添加月份到请求参数
             }
+            if (filterEmployee) {
+                params.append('employeeName', filterEmployee); // 添加员工名称到请求参数
+            }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
             setData(response.data);
         } catch (error) {
@@ -90,7 +93,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [setError, filterStatus, selectedMonth]);
+    }, [setError, filterStatus, selectedMonth, filterEmployee]);
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
@@ -443,8 +446,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     const handleShowDetails = (item) => {
         setSelectedDetails(item);
         setShowDetailsModal(true);
-      };
-      
+    };
+
 
     // 设置标价
     const handleQuote = async (testItemId) => {
@@ -776,7 +779,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
     return (
         <div>
             <nav>
-                <span>{account},欢迎访问集萃检测管理系统</span>
+                <span>{name}({account}),欢迎访问集萃检测管理系统</span>
                 <button onClick={onLogout}>登出</button>
             </nav>
             {selected === 'dataStatistics' ? (
@@ -800,7 +803,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, onLogout 
                         {months.map(({ month }) => (
                             <option key={month} value={month}>{month}</option>
                         ))}
-                    </select>
+                    </select>&nbsp;&nbsp;&nbsp;
+                    <span>筛选人员：</span>
+                    <input
+                        type="text"
+                        value={filterEmployee}
+                        onChange={(e) => setFilterEmployee(e.target.value)}
+                        placeholder="输入员工名称进行搜索"
+                    />
+                    <button onClick={() => fetchData('tests')}>查询</button>
                     <Pagination
                         activePage={activePage}
                         itemsCountPerPage={itemsCountPerPage}
