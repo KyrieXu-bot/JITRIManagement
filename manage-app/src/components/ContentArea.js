@@ -43,12 +43,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [months, setMonths] = useState([]);
     const [selectedMonth, setSelectedMonth] = useState('');
 
-
+    //领导点击分配时候的数据
+    const [assignmentData, setAssignmentData] = useState({
+        equipment_id: '',
+        start_time: '',
+        end_time: ''
+    });
+    //员工点击完成时候的数据
     const [finishData, setFinishData] = useState({
         machine_hours: '',
         work_hours: '',
         operator: account, // 默认为当前登录的账户
-        equipment_id: ''
+        equipment_id: '',
+
     });
     const [showAssignmentModal, setShowAssignmentModal] = useState(false);
     const [showReassignmentModal, setShowReassignmentModal] = useState(false);
@@ -319,7 +326,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const submitAssignment = useCallback(async () => {
         try {
-            const payload = { testItemId: currentItem.testItemId, assignmentInfo };
+            const payload = {
+                testItemId: currentItem.testItemId,
+                assignmentInfo,
+                equipment_id: assignmentData.equipment_id,
+                start_time: assignmentData.start_time,
+                end_time: assignmentData.end_time
+            };
             const response = await axios.post(`${config.API_BASE_URL}/api/tests/assign`, payload);
             isAssignedToMeRef.current = (assignmentInfo === account); // Update the ref value based on the condition
             setShowAssignmentModal(false);
@@ -349,6 +362,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
     }, [currentItem,
+        assignmentData,
         account,
         role,
         assignmentInfo,
@@ -392,7 +406,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             machine_hours: '',
             work_hours: '',
             operator: account,
-            equipment_id: ''
+            equipment_id: item.equipment_id,
+            equipment_name: item.equipment_name,
+            model: item.model
         });
         setShowFinishModal(true);
     };
@@ -892,6 +908,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
+            {/* 领导分配按钮 */}
             <Modal show={showAssignmentModal} onHide={() => setShowAssignmentModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>检测人员分配</Modal.Title>
@@ -913,6 +930,42 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     </option>
                                 ))}
                             </Form.Control>
+                        </Form.Group>
+
+                        <Form.Group>
+                            <Form.Label>设备名称</Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={assignmentData.equipment_id}
+                                onChange={e => setAssignmentData({ ...assignmentData, equipment_id: e.target.value })}
+                            >
+                                <option value="">---选择设备---</option>
+                                {equipments.map(equipment => (
+                                    <option key={equipment.equipment_id} value={equipment.equipment_id}>
+                                        {equipment.equipment_name} ({equipment.model})
+                                    </option>
+                                ))}
+                            </Form.Control>
+                        </Form.Group>
+
+                        {/* 设备使用开始时间 */}
+                        <Form.Group controlId="formStartTime">
+                            <Form.Label>设备使用开始时间</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={assignmentData.start_time}
+                                onChange={e => setAssignmentData({ ...assignmentData, start_time: e.target.value })}
+                            />
+                        </Form.Group>
+
+                        {/* 设备使用结束时间 */}
+                        <Form.Group controlId="formEndTime">
+                            <Form.Label>设备使用结束时间</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={assignmentData.end_time}
+                                onChange={e => setAssignmentData({ ...assignmentData, end_time: e.target.value })}
+                            />
                         </Form.Group>
                     </Form>
                 </Modal.Body>
@@ -1015,7 +1068,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 disabled // 操作员默认为登录账户，禁止编辑
                             />
                         </Form.Group>
-                        <Form.Group>
+                        {/* <Form.Group>
                             <Form.Label>设备名称</Form.Label>
                             <Form.Control
                                 as="select"
@@ -1029,6 +1082,27 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     </option>
                                 ))}
                             </Form.Control>
+                        </Form.Group> */}
+
+                        {/* 设备选择框或已选设备名称 */}
+                        <Form.Group controlId="formEquipment">
+                            <Form.Label>设备名称</Form.Label>
+                                <Form.Control
+                                    as="select"
+                                    value={finishData.equipment_id}
+                                    onChange={(e) => setFinishData({ ...finishData, equipment_id: e.target.value })}
+                                >
+                                    {finishData.equipment_name ? (
+                                        <option value={finishData.equipment_id}>{finishData.equipment_name} ({finishData.model})</option>
+                                    ) : (
+                                        <option value="">选择设备</option>
+                                    )}
+                                    {equipments.map(equipment => (
+                                        <option key={equipment.equipment_id} value={equipment.equipment_id}>
+                                            {equipment.equipment_name} ({equipment.model})
+                                        </option>
+                                    ))}
+                                </Form.Control>
                         </Form.Group>
                     </Form>
                 </Modal.Body>

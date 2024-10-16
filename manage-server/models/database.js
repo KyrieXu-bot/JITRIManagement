@@ -317,11 +317,22 @@ async function getAllTestItems(status, departmentId, month, employeeName) {
     return results;
 }
 
-async function assignTestToUser(testId, userId) {
+async function assignTestToUser(testId, userId, equipment_id, start_time, end_time) {
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
-    const updateQuery = 'UPDATE test_items SET status = ? WHERE test_item_id = ?';
-    await db.query(query, [testId, userId]);
-    await db.query(updateQuery, ['1', testId])
+    const updateQuery = 
+        `UPDATE test_items 
+            SET status = ?, equipment_id = ?, start_time = ?, end_time = ? 
+            WHERE test_item_id = ?
+        `;
+    try {
+        // 执行插入分配的用户信息
+        await db.query(query, [testId, userId]);
+        // 执行更新 test_items 的状态、设备ID、设备开始和结束时间
+        await db.query(updateQuery, ['1', equipment_id, start_time, end_time, testId]);
+    } catch (error) {
+        console.error('Error assigning test to user:', error);
+        throw new Error('Failed to assign test and update test item.');
+    }
 }
 
 async function reassignTestToUser(newAccount, account, testItemId) {
