@@ -169,7 +169,7 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
                 WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
             )
     `;
-    
+
     const params = [account];  // 将 account 添加为第一个参数
 
     // 动态构建 WHERE 子句
@@ -177,12 +177,12 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
         query += ' AND t.department_id = ?';
         params.push(departmentId);
     }
-    
+
     if (status !== undefined && status !== '') {
         query += ' AND t.status = ?';
         params.push(status);
     }
-    
+
     if (month !== undefined && month !== '') {
         query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
         params.push(month);
@@ -283,7 +283,7 @@ async function getAllTestItems(status, departmentId, month, employeeName) {
         LEFT JOIN 
             users u ON u.account = a.account 
     `;
-    
+
     const params = [];
     let whereClauseAdded = false;
     // 动态添加 WHERE 条件
@@ -319,7 +319,7 @@ async function getAllTestItems(status, departmentId, month, employeeName) {
 
 async function assignTestToUser(testId, userId, equipment_id, start_time, end_time) {
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
-    const updateQuery = 
+    const updateQuery =
         `UPDATE test_items 
             SET status = ?, equipment_id = ?, start_time = ?, end_time = ? 
             WHERE test_item_id = ?
@@ -547,13 +547,37 @@ async function getMachineWorkStats(departmentId) {
     try {
         const [results] = await db.query(query, [departmentId]);
         return results;
+
     } catch (error) {
         console.error('Failed to fetch employee work stats:', error);
         throw error;
     }
 }
 
+//获取设备的使用数据
+async function getEquipmentTimeline(departmentId) {
+    const query = `
+        SELECT 
+            e.equipment_name, 
+            e.model, 
+            t.start_time, 
+            t.end_time
+        FROM 
+            test_items t
+        JOIN 
+            equipment e ON t.equipment_id = e.equipment_id
+        WHERE 
+            t.department_id = ?;
+    `;
+    try {
+        const [results] = await db.query(query, [departmentId]);
+        return results;
+    } catch (error) {
+        console.error('Error fetching equipment timeline from database:', error);
+        throw new Error('Failed to fetch equipment timeline');
+    }
 
+}
 
 // 获取所有月份
 async function getAllMonths() {
@@ -600,5 +624,6 @@ module.exports = {
     getEmployeeWorkStats,
     getMachineWorkStats,
     getAllMonths,
-    updateDiscountedPrice
+    updateDiscountedPrice,
+    getEquipmentTimeline
 };

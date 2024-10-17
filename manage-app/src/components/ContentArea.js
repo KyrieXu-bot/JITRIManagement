@@ -7,7 +7,7 @@ import config from '../config/config'; // 确保路径正确
 import Pagination from 'react-js-pagination';
 
 import DataStatistics from '../components/DataStatistics';
-
+import EquipmentTimeline from '../components/EquipmentTimeline';
 
 const ContentArea = ({ departmentID, account, selected, role, groupId, name, onLogout }) => {
 
@@ -28,6 +28,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipments, setEquipments] = useState([]);
     const [employeeStats, setEmployeeStats] = useState([]);
     const [equipmentStats, setEquipmentStats] = useState([]);
+    const [equipmentTimeline, setEquipmentTimeline] = useState([]);
     const [filterEmployee, setFilterEmployee] = useState('');
 
     const [activePage, setActivePage] = useState(1);
@@ -191,7 +192,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, []);
 
-
+    // 获取数据图
     const fetchStatistics = useCallback(async () => {
         try {
             const response = await axios.get(`${config.API_BASE_URL}/api/charts/statistics?departmentId=${departmentID}`);
@@ -218,6 +219,42 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, [departmentID])
 
+    // 获取设备时间线
+    const fetchTimeline = useCallback(async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/charts/timeline?departmentId=${departmentID}`);
+            const equipmentData = response.data;
+            console.log("result", response.data)
+            // 检查并格式化任务数据
+            const tasks = equipmentData.map((equipment, index) => {
+                // 验证 start_time 和 end_time 是否有效
+                const start = equipment.start_time ? new Date(equipment.start_time) : null;
+                const end = equipment.end_time ? new Date(equipment.end_time) : null;
+
+                // 检查 start 和 end 是否为有效的 Date 对象
+                if (!start || isNaN(start.getTime()) || !end || isNaN(end.getTime())) {
+                    console.error(`Invalid date for equipment: ${equipment.equipment_name}`);
+                    return null; // 跳过无效的任务
+                }
+
+                return {
+                    id: index.toString(),
+                    name: equipment.equipment_name,
+                    start,
+                    end,
+                    progress: 100,
+                    type: 'task',
+                    dependencies: '' // 这里可以添加任务依赖关系
+
+
+                };
+            }).filter(task => task !== null); // 过滤掉无效任务
+            setEquipmentTimeline(tasks); // 将设备时间线数据保存在 equipmentTimeline
+        } catch (error) {
+            console.error('Error fetching statistics data:', error);
+        }
+    }, [departmentID])
+
 
     const fetchMonths = useCallback(async () => {
         try {
@@ -234,6 +271,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } else if (role === 'supervisor' || role === 'leader') {
             if (selected === 'dataStatistics') {
                 fetchStatistics()
+            } else if(selected === 'timeline'){
+                fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchData('orders');
             } else {
@@ -272,6 +311,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchGroupUsers,
         fetchEquipments,
         fetchStatistics,
+        fetchTimeline,
         fetchMonths
     ]);
 
@@ -800,6 +840,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             </nav>
             {selected === 'dataStatistics' ? (
                 <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} />
+            ) : selected === 'timeline' ? (
+                <EquipmentTimeline tasks={equipmentTimeline} /> // 显示设备时间线
             ) : (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>

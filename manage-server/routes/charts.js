@@ -21,5 +21,17 @@ router.get('/statistics', async (req, res) => {
 });
 
 
+// 获取设备使用数据
+router.get('/timeline', async (req, res) => {
+    const { departmentId } = req.query;
+    try {
+        const equipmentTimeline = await db.getEquipmentTimeline(departmentId);
+        res.json(equipmentTimeline);
+    } catch (error) {
+        console.error('Failed to fetch timeline:', error);
+        res.status(500).send({ message: 'Failed to fetch data', error: error.message });
+    }
+});
+
 
 module.exports = router;
