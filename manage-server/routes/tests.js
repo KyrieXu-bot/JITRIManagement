@@ -131,6 +131,52 @@ router.patch('/:testItemId/discount', async (req, res) => {
 });
 
 
+// 更新检测项目
+router.patch('/:testItemId', async (req, res) => {
+    const { testItemId } = req.params;
+    const updatedFields = req.body;
+    // 过滤掉不需要更新的字段
+    const allowedFields = ['original_no', 'test_item', 'test_method', 'size', 'quantity', 'order_num', 'note', 'status', 'machine_hours', 'work_hours', 'listed_price', 'discounted_price', 'check_note', 'create_time', 'deadline', 'department_id', 'start_time', 'end_time'];
+    const filteredFields = {};
+    for (const key in updatedFields) {
+        if (allowedFields.includes(key)) {
+            // 检查是否是日期字段并转换格式
+            if (['create_time', 'start_time', 'end_time'].includes(key) && updatedFields[key]) {
+                filteredFields[key] = formatDateForMySQL(updatedFields[key]);
+            } else {
+                filteredFields[key] = updatedFields[key];
+            }
+        }
+    }
+    try {
+
+        // 调用 db 方法进行数据库更新
+        const [result] = await db.updateTestItem(testItemId, filteredFields);
+        if (result.affectedRows > 0) {
+            res.json({ success: true, message: '检测项目更新成功' });
+        } else {
+            res.status(404).json({ success: false, message: '检测项目未找到' });
+        }
+    } catch (error) {
+        console.error('Failed to update test item:', error);
+        res.status(500).send({ message: '更新失败', error: error.message });
+    }
+});
+
+
+// 将 ISO 日期格式转换为 MySQL 的日期时间格式 YYYY-MM-DD HH:MM:SS
+const formatDateForMySQL = (isoDate) => {
+    const date = new Date(isoDate);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
 
 // 获取同一组的用户
 router.get('/equipments', async (req, res) => {

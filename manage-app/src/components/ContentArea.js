@@ -17,6 +17,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [currentItem, setCurrentItem] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
+    const [showFailureToast, setShowFailureToast] = useState(false); // 控制Toast显示的状态
+
     const [, setError] = useState('');
     const [showFinishModal, setShowFinishModal] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
@@ -81,6 +83,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         2: '加急',
         3: '特急'
     };
+
+
+    // 静态部门数据
+    const departments = [
+        { department_id: 1, department_name: '显微组织表征实验室' },
+        { department_id: 2, department_name: '物化性能测试实验室' },
+        { department_id: 3, department_name: '力学性能测试实验室' }
+    ];
+
 
     const fetchData = useCallback(async (endpoint) => {
         try {
@@ -271,7 +282,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } else if (role === 'supervisor' || role === 'leader') {
             if (selected === 'dataStatistics') {
                 fetchStatistics()
-            } else if(selected === 'timeline'){
+            } else if (selected === 'timeline') {
                 fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchData('orders');
@@ -329,11 +340,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const updateItem = async () => {
         try {
-            await axios.patch(`${config.API_BASE_URL}/api/${selected}/${currentItem.identifier}`, currentItem);
-            setShowModal(false);
-            fetchData();
+            if (selected === 'getTests') {
+                const response = await axios.patch(`${config.API_BASE_URL}/api/tests/${currentItem.test_item_id}`, currentItem);
+                if (response.data.success) {
+                    // 成功提示
+                    setShowModal(false);
+                    setShowSuccessToast(true); // 显示成功的Toast
+                    setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                    fetchData(selected);
+
+                } else {
+                    setShowFailureToast(true)
+                }
+            }
         } catch (error) {
-            console.error('Error updating order:', error);
+            console.error('Error updating test items:', error);
         }
     };
 
@@ -527,8 +548,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         const newPrice = prompt("请输入优惠价格:");
         if (newPrice && !isNaN(parseFloat(newPrice))) {
             try {
-                const response = await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/discount`, { discountedPrice: newPrice });
-                console.log(response.data.message);
+                await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/discount`, { discountedPrice: newPrice });
                 fetchDataForEmployee(account); // 重新获取数据以更新UI
             } catch (error) {
                 console.error('Error updating price:', error);
@@ -608,6 +628,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
 
         return <span style={style}>{displayText}</span>;
+    };
+
+
+    // 将 ISO 日期格式转换为 datetime-local 格式
+    const formatDateToLocal = (isoDate) => {
+        if (!isoDate) return '';
+        const date = new Date(isoDate);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从 0 开始，所以加 1
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
 
 
@@ -796,17 +829,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "样品原号", "检测项目", "方法", "委托单号", "机时", "工时", "状态", "审批意见", "操作"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "状态", "人员", "审批意见", "操作"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
                             <td>{item.original_no}</td>
                             <td>{item.test_item}</td>
                             <td>{item.test_method}</td>
-                            <td>{item.order_num}</td>
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
-                            <td>{statusLabels[item.status]}, 人员：{item.assigned_accounts}</td>
+                            <td>{statusLabels[item.status]}</td>
+                            <td>{item.assigned_accounts}</td>
                             <td>{item.check_note}</td>
 
                             <td>
@@ -906,30 +939,172 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Toast.Header>
                 <Toast.Body>操作成功！</Toast.Body>
             </Toast>
+
+            {/* 失败的Toast */}
+            <Toast onClose={() => setShowFailureToast(false)} show={showFailureToast} delay={3000} autohide position="top-end" style={{ position: 'absolute', top: 20, right: 20 }}>
+                <Toast.Header>
+                    <strong className="me-auto">失败</strong>
+                    <small>刚刚</small>
+                </Toast.Header>
+                <Toast.Body>操作失败</Toast.Body>
+            </Toast>
+
+
+
             {/* Edit Modal */}
             <Modal show={showModal} onHide={() => setShowModal(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>Edit Item</Modal.Title>
+                    <Modal.Title>编辑检测项目信息</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
-                        <Form.Group controlId="formCustomerName">
-                            <Form.Label>Customer Name</Form.Label>
+                        <Form.Group controlId="formOriginalNo">
+                            <Form.Label>样品原号</Form.Label>
                             <Form.Control
                                 type="text"
-                                value={currentItem.customer_name || ''}
-                                onChange={(e) => setCurrentItem({ ...currentItem, customer_name: e.target.value })}
+                                value={currentItem.original_no || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, original_no: e.target.value })}
                             />
                         </Form.Group>
-                        <Form.Group controlId="formContactName">
-                            <Form.Label>Contact Name</Form.Label>
+                        <Form.Group controlId="formTestItem">
+                            <Form.Label>检测项目</Form.Label>
                             <Form.Control
                                 type="text"
-                                value={currentItem.contact_name || ''}
-                                onChange={(e) => setCurrentItem({ ...currentItem, contact_name: e.target.value })}
+                                value={currentItem.test_item || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, test_item: e.target.value })}
                             />
                         </Form.Group>
-                        {/* Repeat for other fields */}
+                        <Form.Group controlId="formTestMethod">
+                            <Form.Label>检测方法</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.test_method || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, test_method: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formSize">
+                            <Form.Label>尺寸</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.size || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, size: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formQuantity">
+                            <Form.Label>数量</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={currentItem.quantity || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, quantity: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formNote">
+                            <Form.Label>备注</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.note || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, note: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formStatus">
+                            <Form.Label>状态</Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={currentItem.status || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, status: e.target.value })}
+                            >
+                                <option value="">选择状态</option>
+                                <option value="0">待分配</option>
+                                <option value="1">已分配</option>
+                                <option value="2">已检测</option>
+                                <option value="3">已审批</option>
+                                <option value="4">审批失败</option>
+                            </Form.Control>
+                        </Form.Group>
+                        <Form.Group controlId="formMachineHours">
+                            <Form.Label>机时</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={currentItem.machine_hours || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, machine_hours: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formWorkHours">
+                            <Form.Label>工时</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={currentItem.work_hours || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, work_hours: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formListedPrice">
+                            <Form.Label>标准价格</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={currentItem.listed_price || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, listed_price: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formDiscountedPrice">
+                            <Form.Label>优惠价格</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={currentItem.discounted_price || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, discounted_price: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group>
+                            <Form.Label>设备名称</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.equipment_name || ''}
+                                disabled
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formDepartmentId">
+                            <Form.Label>所属部门</Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={currentItem.department_id || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, department_id: e.target.value })}
+                            >
+                                {departments.map(dept => (
+                                    <option key={dept.department_id} value={dept.department_id}>{dept.department_name}</option>
+                                ))}
+                            </Form.Control>
+                        </Form.Group>
+                        <Form.Group controlId="formCheckNote">
+                            <Form.Label>审批备注</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.check_note || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, check_note: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formDeadline">
+                            <Form.Label>截止日期</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={currentItem.deadline || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, deadline: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formStartTime">
+                            <Form.Label>设备使用开始时间</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={formatDateToLocal(currentItem.start_time)}
+                                onChange={(e) => setCurrentItem({ ...currentItem, start_time: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formEndTime">
+                            <Form.Label>设备使用结束时间</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={formatDateToLocal(currentItem.start_time)}
+                                onChange={(e) => setCurrentItem({ ...currentItem, end_time: e.target.value })}
+                            />
+                        </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
@@ -938,15 +1113,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
+
+
+
             {/* Delete Confirmation */}
             <Modal show={showDeleteConfirm} onHide={() => setShowDeleteConfirm(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>Confirm Deletion</Modal.Title>
+                    <Modal.Title>确认删除</Modal.Title>
                 </Modal.Header>
-                <Modal.Body>Are you sure you want to delete this item?</Modal.Body>
+                <Modal.Body>你确定要删除这条检测项目吗？</Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
-                    <Button variant="danger" onClick={deleteItem}>Delete</Button>
+                    <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>取消</Button>
+                    <Button variant="danger" onClick={deleteItem}>确认删除</Button>
                 </Modal.Footer>
             </Modal>
 
@@ -1129,22 +1307,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {/* 设备选择框或已选设备名称 */}
                         <Form.Group controlId="formEquipment">
                             <Form.Label>设备名称</Form.Label>
-                                <Form.Control
-                                    as="select"
-                                    value={finishData.equipment_id}
-                                    onChange={(e) => setFinishData({ ...finishData, equipment_id: e.target.value })}
-                                >
-                                    {finishData.equipment_name ? (
-                                        <option value={finishData.equipment_id}>{finishData.equipment_name} ({finishData.model})</option>
-                                    ) : (
-                                        <option value="">选择设备</option>
-                                    )}
-                                    {equipments.map(equipment => (
-                                        <option key={equipment.equipment_id} value={equipment.equipment_id}>
-                                            {equipment.equipment_name} ({equipment.model})
-                                        </option>
-                                    ))}
-                                </Form.Control>
+                            <Form.Control
+                                as="select"
+                                value={finishData.equipment_id}
+                                onChange={(e) => setFinishData({ ...finishData, equipment_id: e.target.value })}
+                            >
+                                {finishData.equipment_name ? (
+                                    <option value={finishData.equipment_id}>{finishData.equipment_name} ({finishData.model})</option>
+                                ) : (
+                                    <option value="">选择设备</option>
+                                )}
+                                {equipments.map(equipment => (
+                                    <option key={equipment.equipment_id} value={equipment.equipment_id}>
+                                        {equipment.equipment_name} ({equipment.model})
+                                    </option>
+                                ))}
+                            </Form.Control>
                         </Form.Group>
                     </Form>
                 </Modal.Body>

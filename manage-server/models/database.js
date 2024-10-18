@@ -258,7 +258,10 @@ async function getAllTestItems(status, departmentId, month, employeeName) {
             t.original_no,
             t.test_item,
             t.test_method,
+            t.size,
+            t.quantity,
             t.order_num,
+            t.note,
             t.status,
             t.machine_hours,
             t.work_hours,
@@ -268,6 +271,9 @@ async function getAllTestItems(status, departmentId, month, employeeName) {
             t.check_note,
             t.create_time,
             t.deadline,
+            t.department_id,
+            t.start_time,
+            t.end_time,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
@@ -602,28 +608,61 @@ async function getAllMonths() {
 }
 
 
+// 更新检测项目
+async function updateTestItem(testItemId, updatedFields) {
+    try {
+        // 构造动态 SQL 查询
+        const fields = Object.keys(updatedFields);
+        const values = Object.values(updatedFields);
+
+        if (fields.length === 0) {
+            throw new Error('没有提供需要更新的字段');
+        }
+
+        // 使用字段名和占位符生成 SQL
+        const setClause = fields.map((field) => `${field} = ?`).join(', ');
+
+        const query = `
+            UPDATE test_items
+            SET ${setClause}
+            WHERE test_item_id = ?;
+        `;
+
+        // 执行查询
+        const result = await db.query(query, [...values, testItemId]);
+
+        return result; // 返回执行结果
+    } catch (error) {
+        console.error('Error updating test item:', error);
+        throw error;
+    }
+}
+
+
+
 module.exports = {
     findUserByAccount,
-    getAllOrders,
-    updateOrder,
     deleteOrder,
     assignTestToUser,
-    updateTestItemStatus,
+    reassignTestToUser,
+    getAllOrders,
     getAllSamples,
     getAllTestItems,
     getEmployeeTestItems,
     getAssignedTestsByUser,
-    reassignTestToUser,
-    updateTestItemPrice,
     getAllSupervisors,
     getAllEmployees,
     getUsersByGroupId,
-    updateTestItemCheckStatus,
     getAssignmentsInfo,
     getEquipmentsByDepartment,
     getEmployeeWorkStats,
     getMachineWorkStats,
     getAllMonths,
+    getEquipmentTimeline,
+    updateOrder,
+    updateTestItemPrice,
+    updateTestItemStatus,
+    updateTestItemCheckStatus,
     updateDiscountedPrice,
-    getEquipmentTimeline
+    updateTestItem
 };
