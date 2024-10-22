@@ -8,13 +8,14 @@ router.get('/', async (req, res) => {
     let account = req.query.account;
     let month = req.query.month;
     let employeeName = req.query.employeeName
+    let orderNum = req.query.orderNum
     try {
         if(account != undefined && account != ''){
-            const results = await db.getEmployeeTestItems(status, departmentId, account,month, employeeName);
+            const results = await db.getEmployeeTestItems(status, departmentId, account,month, employeeName, orderNum);
             res.json(results);
 
         } else{
-            const results = await db.getAllTestItems(status, departmentId, month, employeeName);
+            const results = await db.getAllTestItems(status, departmentId, month, employeeName, orderNum);
             res.json(results);
         }
     } catch (error) {
@@ -187,6 +188,25 @@ router.get('/equipments', async (req, res) => {
     } catch (error) {
         console.error('Failed to fetch equipments:', error);
         res.status(500).send({ message: 'Failed to fetch equipments', error: error.message });
+    }
+});
+
+
+// 删除检测项目
+router.delete('/:testItemId', async (req, res) => {
+    const { testItemId } = req.params;
+
+    try {
+        // 调用数据库方法删除 test_item_id 相关的数据
+        const result = await db.deleteTestItem(testItemId);
+        if (result.affectedRows > 0) {
+            res.json({ success: true, message: '检测项目删除成功' });
+        } else {
+            res.status(404).json({ success: false, message: '检测项目未找到' });
+        }
+    } catch (error) {
+        console.error('Failed to delete test item:', error);
+        res.status(500).send({ message: '删除失败', error: error.message });
     }
 });
 

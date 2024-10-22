@@ -32,6 +32,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipmentStats, setEquipmentStats] = useState([]);
     const [equipmentTimeline, setEquipmentTimeline] = useState([]);
     const [filterEmployee, setFilterEmployee] = useState('');
+    const [filterOrderNum, setFilterOrderNum] = useState('');
 
     const [activePage, setActivePage] = useState(1);
     const itemsCountPerPage = 10;
@@ -102,6 +103,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (selectedMonth) {
                 params.append('month', selectedMonth);  // 添加月份到请求参数
             }
+            if (filterOrderNum) {
+                params.append('orderNum', filterOrderNum); // 添加员工名称到请求参数
+            }
             if (filterEmployee) {
                 params.append('employeeName', filterEmployee); // 添加员工名称到请求参数
             }
@@ -112,7 +116,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [setError, filterStatus, selectedMonth, filterEmployee]);
+    }, [setError, filterStatus, selectedMonth, filterEmployee,filterOrderNum]);
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
@@ -235,7 +239,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         try {
             const response = await axios.get(`${config.API_BASE_URL}/api/charts/timeline?departmentId=${departmentID}`);
             const equipmentData = response.data;
-            console.log("result", response.data)
             // 检查并格式化任务数据
             const tasks = equipmentData.map((equipment, index) => {
                 // 验证 start_time 和 end_time 是否有效
@@ -259,6 +262,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
                 };
+
             }).filter(task => task !== null); // 过滤掉无效任务
             setEquipmentTimeline(tasks); // 将设备时间线数据保存在 equipmentTimeline
         } catch (error) {
@@ -347,7 +351,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     setShowModal(false);
                     setShowSuccessToast(true); // 显示成功的Toast
                     setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
-                    fetchData(selected);
+                    fetchData("tests");
 
                 } else {
                     setShowFailureToast(true)
@@ -360,9 +364,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const deleteItem = async () => {
         try {
-            await axios.delete(`${config.API_BASE_URL}/api/${selected}/${currentItem.identifier}`);
-            setShowDeleteConfirm(false);
-            fetchData(selected);
+            if (!window.confirm('请再次确认此【删除】操作！')) {
+                return;  // 用户点击取消后，不执行任何操作
+            }
+            if(selected === 'getTests'){
+                await axios.delete(`${config.API_BASE_URL}/api/tests/${currentItem.identifier}`);
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                setShowDeleteConfirm(false);
+                fetchData(selected);
+            } else if(selected === 'getCommission'){
+                await axios.delete(`${config.API_BASE_URL}/api/orders/${currentItem.identifier}`);
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                setShowDeleteConfirm(false);
+                fetchData("orders");
+            }
         } catch (error) {
             console.error('Error deleting order:', error);
         }
@@ -530,7 +547,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const handleQuote = async (testItemId) => {
         const newPrice = prompt("请输入标准价格:");
         if (newPrice && !isNaN(parseFloat(newPrice))) {
-            try {
+            try {     
                 const response = await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/price`, { listedPrice: newPrice });
                 console.log(response.data.message);
                 fetchDataForSupervisor(departmentID); // 重新获取数据以更新UI
@@ -787,7 +804,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             // 默认视图
             switch (selected) {
                 case 'getCommission':
-                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "样品", "服务加急", "备注"];
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急", "操作"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -798,20 +815,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.payer_contact_name}</td>
                             <td>{item.payer_contact_phone_num}</td>
                             <td>{item.payer_address}</td>
-                            <td>{item.test_item}</td>
+                            <td>{item.test_items}</td>
                             <td>{item.material}</td>
-                            <td>{item.size}</td>
                             <td>{serviceTypeLabels[item.service_type]}</td>
-                            <td>{item.note}</td>
-                            {/* <td>
-                                <Button onClick={() => handleEdit(item)}>修改</Button>
-                                <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
-                            </td> */}
+                            <td>
+                                {/* <Button onClick={() => handleEdit(item)}>修改</Button> */}
+                                <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
+                            </td>
                         </tr>
                     ));
                     break;
                 case 'getSamples':
-                    headers = ["样品名称", "材料", "货号", "材料规范", "样品处置", "材料类型", "订单编号", "操作"];
+                    headers = ["样品名称", "材料", "货号", "材料规范", "样品处置", "材料类型", "订单编号"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.sample_name}</td>
@@ -821,10 +836,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.sample_solution_type}</td>
                             <td>{item.sample_type}</td>
                             <td>{item.order_num}</td>
-                            <td>
+                            {/* <td>
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
                                 <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
-                            </td>
+                            </td> */}
                         </tr>
                     ));
                     break;
@@ -848,7 +863,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                                 )}
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
-                                <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
+                                {/* <Button onClick={() => handleDelete(item.test_item_id)}>删除</Button> */}
                             </td>
                         </tr>
                     ));
@@ -894,7 +909,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {months.map(({ month }) => (
                             <option key={month} value={month}>{month}</option>
                         ))}
-                    </select>&nbsp;&nbsp;&nbsp;
+                    </select>
+                    <br></br>
+                    <span>筛选委托单号：</span>
+                    <input
+                        type="text"
+                        value={filterOrderNum}
+                        onChange={(e) => setFilterOrderNum(e.target.value)}
+                        placeholder="输入委托单号进行搜索"
+                    />
+                    <button onClick={() => fetchData('tests')}>查询单号</button>
                     <span>筛选人员：</span>
                     <input
                         type="text"
@@ -902,7 +926,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         onChange={(e) => setFilterEmployee(e.target.value)}
                         placeholder="输入员工名称进行搜索"
                     />
-                    <button onClick={() => fetchData('tests')}>查询</button>
+                    <button onClick={() => fetchData('tests')}>查询员工</button>
                     <Pagination
                         activePage={activePage}
                         itemsCountPerPage={itemsCountPerPage}

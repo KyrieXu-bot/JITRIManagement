@@ -22,16 +22,17 @@ async function getAllOrders() {
             p.payer_contact_name, 
             p.payer_contact_phone_num,
             p.payer_address,
-            t.test_item,
+            GROUP_CONCAT(t.test_item SEPARATOR ', ') AS test_items,
             s.material,
-            t.size,
-            o.service_type,
-            t.note
+            o.service_type
         FROM orders o
         JOIN customers c ON o.customer_id = c.customer_id
         JOIN payments p ON o.payment_id = p.payment_id
         JOIN test_items t ON o.order_num = t.order_num
         JOIN samples s ON o.order_num = s.order_num
+        GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
+                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
+                 p.payer_address, o.service_type
     `;
     const [results] = await db.query(query);
     return results;
@@ -58,9 +59,60 @@ async function updateOrder(orderNum, updateData) {
 }
 
 async function deleteOrder(orderNum) {
-    const sql = `DELETE FROM orders WHERE order_num = ?`;
-    await db.query(sql, [orderNum]);
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. 删除 assignments 表中的记录
+        let sql = `
+            DELETE FROM assignments 
+            WHERE test_item_id IN (
+                SELECT test_item_id FROM test_items WHERE order_num = ?
+            )`;
+        await connection.query(sql, [orderNum]);
+
+        // 2. 删除 test_items 表中的记录
+        sql = `DELETE FROM test_items WHERE order_num = ?`;
+        await connection.query(sql, [orderNum]);
+
+        // 3. 删除 reports 表中的记录
+        sql = `DELETE FROM reports WHERE order_num = ?`;
+        await connection.query(sql, [orderNum]);
+
+        // 4. 删除 samples 表中的记录
+        sql = `DELETE FROM samples WHERE order_num = ?`;
+        await connection.query(sql, [orderNum]);
+
+        // 5. 删除 orders 表中的记录
+        sql = `DELETE FROM orders WHERE order_num = ?`;
+        await connection.query(sql, [orderNum]);
+
+        // 6. 删除 payments 表中的记录
+        sql = `
+            DELETE FROM payments 
+            WHERE payment_id IN (
+                SELECT payment_id FROM orders WHERE order_num = ?
+            )`;
+        await connection.query(sql, [orderNum]);
+
+        // 7. 删除 customers 表中的记录
+        sql = `
+            DELETE FROM customers 
+            WHERE customer_id IN (
+                SELECT customer_id FROM orders WHERE order_num = ?
+            )`;
+        await connection.query(sql, [orderNum]);
+
+        // 提交事务
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback(); // 如果有错误，回滚事务
+        throw error; // 将错误抛出以便捕获和处理
+    } finally {
+        connection.release(); // 释放连接
+    }
 }
+
 
 
 async function getAllSamples() {
@@ -251,7 +303,7 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
 
 
 
-async function getAllTestItems(status, departmentId, month, employeeName) {
+async function getAllTestItems(status, departmentId, month, employeeName, orderNum) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -311,6 +363,11 @@ async function getAllTestItems(status, departmentId, month, employeeName) {
         whereClauseAdded = true;
     }
 
+    if (orderNum !== undefined && orderNum !== '') {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.order_num LIKE ?';
+        params.push(`%${orderNum}%`);
+        whereClauseAdded = true;
+    }
     if (employeeName !== undefined && employeeName !== '') {
         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' u.name LIKE ?';
         params.push(`%${employeeName}%`);
@@ -319,7 +376,6 @@ async function getAllTestItems(status, departmentId, month, employeeName) {
     // 按照 test_item_id 和 equipment_name 分组
     query += ` GROUP BY t.test_item_id, e.equipment_name, e.model;`;
     const [results] = await db.query(query, params);
-
     return results;
 }
 
@@ -639,6 +695,34 @@ async function updateTestItem(testItemId, updatedFields) {
 }
 
 
+// 删除检测项目及相关记录
+async function deleteTestItem(testItemId) {
+    const connection = await db.getConnection(); // 获取数据库连接
+    try {
+        // 开启事务
+        await connection.beginTransaction();
+
+        // 删除与 test_item_id 相关的其他数据
+        await connection.query('DELETE FROM assignments WHERE test_item_id = ?', [testItemId]);
+        // 可以根据需要添加更多关联表的删除操作
+
+        // 最后删除 test_items 表中的记录
+        const result = await connection.query('DELETE FROM test_items WHERE test_item_id = ?', [testItemId]);
+
+        // 提交事务
+        await connection.commit();
+
+        return result[0]; // 返回删除结果
+    } catch (error) {
+        // 如果出现错误，回滚事务
+        await connection.rollback();
+        console.error('Error deleting test item:', error);
+        throw error;
+    } finally {
+        connection.release(); // 释放数据库连接
+    }
+}
+
 
 module.exports = {
     findUserByAccount,
@@ -664,5 +748,6 @@ module.exports = {
     updateTestItemStatus,
     updateTestItemCheckStatus,
     updateDiscountedPrice,
-    updateTestItem
+    updateTestItem,
+    deleteTestItem
 };

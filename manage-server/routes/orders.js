@@ -24,6 +24,7 @@ router.patch('/:orderNum', async (req, res) => {
 });
 router.delete('/:orderNum', async (req, res) => {
     try {
+        const { orderNum } = req.params;
         await deleteOrder(orderNum);
         res.send({ message: 'Order deleted successfully' });
     } catch (error) {
