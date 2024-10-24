@@ -10,6 +10,7 @@ router.get('/', async (req, res) => {
     let employeeName = req.query.employeeName
     let orderNum = req.query.orderNum
     try {
+        //查询组长数据
         if(account != undefined && account != ''){
             const results = await db.getEmployeeTestItems(status, departmentId, account,month, employeeName, orderNum);
             res.json(results);
@@ -94,9 +95,11 @@ router.post('/update-check', async (req, res) => {
 // Get all test items assigned to a specific user
 router.get('/assignments/:userId', async (req, res) => {
     let status = req.query.status; // 获取请求中的状态参数
+    let month = req.query.month;
+    let employeeName = req.query.employeeName
+    let orderNum = req.query.orderNum
     try {
-
-        const results = await db.getAssignedTestsByUser(req.params.userId, status);
+        const results = await db.getAssignedTestsByUser(req.params.userId, status, month, employeeName, orderNum);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch assignments:', error);

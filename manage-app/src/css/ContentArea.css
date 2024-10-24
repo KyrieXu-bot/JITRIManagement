@@ -2,7 +2,7 @@
 
 /* 主内容区域的基础样式 */
 .content {
-    max-height: 700px;
+    max-height: 650px;
     width: 80%; /* 占据除侧边栏外的剩余宽度 */
     float: right; /* 使内容区在侧边栏右侧 */
     padding: 10px; /* 内边距 */
@@ -21,6 +21,7 @@ table {
 }
 
 th, td {
+    min-width: 200px;
     border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
     padding: 9px 15px; /* 增加填充以改善视觉效果 */
     text-align: center; /* 文本居中 */
@@ -96,12 +97,11 @@ nav{
         float: none; /* 取消浮动 */
         padding: 5px; /* 减少内边距 */
         max-height: none; /* 移除最大高度限制 */
+        overflow-x: auto; /* 添加水平滚动条 */
     }
 
     table {
-        width: 100%;
-        overflow-x: auto; /* 允许表格水平滚动 */
-        display: block;
+        width: auto; /* 允许表格宽度超过屏幕宽度 */
     }
 
     th, td {
@@ -112,6 +112,7 @@ nav{
     button {
         padding: 6px 12px; /* 调整按钮大小 */
         font-size: 14px; /* 调整字体大小 */
+        margin: 5px 0; /* 增加上下间距 */
     }
 
     .form-control, select {
@@ -128,7 +129,24 @@ nav{
         display: flex;
         justify-content: space-between; /* 改进导航项的布局 */
     }
+
+    /* Sidebar.css 对于手机屏幕的优化 */
+    .sidebar {
+        width: 100%; /* 在小屏幕上占满宽度 */
+        height: auto; /* 高度自适应 */
+        padding: 10px; /* 减少内边距 */
+        position: relative; /* 如果需要的话，可以使其相对定位 */
+    }
+
+    .sidebar ul {
+        text-align: center; /* 中心对齐侧边栏内容 */
+    }
+
+    .sidebar li {
+        display: block; /* 使列表项堆叠而非并列 */
+    }
 }
+
 
 /* 设定特定的颜色、边框等美观元素 */
 .button, .form-control, select, input {

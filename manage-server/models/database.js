@@ -186,7 +186,7 @@ async function getAllSamples() {
 //     return results;
 // }
 
-async function getEmployeeTestItems(status, departmentId, account, month) {
+async function getEmployeeTestItems(status, departmentId, account, month, employeeName, orderNum) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -205,7 +205,15 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
             t.deadline,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
-            GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id 
+               AND ua.role IN ('supervisor', 'employee')) AS team_names,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id) AS sales_names
         FROM 
             test_items t
         LEFT JOIN 
@@ -240,6 +248,16 @@ async function getEmployeeTestItems(status, departmentId, account, month) {
         params.push(month);
     }
 
+    if (orderNum !== undefined && orderNum !== '') {
+        query += ' AND t.order_num LIKE ?';
+        params.push(`%${orderNum}%`);
+        whereClauseAdded = true;
+    }
+    if (employeeName !== undefined && employeeName !== '') {
+        query += ' AND u.name LIKE ?';
+        params.push(`%${employeeName}%`);
+        whereClauseAdded = true;
+    }
     // 按 test_item_id 进行分组
     query += ` GROUP BY t.test_item_id, e.equipment_name, e.model;`;
 
@@ -331,7 +349,12 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
              FROM assignments aa 
              JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id) AS assigned_accounts
+             WHERE aa.test_item_id = t.test_item_id 
+               AND ua.role IN ('supervisor', 'employee')) AS team_names,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id) AS sales_names
         FROM
             test_items t
         LEFT JOIN
@@ -429,7 +452,7 @@ async function updateTestItemCheckStatus(testItemId, status, checkNote) {
     await db.query(query, [status, checkNote, testItemId]);
 }
 
-async function getAssignedTestsByUser(userId, status) {
+async function getAssignedTestsByUser(userId, status, month, employeeName, orderNum) {
     let query = `
  SELECT 
         t.test_item_id,
@@ -448,7 +471,15 @@ async function getAssignedTestsByUser(userId, status) {
         t.deadline,
         IFNULL(e.equipment_name, '') AS equipment_name,
         e.model,
-        GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
+        (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+        FROM assignments aa 
+        JOIN users ua ON ua.account = aa.account
+        WHERE aa.test_item_id = t.test_item_id 
+        AND ua.role IN ('supervisor', 'employee')) AS team_names,
+        (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
+        FROM assignments aa 
+        JOIN users ua ON ua.account = aa.account
+        WHERE aa.test_item_id = t.test_item_id) AS sales_names
     FROM 
         test_items t
     LEFT JOIN 
@@ -466,14 +497,26 @@ async function getAssignedTestsByUser(userId, status) {
 
     `;
 
-    const params = [];
+    const params = [userId];
 
     if (status !== undefined && status !== '') {
-        query += ' AND ti.status = ?';
+        query += ' AND t.status = ?';
         params.push(status);
     }
-    query += '    GROUP BY t.test_item_id';
-    const [results] = await db.query(query, [userId, status]);
+    if (month !== undefined && month !== '') {
+        query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
+        params.push(month);
+    }
+    if (orderNum !== undefined && orderNum !== '') {
+        query += ' AND t.order_num LIKE ?';
+        params.push(`%${orderNum}%`);
+    }
+    if (employeeName !== undefined && employeeName !== '') {
+        query += ' AND u.name LIKE ?';
+        params.push(`%${employeeName}%`);
+    }
+    query += ' GROUP BY t.test_item_id';
+    const [results] = await db.query(query, params);
     return results;
 }
 

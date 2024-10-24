@@ -128,12 +128,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (selectedMonth) {
                 params.append('month', selectedMonth);  // 添加月份到请求参数
             }
+            if (filterOrderNum) {
+                params.append('orderNum', filterOrderNum); // 添加员工名称到请求参数
+            }
+            if (filterEmployee) {
+                params.append('employeeName', filterEmployee); // 添加员工名称到请求参数
+            }
             const response = await axios.get(`${config.API_BASE_URL}/api/tests/assignments/${account}?${params}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
         }
-    }, [filterStatus, selectedMonth]);
+    }, [filterStatus, selectedMonth, filterEmployee,filterOrderNum]);
 
     //拉取组长显示数据
     const fetchDataForSupervisor = useCallback(async (departmentId) => {
@@ -148,6 +154,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 params.append('account', account)
 
             }
+            if (filterOrderNum) {
+                params.append('orderNum', filterOrderNum); // 添加员工名称到请求参数
+            }
+            if (filterEmployee) {
+                params.append('employeeName', filterEmployee); // 添加员工名称到请求参数
+            }
             const response = await axios.get(`${config.API_BASE_URL}/api/tests?${params}`);
             setData(response.data);
         } catch (error) {
@@ -155,7 +167,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setError('Failed to fetch data');
             setTimeout(() => setError(''), 3000);
         }
-    }, [role, account, filterStatus, setError, selectedMonth]);
+    }, [role, account, filterStatus, setError, selectedMonth, filterEmployee,filterOrderNum]);
 
     // 拉取可分配的用户列表
     const fetchAssignableUsers = useCallback(async () => {
@@ -250,7 +262,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     console.error(`Invalid date for equipment: ${equipment.equipment_name}`);
                     return null; // 跳过无效的任务
                 }
-
                 return {
                     id: index.toString(),
                     name: equipment.equipment_name,
@@ -660,7 +671,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
 
-
+    console.log(currentItems)
     const renderTable = () => {
         let headers = [];
         let rows = [];
@@ -698,7 +709,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } else if (role === 'supervisor' && selected === 'handleTests') {
 
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "创建时间", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
 
                 <tr key={index}>
@@ -711,7 +722,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
-                        {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
+                        {item.team_names ? `${item.team_names}` : '暂未分配'}
+                    </td>
+                    <td>
+                        {item.sales_names ? `${item.sales_names}` : '暂未分配'}
                     </td>
                     <td>{item.check_note}</td>
                     <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
@@ -736,7 +750,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "创建时间", "剩余天数", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -748,7 +762,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
-                        {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
+                        {item.team_names ? `${item.team_names}` : '暂未分配'}
+                    </td>
+                    <td>
+                        {item.sales_names ? `${item.sales_names}` : '暂未分配'}
                     </td>
 
                     <td>{item.check_note}</td>
@@ -774,7 +791,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         } else if (role === 'sales' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "人员", "审批意见", "创建时间", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员","审批意见", "创建时间", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -786,9 +803,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
-                        {item.assigned_accounts ? `${item.assigned_accounts}` : '暂未分配'}
+                        {item.team_names ? `${item.team_names}` : '暂未分配'}
                     </td>
-
+                    <td>
+                        {item.sales_names ? `${item.sales_names}` : '暂未分配'}
+                    </td>
                     <td>{item.check_note}</td>
                     <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
                     <td>
@@ -918,7 +937,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         onChange={(e) => setFilterOrderNum(e.target.value)}
                         placeholder="输入委托单号进行搜索"
                     />
-                    <button onClick={() => fetchData('tests')}>查询单号</button>
+                    {role === 'supervisor' || role === 'leader' ? (
+                        <button onClick={() => fetchDataForSupervisor(departmentID)}>查询单号</button>
+                    ) : role === 'employee' || role === 'sales' ? (
+                        <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
+                        
+                    ) :(
+                        <button onClick={() => fetchData('tests')}>查询单号</button>
+
+                    )}
                     <span>筛选人员：</span>
                     <input
                         type="text"
@@ -1312,22 +1339,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 disabled // 操作员默认为登录账户，禁止编辑
                             />
                         </Form.Group>
-                        {/* <Form.Group>
-                            <Form.Label>设备名称</Form.Label>
-                            <Form.Control
-                                as="select"
-                                value={finishData.equipment_id}
-                                onChange={e => setFinishData({ ...finishData, equipment_id: e.target.value })}
-                            >
-                                <option value="">选择设备</option>
-                                {equipments.map(equipment => (
-                                    <option key={equipment.equipment_id} value={equipment.equipment_id}>
-                                        {equipment.equipment_name} ({equipment.model})
-                                    </option>
-                                ))}
-                            </Form.Control>
-                        </Form.Group> */}
-
                         {/* 设备选择框或已选设备名称 */}
                         <Form.Group controlId="formEquipment">
                             <Form.Label>设备名称</Form.Label>
