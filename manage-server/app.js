@@ -1,6 +1,18 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require('path');
+const app = express();
+
+app.use(cors());
+app.use(bodyParser.json());
+// 提供静态文件（前端的build目录）
+app.use(express.static(path.join(__dirname, '../manage-app/build')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+
+// 定义路由
+
 const customersRoutes = require('./routes/customers');
 const ordersRoutes = require('./routes/orders')
 const samplesRoutes = require('./routes/samples')
@@ -9,14 +21,8 @@ const loginRoutes = require('./routes/login')
 const usersRoutes = require('./routes/users')
 const chartsRoutes = require('./routes/charts')
 const monthsRoutes = require('./routes/months')
-const path = require('path');
+const uploadRoutes = require('./routes/upload')
 
-const app = express();
-
-app.use(cors());
-app.use(bodyParser.json());
-
-// 定义路由
 app.use('/api/customers', customersRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/samples', samplesRoutes);
@@ -25,10 +31,10 @@ app.use('/api/login', loginRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/charts', chartsRoutes);
 app.use('/api/months', monthsRoutes);
+app.use('/api/upload', uploadRoutes);
 
 
-// 提供静态文件（前端的build目录）
-app.use(express.static(path.join(__dirname, '../manage-app/build')));
+
 
 // 捕获所有其他路由并返回 React 的 index.html
 app.get('*', (req, res) => {

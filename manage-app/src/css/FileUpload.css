@@ -1,0 +1,66 @@
+/* 上传组件的整体容器样式 */
+.file-upload-container {
+    margin: 10px;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    max-width: 450px;
+    background-color: #f9f9f9;
+}
+
+.file-upload-container>p:first-of-type{
+    text-align: center;
+    font-size: large;
+    font-weight: bold;
+}
+/* 上传按钮样式 */
+.upload-button {
+    margin-top: 10px;
+    padding: 8px 16px;
+    font-size: 14px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.upload-button:hover {
+    background-color: #0056b3;
+}
+
+/* 文件列表样式 */
+.file-list {
+    list-style-type: none; /* 去掉默认的列表项前的点 */
+    padding-left: 0;
+    margin-top: 15px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+/* 文件名样式 */
+.file-name {
+    margin-right: 10px;
+    font-size: 14px;
+}
+
+/* 删除按钮样式 */
+.delete-button {
+    padding: 4px 8px;
+    font-size: 12px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.delete-button:hover {
+    background-color: #c82333;
+}

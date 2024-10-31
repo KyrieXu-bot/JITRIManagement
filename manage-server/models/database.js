@@ -11,8 +11,8 @@ async function findUserByAccount(account) {
     return results[0] || null;
 }
 
-async function getAllOrders() {
-    const query = `
+async function getAllOrders(orderNum) {
+    let query = `
         SELECT 
             o.order_num, 
             c.customer_name, 
@@ -30,11 +30,17 @@ async function getAllOrders() {
         JOIN payments p ON o.payment_id = p.payment_id
         JOIN test_items t ON o.order_num = t.order_num
         JOIN samples s ON o.order_num = s.order_num
-        GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
-                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
-                 p.payer_address, o.service_type
+
     `;
-    const [results] = await db.query(query);
+    const params = [];
+    if (orderNum !== undefined && orderNum !== '') {
+        query += ' WHERE o.order_num LIKE ?';
+        params.push(`%${orderNum}%`);
+    }
+    query += `GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
+                c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
+                p.payer_address, o.service_type`;
+    const [results] = await db.query(query, params);
     return results;
 }
 

@@ -8,6 +8,8 @@ import Pagination from 'react-js-pagination';
 
 import DataStatistics from '../components/DataStatistics';
 import EquipmentTimeline from '../components/EquipmentTimeline';
+import FileUpload from '../components/FileUpload'; // 确保路径正确
+
 
 const ContentArea = ({ departmentID, account, selected, role, groupId, name, onLogout }) => {
 
@@ -116,7 +118,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [setError, filterStatus, selectedMonth, filterEmployee,filterOrderNum]);
+    }, [setError, filterStatus, selectedMonth, filterEmployee, filterOrderNum]);
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
@@ -139,7 +141,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
         }
-    }, [filterStatus, selectedMonth, filterEmployee,filterOrderNum]);
+    }, [filterStatus, selectedMonth, filterEmployee, filterOrderNum]);
 
     //拉取组长显示数据
     const fetchDataForSupervisor = useCallback(async (departmentId) => {
@@ -167,7 +169,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setError('Failed to fetch data');
             setTimeout(() => setError(''), 3000);
         }
-    }, [role, account, filterStatus, setError, selectedMonth, filterEmployee,filterOrderNum]);
+    }, [role, account, filterStatus, setError, selectedMonth, filterEmployee, filterOrderNum]);
 
     // 拉取可分配的用户列表
     const fetchAssignableUsers = useCallback(async () => {
@@ -259,7 +261,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                 // 检查 start 和 end 是否为有效的 Date 对象
                 if (!start || isNaN(start.getTime()) || !end || isNaN(end.getTime())) {
-                    console.error(`Invalid date for equipment: ${equipment.equipment_name}`);
                     return null; // 跳过无效的任务
                 }
                 return {
@@ -378,13 +379,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (!window.confirm('请再次确认此【删除】操作！')) {
                 return;  // 用户点击取消后，不执行任何操作
             }
-            if(selected === 'getTests'){
+            if (selected === 'getTests') {
                 await axios.delete(`${config.API_BASE_URL}/api/tests/${currentItem.identifier}`);
                 setShowSuccessToast(true); // 显示成功的Toast
                 setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
                 setShowDeleteConfirm(false);
                 fetchData(selected);
-            } else if(selected === 'getCommission'){
+            } else if (selected === 'getCommission') {
                 await axios.delete(`${config.API_BASE_URL}/api/orders/${currentItem.identifier}`);
                 setShowSuccessToast(true); // 显示成功的Toast
                 setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
@@ -558,7 +559,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const handleQuote = async (testItemId) => {
         const newPrice = prompt("请输入标准价格:");
         if (newPrice && !isNaN(parseFloat(newPrice))) {
-            try {     
+            try {
                 const response = await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/price`, { listedPrice: newPrice });
                 console.log(response.data.message);
                 fetchDataForSupervisor(departmentID); // 重新获取数据以更新UI
@@ -671,7 +672,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
 
-    console.log(currentItems)
     const renderTable = () => {
         let headers = [];
         let rows = [];
@@ -687,7 +687,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
                     <td>{statusLabels[item.status]}</td>
-
                     <td>{item.check_note}</td>
                     <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
                     <td>
@@ -791,7 +790,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         } else if (role === 'sales' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员","审批意见", "创建时间", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "创建时间", "操作"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -912,48 +911,66 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             ) : (
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
-                    <span>筛选项目状态：</span>
-                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                        <option value="">全部状态</option>
-                        <option value="0">待分配</option>
-                        <option value="1">已分配待检测</option>
-                        <option value="2">已检测待审批</option>
-                        <option value="3">审批通过</option>
-                        <option value="4">审批失败</option>
+                    {selected === 'handleTests' ? (
+                        <div>
+                                                        <span>筛选项目状态：</span>
+                            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                                <option value="">全部状态</option>
+                                <option value="0">待分配</option>
+                                <option value="1">已分配待检测</option>
+                                <option value="2">已检测待审批</option>
+                                <option value="3">审批通过</option>
+                                <option value="4">审批失败</option>
 
-                    </select>&nbsp;&nbsp;&nbsp;
-                    <span>筛选月份：</span>
-                    <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
-                        <option value="">选择月份</option>
-                        {months.map(({ month }) => (
-                            <option key={month} value={month}>{month}</option>
-                        ))}
-                    </select>
-                    <br></br>
-                    <span>筛选委托单号：</span>
-                    <input
-                        type="text"
-                        value={filterOrderNum}
-                        onChange={(e) => setFilterOrderNum(e.target.value)}
-                        placeholder="输入委托单号进行搜索"
-                    />
-                    {role === 'supervisor' || role === 'leader' ? (
-                        <button onClick={() => fetchDataForSupervisor(departmentID)}>查询单号</button>
-                    ) : role === 'employee' || role === 'sales' ? (
-                        <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
+                            </select>&nbsp;&nbsp;&nbsp;
+                            <span>筛选月份：</span>
+                            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                                <option value="">选择月份</option>
+                                {months.map(({ month }) => (
+                                    <option key={month} value={month}>{month}</option>
+                                ))}
+                            </select>
+                            <br></br>
+                            <span>筛选委托单号：</span>
+                            <input
+                                type="text"
+                                value={filterOrderNum}
+                                onChange={(e) => setFilterOrderNum(e.target.value)}
+                                placeholder="输入委托单号进行搜索"
+                            />
+                            {role === 'supervisor' || role === 'leader' ? (
+                                <button onClick={() => fetchDataForSupervisor(departmentID)}>查询单号</button>
+                            ) : (
+                                <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
+
+                            )}
+                            <span>筛选人员：</span>
+                            <input
+                                type="text"
+                                value={filterEmployee}
+                                onChange={(e) => setFilterEmployee(e.target.value)}
+                                placeholder="输入员工名称进行搜索"
+                            />
+                            <button onClick={() => fetchData('tests')}>查询员工</button>
+                        </div>
+                    ) : selected === 'getCommission' ? (
                         
-                    ) :(
-                        <button onClick={() => fetchData('tests')}>查询单号</button>
+                        <div>
+                            <span>筛选委托单号：</span>
+                            <input
+                                type="text"
+                                value={filterOrderNum}
+                                onChange={(e) => setFilterOrderNum(e.target.value)}
+                                placeholder="输入委托单号进行搜索"
+                            />
+                            <button onClick={() => fetchData('orders')}>查询单号</button>
 
+                        </div>
+                    ) : (
+                        <div>
+                        </div>
                     )}
-                    <span>筛选人员：</span>
-                    <input
-                        type="text"
-                        value={filterEmployee}
-                        onChange={(e) => setFilterEmployee(e.target.value)}
-                        placeholder="输入员工名称进行搜索"
-                    />
-                    <button onClick={() => fetchData('tests')}>查询员工</button>
+
                     <Pagination
                         activePage={activePage}
                         itemsCountPerPage={itemsCountPerPage}
@@ -1383,6 +1400,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <p>审批意见：{selectedDetails.check_note}</p>
                     <p>创建时间：{selectedDetails.create_time}</p>
                     <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.create_time)}</p>
+                    <FileUpload />
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>关闭</Button>
