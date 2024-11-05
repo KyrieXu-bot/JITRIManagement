@@ -5,7 +5,6 @@ import '../css/ContentArea.css'
 import '../css/Pagination.css';
 import config from '../config/config'; // 确保路径正确
 import Pagination from 'react-js-pagination';
-
 import DataStatistics from '../components/DataStatistics';
 import EquipmentTimeline from '../components/EquipmentTimeline';
 import FileUpload from '../components/FileUpload'; // 确保路径正确
@@ -672,6 +671,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
 
+
+    const handleCloseAndRefresh = () => {
+        setShowDetailsModal(false);  // 关闭详情页
+        window.location.reload();     // 刷新页面
+    };
+
+    
     const renderTable = () => {
         let headers = [];
         let rows = [];
@@ -1399,8 +1405,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <p>状态：{statusLabels[selectedDetails.status]}</p>
                     <p>审批意见：{selectedDetails.check_note}</p>
                     <p>创建时间：{selectedDetails.create_time}</p>
+                    <p>设备开始时间：{selectedDetails.start_time}</p>
+                    <p>设备结束时间：{selectedDetails.end_time}</p>
+
                     <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.create_time)}</p>
-                    <FileUpload />
+                    <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh}/>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>关闭</Button>

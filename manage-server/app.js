@@ -21,7 +21,7 @@ const loginRoutes = require('./routes/login')
 const usersRoutes = require('./routes/users')
 const chartsRoutes = require('./routes/charts')
 const monthsRoutes = require('./routes/months')
-const uploadRoutes = require('./routes/upload')
+const filesRoutes = require('./routes/files')
 
 app.use('/api/customers', customersRoutes);
 app.use('/api/orders', ordersRoutes);
@@ -31,7 +31,7 @@ app.use('/api/login', loginRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/charts', chartsRoutes);
 app.use('/api/months', monthsRoutes);
-app.use('/api/upload', uploadRoutes);
+app.use('/api/files', filesRoutes);
 
 
 

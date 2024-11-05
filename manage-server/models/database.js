@@ -410,16 +410,34 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
 
 async function assignTestToUser(testId, userId, equipment_id, start_time, end_time) {
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
-    const updateQuery =
+    let updateQuery =
         `UPDATE test_items 
-            SET status = ?, equipment_id = ?, start_time = ?, end_time = ? 
-            WHERE test_item_id = ?
+            SET status = ?
         `;
+    
     try {
         // 执行插入分配的用户信息
         await db.query(query, [testId, userId]);
+
+
         // 执行更新 test_items 的状态、设备ID、设备开始和结束时间
-        await db.query(updateQuery, ['1', equipment_id, start_time, end_time, testId]);
+        const params = [];
+        params.push('1');
+        if (equipment_id !== undefined && equipment_id !== '') {
+            updateQuery += ', equipment_id = ?';
+            params.push(equipment_id);
+        }
+        if (start_time !== undefined && start_time !== '') {
+            updateQuery += `, start_time = ?`;
+            params.push(start_time);
+        }
+        if (end_time !== undefined && end_time !== '') {
+            updateQuery += ', end_time = ?';
+            params.push(end_time);
+        }
+        updateQuery += 'WHERE test_item_id = ?';
+        params.push(testId);
+        await db.query(updateQuery, params);
     } catch (error) {
         console.error('Error assigning test to user:', error);
         throw new Error('Failed to assign test and update test item.');
@@ -772,6 +790,77 @@ async function deleteTestItem(testItemId) {
     }
 }
 
+//保存文件到服务器
+async function saveFilesToDatabase(fileDetails) {
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction(); // 开始事务
+
+        for (const file of fileDetails) {
+            const sql = `INSERT INTO project_files (filename, filepath, project_id, test_item_id) VALUES (?, ?, ?, ?)`;
+            const values = [file.filename, file.path, file.projectId,file.testItemId];
+            await connection.query(sql, values);
+        }
+
+        await connection.commit(); // 提交事务
+    } catch (error) {
+        await connection.rollback(); // 回滚事务
+        throw error; // 抛出错误以便调用者处理
+    } finally {
+        connection.release(); // 释放连接
+    }
+}
+
+
+async function getFilesByTestItemId(testItemId) {
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction(); // 开始事务
+
+        const query = `SELECT filename, filepath, project_id FROM project_files WHERE test_item_id = ?`;
+        const [results] = await connection.query(query, [testItemId]);
+        return results;
+    } catch (error) {
+        throw error;
+    } finally {
+        connection.release(); // 确保连接被释放
+    }
+}
+
+// 获取与项目ID关联的文件
+async function getFilesByProjectId(projectId){
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction(); // 开始事务
+
+        const query = `SELECT filename, filepath, project_id FROM project_files WHERE project_id = ?`;
+        const [results] = await connection.query(query, [projectId]);
+        return results;
+    } finally {
+        connection.release();
+    }
+};
+
+// 删除与项目ID相关的文件记录
+async function deleteFilesByProjectId(projectId){
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const query = `DELETE FROM project_files WHERE project_id = ?`;
+        await connection.query(query, [projectId]);
+        // 提交事务
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback(); // 如果有错误，回滚事务
+        throw error; // 将错误抛出以便捕获和处理
+    } finally {
+        connection.release();
+    }
+};
+
 
 module.exports = {
     findUserByAccount,
@@ -798,5 +887,9 @@ module.exports = {
     updateTestItemCheckStatus,
     updateDiscountedPrice,
     updateTestItem,
-    deleteTestItem
+    deleteTestItem,
+    saveFilesToDatabase,
+    getFilesByProjectId,
+    getFilesByTestItemId,
+    deleteFilesByProjectId
 };
