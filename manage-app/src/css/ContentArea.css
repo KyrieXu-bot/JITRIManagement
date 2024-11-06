@@ -9,6 +9,8 @@
     background-color: #fff; /* 背景颜色 */
     box-sizing: border-box;
     overflow: scroll; /* 隐藏内容溢出 */
+    position: relative;
+
 }
 
 /* 表格样式 */
@@ -39,6 +41,17 @@ tr:last-child th, tr:last-child td {
 tr:nth-child(even) {
     background-color: #f4f7f9; /* 更轻的条纹颜色提高对比度 */
 }
+
+/* 固定操作列 */
+.fixed-column {
+    position: sticky;
+    right: 0; /* 固定在表格的最右侧 */
+    backdrop-filter: blur(10px); /* 添加模糊效果 */
+    -webkit-backdrop-filter: blur(6px); /* Safari 支持 */
+    z-index: 1;
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1); /* 添加阴影效果 */
+}
+
 
 /* 按钮样式 */
 button {

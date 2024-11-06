@@ -15,6 +15,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [data, setData] = useState([]);
 
     const [showModal, setShowModal] = useState(false);
+    const [showSampleModal, setShowSampleModal] = useState(false);
+
     const [currentItem, setCurrentItem] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
@@ -85,6 +87,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         2: '加急',
         3: '特急'
     };
+
+
+    const sampleTypeLabels = {
+        1: '板材',
+        2: '棒材',
+        3: '粉末',
+        4: '液体',
+        5: '其他'
+    };
+
+    const sampleSolutionTypeLabels = {
+        1: '不退(样品留存90天，逾期销毁)',
+        2: '客户自取',
+        3: '寄回'
+    }
 
 
     // 静态部门数据
@@ -347,6 +364,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setCurrentItem(item);
         setShowModal(true);
     };
+
+    const handleEditSamples = (item) => {
+        setCurrentItem(item);
+        setShowSampleModal(true);
+    }
 
     const handleDelete = (identifier) => {
         setShowDeleteConfirm(true);
@@ -672,19 +694,36 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
 
+    const formatSampleType = (type) => {
+        let parsedType = [];
+
+        // 尝试将 sample_type 解析为数组
+        if (type) {
+            try {
+                parsedType = JSON.parse(type);
+                return parsedType;
+            } catch (e) {
+                console.error('Error parsing sample_type:', e);
+            }
+        }
+    }
+
+
+
     const handleCloseAndRefresh = () => {
-        setShowDetailsModal(false);  // 关闭详情页
-        window.location.reload();     // 刷新页面
+        setShowDetailsModal(true);  // 关闭详情页
+
     };
 
-    
+
     const renderTable = () => {
         let headers = [];
         let rows = [];
 
+
         if (role === 'employee' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "状态", "审批意见", "创建日期", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "状态", "审批意见", "剩余天数"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -694,11 +733,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>{item.work_hours}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>{item.check_note}</td>
-                    <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
                     <td>
                         {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
                     </td>
-                    <td>
+                    <td className='fixed-column'>
                         <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                         {(item.status !== '3') && (
                             <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
@@ -714,7 +752,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } else if (role === 'supervisor' && selected === 'handleTests') {
 
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "创建时间", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "剩余天数"];
             rows = currentItems.map((item, index) => (
 
                 <tr key={index}>
@@ -733,12 +771,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {item.sales_names ? `${item.sales_names}` : '暂未分配'}
                     </td>
                     <td>{item.check_note}</td>
-                    <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
                     <td>
                         {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
                     </td>
 
-                    <td>
+                    <td className='fixed-column'>
                         <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                         {(item.status !== '3') && (
                             <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
@@ -755,7 +792,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "创建时间", "剩余天数", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "剩余天数"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -774,13 +811,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     </td>
 
                     <td>{item.check_note}</td>
-                    <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
                     <td>
                         {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
 
                     </td>
 
-                    <td>
+                    <td className='fixed-column'>
                         <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                         {/* 只有当状态不是'1'（已检测）时，才显示分配按钮 */}
                         {item.status === '0' && (
@@ -796,7 +832,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         } else if (role === 'sales' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "创建时间", "操作"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -814,8 +850,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {item.sales_names ? `${item.sales_names}` : '暂未分配'}
                     </td>
                     <td>{item.check_note}</td>
-                    <td>{item.create_time ? new Date(item.create_time).toISOString().split('T')[0] : ''}</td>
-                    <td>
+                    <td className='fixed-column'>
                         {item.status !== '3' && (
                             <Button onClick={() => handleDiscount(item.test_item_id)}>设置优惠价</Button>
                         )}
@@ -828,7 +863,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             // 默认视图
             switch (selected) {
                 case 'getCommission':
-                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急", "操作"];
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -842,7 +877,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.test_items}</td>
                             <td>{item.material}</td>
                             <td>{serviceTypeLabels[item.service_type]}</td>
-                            <td>
+                            <td className='fixed-column'>
                                 {/* <Button onClick={() => handleEdit(item)}>修改</Button> */}
                                 <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
                             </td>
@@ -857,18 +892,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.material}</td>
                             <td>{item.product_no}</td>
                             <td>{item.material_spec}</td>
-                            <td>{item.sample_solution_type}</td>
-                            <td>{item.sample_type}</td>
+                            <td>{sampleSolutionTypeLabels[item.sample_solution_type]}</td>
+                            <td>
+                                {sampleTypeLabels[formatSampleType(item.sample_type)]}
+                            </td>
                             <td>{item.order_num}</td>
-                            {/* <td>
-                                <Button onClick={() => handleEdit(item)}>修改</Button>
-                                <Button onClick={() => handleDelete(item.order_num)}>删除</Button>
-                            </td> */}
+                            <td className='fixed-column'>
+                                <Button onClick={() => handleEditSamples(item)}>修改</Button>
+                            </td>
                         </tr>
                     ));
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "状态", "人员", "审批意见", "操作"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "状态", "人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -881,7 +917,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.assigned_accounts}</td>
                             <td>{item.check_note}</td>
 
-                            <td>
+                            <td className='fixed-column'>
                                 {/* 当状态是待检测时，显示分配按钮 */}
                                 {item.status === '0' && (
                                     <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
@@ -893,7 +929,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 default:
-                    headers = ["No data available"];
+                    headers = ["暂无数据"];
                     rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
                     break;
             }
@@ -919,7 +955,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
                     {selected === 'handleTests' ? (
                         <div>
-                                                        <span>筛选项目状态：</span>
+                            <span>筛选项目状态：</span>
                             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                                 <option value="">全部状态</option>
                                 <option value="0">待分配</option>
@@ -960,7 +996,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <button onClick={() => fetchData('tests')}>查询员工</button>
                         </div>
                     ) : selected === 'getCommission' ? (
-                        
+
                         <div>
                             <span>筛选委托单号：</span>
                             <input
@@ -988,11 +1024,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <div class='content'>
                         <table>
                             <thead>
-                                <tr>{headers.map(header => <th key={header}>{header}</th>)}</tr>
+                                <tr>
+                                    {headers.map(header =>
+                                        <th key={header}>{header}</th>
+                                    )}
+                                    <th className="fixed-column">操作</th> {/* 添加操作列的表头 */}
+                                </tr>
                             </thead>
                             <tbody>
                                 {rows}
-
                             </tbody>
                         </table>
 
@@ -1190,6 +1230,75 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
 
+            <Modal show={showSampleModal} onHide={() => setShowSampleModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>编辑样品：{currentItem.order_num}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        {/* 样品名称 */}
+                        <Form.Group controlId="sampleName">
+                            <Form.Label>样品名称</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.sample_name}
+                                onChange={(e) => setCurrentItem({ ...currentItem, sample_name: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 材料 */}
+                        <Form.Group controlId="material">
+                            <Form.Label>材料</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.material}
+                                onChange={(e) => setCurrentItem({ ...currentItem, material: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 货号 */}
+                        <Form.Group controlId="productNo">
+                            <Form.Label>货号</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.product_no}
+                                onChange={(e) => setCurrentItem({ ...currentItem, product_no: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 材料规范 */}
+                        <Form.Group controlId="materialSpec">
+                            <Form.Label>材料规范</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.material_spec}
+                                onChange={(e) => setCurrentItem({ ...currentItem, material_spec: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 样品处置 */}
+                        <Form.Group controlId="sampleSolutionType">
+                            <Form.Label>样品处置</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={sampleSolutionTypeLabels[currentItem.sample_solution_type]}
+                                onChange={(e) => setCurrentItem({ ...currentItem, sample_solution_type: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 材料类型 */}
+                        <Form.Group controlId="sampleType">
+                            <Form.Label>材料类型</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.sample_type}
+                                onChange={(e) => setCurrentItem({ ...currentItem, sample_type: e.target.value })}
+                            />
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowSampleModal(false)}>关闭</Button>
+                    <Button variant="primary" onClick={updateItem}>保存更改</Button>
+                </Modal.Footer>
+            </Modal>
+
+
             {/* Delete Confirmation */}
             <Modal show={showDeleteConfirm} onHide={() => setShowDeleteConfirm(false)}>
                 <Modal.Header closeButton>
@@ -1271,7 +1380,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             </Modal>
 
 
-
+            {/* 转办按钮 */}
             <Modal show={showReassignmentModal} onHide={() => setShowReassignmentModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>检测人员转办</Modal.Title>
@@ -1409,7 +1518,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <p>设备结束时间：{selectedDetails.end_time}</p>
 
                     <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.create_time)}</p>
-                    <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh}/>
+                    <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh} />
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>关闭</Button>
