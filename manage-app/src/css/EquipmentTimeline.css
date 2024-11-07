@@ -1,0 +1,91 @@
+/* EquipmentTimeline.css */
+
+:root {
+    --primary-color: #007bff; /* 主要颜色：蓝色 */
+    --secondary-color: #6c757d; /* 次要颜色：灰色 */
+    --background-color: #f8f9fa; /* 背景色：浅灰色 */
+    --border-color: #dee2e6; /* 边框色：浅灰 */
+    --hover-color: #e9ecef; /* 鼠标悬停背景色 */
+    --text-color: #343a40; /* 正文字体颜色：深灰色 */
+    --link-color: #007bff; /* 链接颜色：蓝色 */
+    --button-bg: #007bff; /* 按钮背景色：蓝色 */
+    --button-text: #fff; /* 按钮文字颜色：白色 */
+    --button-hover-bg: #0056b3; /* 按钮悬停背景色：深蓝色 */
+}
+
+.timeline-container {
+    padding: 20px;
+    background-color: var(--background-color); /* 使用模板中的背景色 */
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 添加轻微阴影效果 */
+}
+
+.gantt-title {
+    font-size: 1.5em;
+    color: var(--text-color); /* 使用模板中的文本颜色 */
+    margin-bottom: 20px;
+}
+
+.select-view-mode {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.select-view-mode label {
+    font-size: 1em;
+    margin-right: 15px;
+    color: var(--secondary-color); /* 使用次要颜色 */
+}
+
+.select-view-mode select {
+    padding: 8px;
+    font-size: 1em;
+    border: 1px solid var(--border-color); /* 使用边框颜色 */
+    border-radius: 4px;
+    background-color: #ffffff; /* 背景为白色 */
+    color: var(--text-color); /* 文字颜色 */
+    width: 150px;
+    transition: border-color 0.3s ease;
+}
+
+.select-view-mode select:hover {
+    border-color: var(--primary-color); /* 鼠标悬停时，边框变蓝色 */
+}
+
+.select-view-mode select:focus {
+    outline: none;
+    border-color: var(--primary-color); /* 聚焦时边框变蓝 */
+}
+
+.gantt-container {
+    border: 1px solid var(--border-color); /* 使用模板中的边框颜色 */
+    border-radius: 8px;
+    background-color: #ffffff;
+    padding: 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* 轻微阴影 */
+}
+
+/* 为 Gantt 图任务增加自定义样式 */
+.gantt-container .react-gantt-task {
+    padding: 10px;
+    font-size: 14px;
+    color: var(--text-color); /* 使用模板中的文本颜色 */
+    background-color: var(--hover-color); /* 任务的背景色为悬停色 */
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.gantt-container .react-gantt-task:hover {
+    background-color: var(--primary-color); /* 鼠标悬停时背景变为主要颜色 */
+}
+
+/* 任务的时间信息 */
+.gantt-container .react-gantt-task-time {
+    color: var(--primary-color); /* 时间显示为蓝色 */
+}
+
+/* 任务栏内的文本 */
+.gantt-container .react-gantt-task-text {
+    color: var(--text-color); /* 任务文本为深灰色 */
+}

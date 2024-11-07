@@ -101,7 +101,10 @@ nav{
     padding:10px 20px 10px 10px;
 }
 
-
+.detailModal span{
+    font-weight: bold;
+    color: #5f87a0;;
+}
 
 /* 基础样式调整，以适应移动设备 */
 @media (max-width: 768px) {

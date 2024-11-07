@@ -690,7 +690,8 @@ async function getEquipmentTimeline(departmentId) {
             e.equipment_name, 
             e.model, 
             t.start_time, 
-            t.end_time
+            t.end_time,
+            t.order_num
         FROM 
             test_items t
         JOIN 
@@ -861,6 +862,35 @@ async function deleteFilesByProjectId(projectId){
     }
 };
 
+// 更新样品信息
+async function updateSamples(orderNum, updatedFields) {
+    try {
+        // 构造动态 SQL 查询
+        const fields = Object.keys(updatedFields);
+        const values = Object.values(updatedFields);
+
+        if (fields.length === 0) {
+            throw new Error('没有提供需要更新的字段');
+        }
+
+        // 使用字段名和占位符生成 SQL
+        const setClause = fields.map((field) => `${field} = ?`).join(', ');
+
+        const query = `
+            UPDATE samples
+            SET ${setClause}
+            WHERE order_num = ?;
+        `;
+
+        // 执行查询
+        const result = await db.query(query, [...values, orderNum]);
+
+        return result; // 返回执行结果
+    } catch (error) {
+        console.error('Error updating test item:', error);
+        throw error;
+    }
+}
 
 module.exports = {
     findUserByAccount,
@@ -869,6 +899,7 @@ module.exports = {
     reassignTestToUser,
     getAllOrders,
     getAllSamples,
+    updateSamples,
     getAllTestItems,
     getEmployeeTestItems,
     getAssignedTestsByUser,

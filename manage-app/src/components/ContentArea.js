@@ -281,7 +281,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 }
                 return {
                     id: index.toString(),
-                    name: equipment.equipment_name,
+                    name: `${equipment.equipment_name}(${equipment.order_num})`,
                     start,
                     end,
                     progress: 100,
@@ -392,6 +392,28 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
         } catch (error) {
             console.error('Error updating test items:', error);
+        }
+    };
+
+    const updateSample = async () => {
+
+        try {
+            console.log("beforeupdate", currentItem.sample_type)
+            if (selected === 'getSamples') {
+                const response = await axios.patch(`${config.API_BASE_URL}/api/samples/${currentItem.order_num}`, currentItem);
+                if (response.data.success) {
+                    // 成功提示
+                    setShowSampleModal(false);
+                    setShowSuccessToast(true); // 显示成功的Toast
+                    setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                    fetchData("samples");
+
+                } else {
+                    setShowFailureToast(true)
+                }
+            }
+        } catch (error) {
+            console.error('Error updating samples:', error);
         }
     };
 
@@ -715,7 +737,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     };
 
-
     const renderTable = () => {
         let headers = [];
         let rows = [];
@@ -832,15 +853,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         } else if (role === 'sales' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见"];
+            headers = ["委托单号", "样品原号", "检测项目", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
                     <td>{item.original_no}</td>
                     <td>{item.test_item}</td>
                     <td>{item.machine_hours}</td>
-                    <td>{item.work_hours}</td>
-                    <td>{item.listed_price}</td>
                     <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
@@ -904,7 +923,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "状态", "人员", "审批意见"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "标准价格","优惠价格","状态", "人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -913,6 +932,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.test_method}</td>
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
+                            <td>{item.listed_price}</td>
+                            <td>{item.discounted_price}</td>
                             <td>{statusLabels[item.status]}</td>
                             <td>{item.assigned_accounts}</td>
                             <td>{item.check_note}</td>
@@ -939,6 +960,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     const { headers, rows } = renderTable(currentItems);
+
 
     return (
         <div>
@@ -1021,6 +1043,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         onChange={handlePageChange}
                         innerClass="pagination"
                     />
+                    <p innerClass="hintPage" >您当前在：第<span style={{ fontWeight:'bold' }}>{activePage}</span>页</p>
                     <div class='content'>
                         <table>
                             <thead>
@@ -1276,25 +1299,40 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         <Form.Group controlId="sampleSolutionType">
                             <Form.Label>样品处置</Form.Label>
                             <Form.Control
-                                type="text"
+                                as="select"
                                 value={sampleSolutionTypeLabels[currentItem.sample_solution_type]}
                                 onChange={(e) => setCurrentItem({ ...currentItem, sample_solution_type: e.target.value })}
-                            />
+                            >
+                            {Object.entries(sampleSolutionTypeLabels).map(([key, label]) => (
+                                <option key={key} value={key}>{label}</option>
+                            ))}
+                            </Form.Control>
                         </Form.Group>
                         {/* 材料类型 */}
                         <Form.Group controlId="sampleType">
                             <Form.Label>材料类型</Form.Label>
-                            <Form.Control
-                                type="text"
-                                value={currentItem.sample_type}
-                                onChange={(e) => setCurrentItem({ ...currentItem, sample_type: e.target.value })}
+                            {Object.entries(sampleTypeLabels).map(([key, label]) => (
+                            <Form.Check
+                                key={key}
+                                type="checkbox"
+                                label={label}
+
+                                onChange={(e) => {
+                                    console.log("sampletype",currentItem.sample_type)
+                                    const sampleTypeArray = formatSampleType(currentItem.sample_type);
+                                    const newSampleType = e.target.checked
+                                        ? [parseInt(key)]
+                                        : sampleTypeArray.filter(type => type !== parseInt(key));
+                                    setCurrentItem({ ...currentItem, sample_type: newSampleType});
+                                }}
                             />
+                            ))}
                         </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowSampleModal(false)}>关闭</Button>
-                    <Button variant="primary" onClick={updateItem}>保存更改</Button>
+                    <Button variant="primary" onClick={updateSample}>保存更改</Button>
                 </Modal.Footer>
             </Modal>
 
@@ -1504,18 +1542,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <Modal.Header closeButton>
                     <Modal.Title>详细信息</Modal.Title>
                 </Modal.Header>
-                <Modal.Body>
-                    <p>委托单号：{selectedDetails.order_num}</p>
-                    <p>样品原号：{selectedDetails.original_no}</p>
-                    <p>检测项目：{selectedDetails.test_item}</p>
-                    <p>机时：{selectedDetails.machine_hours}</p>
-                    <p>工时：{selectedDetails.work_hours}</p>
-                    <p>设备名称：{selectedDetails.equipment_name}({selectedDetails.model})</p>
-                    <p>状态：{statusLabels[selectedDetails.status]}</p>
-                    <p>审批意见：{selectedDetails.check_note}</p>
-                    <p>创建时间：{selectedDetails.create_time}</p>
-                    <p>设备开始时间：{selectedDetails.start_time}</p>
-                    <p>设备结束时间：{selectedDetails.end_time}</p>
+                <Modal.Body className='detailModal'>
+                    <p>委托单号：<span>{selectedDetails.order_num}</span></p>
+                    <p>样品原号：<span>{selectedDetails.original_no}</span></p>
+                    <p>检测项目：<span>{selectedDetails.test_item}</span></p>
+                    <p>机时：<span>{selectedDetails.machine_hours}</span>
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        工时：<span>{selectedDetails.work_hours}</span></p>
+                    <p>设备名称：<span>{selectedDetails.equipment_name}({selectedDetails.model})</span></p>
+                    <p>状态：<span>{statusLabels[selectedDetails.status]}</span></p>
+                    <p>审批意见：<span>{selectedDetails.check_note}</span></p>
+                    <p>创建时间：<span>{selectedDetails.create_time}</span></p>
+                    <p>设备开始时间：<span>{selectedDetails.start_time}</span></p>
+                    <p>设备结束时间：<span>{selectedDetails.end_time}</span></p>
 
                     <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.create_time)}</p>
                     <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh} />
