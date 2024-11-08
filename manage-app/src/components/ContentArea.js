@@ -286,8 +286,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     end,
                     progress: 100,
                     type: 'task',
-                    dependencies: '' // 这里可以添加任务依赖关系
-
+                    dependencies: '', // 这里可以添加任务依赖关系
+                    order_num:equipment.order_num,
+                    styles:{ progressColor: "#ffbb54", progressSelectedColor: "#ff9e0d" }
 
                 };
 
@@ -976,7 +977,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <div>
                     <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
                     {selected === 'handleTests' ? (
-                        <div>
+                        <div className="searchBar">
                             <span>筛选项目状态：</span>
                             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                                 <option value="">全部状态</option>
@@ -993,8 +994,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 {months.map(({ month }) => (
                                     <option key={month} value={month}>{month}</option>
                                 ))}
-                            </select>
-                            <br></br>
+                            </select>&nbsp;&nbsp;&nbsp;
                             <span>筛选委托单号：</span>
                             <input
                                 type="text"
@@ -1007,7 +1007,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             ) : (
                                 <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
 
-                            )}
+                            )}&nbsp;&nbsp;&nbsp;
                             <span>筛选人员：</span>
                             <input
                                 type="text"
@@ -1019,7 +1019,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </div>
                     ) : selected === 'getCommission' ? (
 
-                        <div>
+                        <div className="searchBar">
                             <span>筛选委托单号：</span>
                             <input
                                 type="text"
@@ -1039,12 +1039,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         activePage={activePage}
                         itemsCountPerPage={itemsCountPerPage}
                         totalItemsCount={totalItemsCount}
-                        pageRangeDisplayed={5}
                         onChange={handlePageChange}
+                        pageRangeDisplayed={3}
                         innerClass="pagination"
+                        itemClass="pagination-item" // 添加样式类
+                        linkClass="pagination-link" // 添加样式类
+                        hideDisabled={true} // 隐藏不可用的分页链接
+                        firstPageText="首页"  // 首页
+                        lastPageText="尾页"   // 尾页
+                        prevPageText="上一页"
+                        nextPageText="下一页"
                     />
-                    <p innerClass="hintPage" >您当前在：第<span style={{ fontWeight:'bold' }}>{activePage}</span>页</p>
                     <div class='content'>
+                        
                         <table>
                             <thead>
                                 <tr>
@@ -1059,8 +1066,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             </tbody>
                         </table>
 
-
                     </div>
+
                 </div>
 
 

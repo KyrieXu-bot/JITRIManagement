@@ -7,13 +7,11 @@ const EquipmentTimeline = ({ tasks }) => {
     const [viewMode, setViewMode] = useState('Hour');
     const [listCellWidth, setListCellWidth] = useState('200px');
 
-
     useEffect(() => {
         if (tasks && tasks.length > 0) {
             // 找到最长的 name
             const maxLength = Math.max(...tasks.map(task => task.name.length));
             // 根据最长的 name 动态计算宽度，例如每个字符 10px
-            console.log(maxLength)
             setListCellWidth(`${Math.min(maxLength * 11, 400)}px`);
         }
     }, [tasks]);
@@ -39,6 +37,8 @@ const EquipmentTimeline = ({ tasks }) => {
                     <option value="Day">天</option>
                     <option value="Month">月</option>
                 </select>
+
+
             </div>
 
             <div className="gantt-container">
@@ -47,7 +47,8 @@ const EquipmentTimeline = ({ tasks }) => {
                     viewMode={viewMode === 'HalfHour' ? 'Hour' : viewMode} // 半小时模式也使用 Hour 显示
                     locale="zh-CN" // 如果需要中文格式
                     listCellWidth={listCellWidth}
-                />
+                >
+                </Gantt>
             </div>
         </div>
     );

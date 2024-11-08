@@ -14,10 +14,14 @@
 }
 
 .timeline-container {
+
     padding: 20px;
+    width: 80%;
+    float: right;
     background-color: var(--background-color); /* 使用模板中的背景色 */
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 添加轻微阴影效果 */
+
 }
 
 .gantt-title {
@@ -59,6 +63,10 @@
 }
 
 .gantt-container {
+    max-height: 660px;
+    overflow: auto ;  /* 防止内容溢出 */
+    position: relative;
+
     border: 1px solid var(--border-color); /* 使用模板中的边框颜色 */
     border-radius: 8px;
     background-color: #ffffff;
@@ -66,6 +74,14 @@
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* 轻微阴影 */
 }
 
+
+.gantt-container .horizontal-scroll {
+    position: sticky;
+    bottom: 0;
+    background-color: #fff;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 10;  /* 保证滚动条在最上层 */
+}
 /* 为 Gantt 图任务增加自定义样式 */
 .gantt-container .react-gantt-task {
     padding: 10px;

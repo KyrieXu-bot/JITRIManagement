@@ -106,6 +106,62 @@ nav{
     color: #5f87a0;;
 }
 
+
+
+/* 筛选搜索框 */
+.searchBar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+    background-color: #f7f9fc; /* 柔和的浅色背景，让输入框和按钮更加显眼 */
+    border-radius: 8px; /* 圆角让样式更加柔和 */
+    box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1); /* 轻微阴影，增加视觉层次感 */
+}
+
+.searchBar span {
+    font-weight: bold;
+    color: #333; /* 使用深灰色，使文字更加清晰 */
+    margin-right: 5px;
+}
+
+.searchBar input[type="text"],
+.searchBar select {
+    padding: 6px 10px;
+    border: 1px solid #ccc; /* 边框为浅灰色 */
+    border-radius: 4px; /* 适度的圆角 */
+    outline: none;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.searchBar input[type="text"]:focus,
+.searchBar select:focus {
+    border-color: #007bff; /* 聚焦时边框颜色变为蓝色 */
+    box-shadow: 0px 0px 5px rgba(0, 123, 255, 0.5); /* 聚焦时的阴影 */
+}
+
+.searchBar button {
+    background-color: #007bff; /* 蓝色背景 */
+    color: #fff; /* 白色文字 */
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.searchBar button:hover {
+    background-color: #0056b3; /* 鼠标悬停时按钮颜色稍微加深 */
+    box-shadow: 0px 0px 8px rgba(0, 87, 179, 0.4); /* 悬停时增加阴影效果 */
+}
+
+.searchBar button:focus {
+    outline: none;
+}
+
+
 /* 基础样式调整，以适应移动设备 */
 @media (max-width: 768px) {
     .content {
@@ -160,6 +216,15 @@ nav{
 
     .sidebar li {
         display: block; /* 使列表项堆叠而非并列 */
+    }
+
+    .searchBar {
+        flex-direction: column;
+        align-items: flex-start; /* 在较小屏幕上调整为竖向排列，适应移动端 */
+    }
+
+    .searchBar button {
+        width: 100%; /* 按钮在小屏幕上充满容器宽度 */
     }
 }
 
