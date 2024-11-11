@@ -15,13 +15,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [data, setData] = useState([]);
 
     const [showModal, setShowModal] = useState(false);
-    const [showSampleModal, setShowSampleModal] = useState(false);
+    const [showAddModal, setShowAddModal] = useState(false);
 
+    const [showSampleModal, setShowSampleModal] = useState(false);
     const [currentItem, setCurrentItem] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
     const [showFailureToast, setShowFailureToast] = useState(false); // 控制Toast显示的状态
-
     const [, setError] = useState('');
     const [showFinishModal, setShowFinishModal] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
@@ -33,19 +33,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipments, setEquipments] = useState([]);
     const [employeeStats, setEmployeeStats] = useState([]);
     const [equipmentStats, setEquipmentStats] = useState([]);
+    const [sumPrice, setSumPrice] = useState('');
     const [equipmentTimeline, setEquipmentTimeline] = useState([]);
     const [filterEmployee, setFilterEmployee] = useState('');
     const [filterOrderNum, setFilterOrderNum] = useState('');
-
     const [activePage, setActivePage] = useState(1);
-    const itemsCountPerPage = 10;
-    const totalItemsCount = data.length;
-
-    //分页
-    const indexOfLastItem = activePage * itemsCountPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
-    const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
-
     //按月份筛选
     const [months, setMonths] = useState([]);
     const [selectedMonth, setSelectedMonth] = useState('');
@@ -64,14 +56,35 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         equipment_id: '',
 
     });
+
+    //添加检测项目时候的数据
+    const [addData, setAddData] = useState({
+        order_num: '',
+        original_no: '',
+        test_item: '',
+        test_method:'',
+        size: '',
+        quantity:'',
+        deadline:'',
+        note:'',
+        department_id:''
+
+    });
     const [showAssignmentModal, setShowAssignmentModal] = useState(false);
     const [showReassignmentModal, setShowReassignmentModal] = useState(false);
-
     const [showCheckModal, setShowCheckModal] = useState(false);
     const [assignmentInfo, setAssignmentInfo] = useState('');
-
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedDetails, setSelectedDetails] = useState({});
+    const itemsCountPerPage = 10;
+    const totalItemsCount = data.length;
+
+    //分页
+    const indexOfLastItem = activePage * itemsCountPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
+    const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
+
+
 
     const statusLabels = {
         0: '待分配',
@@ -128,7 +141,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 params.append('employeeName', filterEmployee); // 添加员工名称到请求参数
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
-            setData(response.data);
+            const sortedData = response.data.sort((a, b) => {
+                const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
+                const numB = parseInt(b.order_num.substring(2));
+                return numA - numB;
+            });
+            setData(sortedData);
         } catch (error) {
             console.error('Error fetching data:', error);
             setError('Failed to fetch data'); // 更新错误状态
@@ -153,7 +171,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 params.append('employeeName', filterEmployee); // 添加员工名称到请求参数
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/tests/assignments/${account}?${params}`);
-            setData(response.data);
+            const sortedData = response.data.sort((a, b) => {
+                const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
+                const numB = parseInt(b.order_num.substring(2));
+                return numA - numB;
+            });
+            setData(sortedData);
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
         }
@@ -179,7 +202,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 params.append('employeeName', filterEmployee); // 添加员工名称到请求参数
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/tests?${params}`);
-            setData(response.data);
+            const sortedData = response.data.sort((a, b) => {
+                const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
+                const numB = parseInt(b.order_num.substring(2));
+                return numA - numB;
+            });
+            setData(sortedData);
         } catch (error) {
             console.error('Error fetching data for supervisor:', error);
             setError('Failed to fetch data');
@@ -256,9 +284,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 //value: parseFloat(item.total_machine_hours),  // Assuming you want to visualize machine hours
                 total_machine_hours: parseFloat(item.total_machine_hours),
             }));
+
+            let totalPrice = 0;
+            for(let employee of employeeStats){
+                totalPrice += parseFloat(employee.total_listed_price);
+            }
             setEmployeeStats(formattedEmployee);
             setEquipmentStats(formattedEquipment);
-
+            setSumPrice(totalPrice);
         } catch (error) {
             console.error('Error fetching statistics data:', error);
         }
@@ -366,6 +399,27 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowModal(true);
     };
 
+
+    
+    //定义打开和关闭 完成Modal 的函数 
+    const handleAdd = (item) => {
+        // 可以根据需要预填充已知数据
+        setAddData({
+            order_num: item.order_num,
+            original_no: '',
+            test_item: '',
+            test_method: '',
+            size: '',
+            quantity: '',
+            deadline: '',
+            note:'',
+            department_id:'',
+            status:'0',
+        });
+        setShowAddModal(true);
+    };
+
+
     const handleEditSamples = (item) => {
         setCurrentItem(item);
         setShowSampleModal(true);
@@ -375,6 +429,38 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowDeleteConfirm(true);
         setCurrentItem({ identifier });
     };
+
+    const addItem = async () => {
+        if (!addData.test_item) {
+            alert(`提交失败！"检测项目"为必填项，请重新填写`);
+            return; // 停止提交
+        }
+        if (!addData.quantity) {
+            alert(`提交失败！"数量"为必填项，请重新填写`);
+            return; // 停止提交
+        }
+
+        if (!window.confirm('请确认添加内容是否有误，确认后提交！')) {
+            return;  // 用户点击取消后，不执行任何操作
+        }
+        try {
+            const response = await axios.patch(`${config.API_BASE_URL}/api/tests/add`, addData);
+            if (response.data.success) {
+                // 成功提示
+                setShowAddModal(false);
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                fetchData('orders');
+
+            } else {
+                setShowFailureToast(true)
+            }
+        } catch (error) {
+            console.error('Error updating test items:', error);
+        }
+    };
+
+
 
     const updateItem = async () => {
         try {
@@ -767,6 +853,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {(item.status === '0' || item.status === '1') && (
                             <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
                         )}
+                        {item.status !== '3' && (
+                            <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
+                        )}
                     </td>
                 </tr>
             ));
@@ -814,7 +903,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "剩余天数"];
+            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "状态", "检测人员", "业务人员", "审批意见", "剩余天数"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
@@ -823,7 +912,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
                     <td>{item.listed_price}</td>
-                    <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
                         {item.team_names ? `${item.team_names}` : '暂未分配'}
@@ -898,7 +986,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.material}</td>
                             <td>{serviceTypeLabels[item.service_type]}</td>
                             <td className='fixed-column'>
-                                {/* <Button onClick={() => handleEdit(item)}>修改</Button> */}
+                                <Button onClick={() => handleAdd(item)}>添加检测</Button>
                                 <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
                             </td>
                         </tr>
@@ -970,7 +1058,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <button onClick={onLogout}>登出</button>
             </nav>
             {selected === 'dataStatistics' ? (
-                <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} />
+                <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} sumPrice={sumPrice}/>
             ) : selected === 'timeline' ? (
                 <EquipmentTimeline tasks={equipmentTimeline} /> // 显示设备时间线
             ) : (
@@ -1245,7 +1333,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <Form.Label>设备使用结束时间</Form.Label>
                             <Form.Control
                                 type="datetime-local"
-                                value={formatDateToLocal(currentItem.start_time)}
+                                value={formatDateToLocal(currentItem.end_time)}
                                 onChange={(e) => setCurrentItem({ ...currentItem, end_time: e.target.value })}
                             />
                         </Form.Group>
@@ -1254,6 +1342,103 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowModal(false)}>关闭</Button>
                     <Button variant="primary" onClick={updateItem}>保存更改</Button>
+                </Modal.Footer>
+            </Modal>
+
+
+
+            {/* Add Modal */}
+            <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>添加检测项目信息</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group controlId="orderNum">
+                            <Form.Label>委托单号</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={addData.order_num}
+                                disabled
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formOriginalNo">
+                            <Form.Label>样品原号</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={addData.original_no}
+                                onChange={(e) => setAddData({ ...addData, original_no: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formTestItem">
+                            <Form.Label>检测项目<span style={{ color: 'red' }}>*</span></Form.Label>
+                            
+                            <Form.Control
+                                type="text"
+                                value={addData.test_item}
+                                onChange={(e) => setAddData({ ...addData, test_item: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formTestMethod">
+                            <Form.Label>检测方法</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={addData.test_method}
+                                onChange={(e) => setAddData({ ...addData, test_method: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formSize">
+                            <Form.Label>尺寸</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={addData.size}
+                                onChange={(e) => setAddData({ ...addData, size: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formQuantity">
+                            <Form.Label>数量<span style={{ color: 'red' }}>*</span></Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={addData.quantity}
+                                onChange={(e) => setAddData({ ...addData, quantity: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formDeadline">
+                            <Form.Label>截止日期</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={addData.deadline}
+                                onChange={(e) => setAddData({ ...addData, deadline: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formNote">
+                            <Form.Label>备注</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={addData.note}
+                                onChange={(e) => setAddData({ ...addData, note: e.target.value })}
+                            />
+                        </Form.Group>
+                        
+                        <Form.Group controlId="formDepartmentId">
+                            <Form.Label>所属部门<span style={{ color: 'red' }}>*</span></Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={addData.department_id}
+                                onChange={(e) => setAddData({ ...addData, department_id: e.target.value })}
+                            >
+                                <option value="" disabled>---请选择---</option>
+                                {departments.map(dept => (
+                                    <option key={dept.department_id} value={dept.department_id}>{dept.department_name}</option>
+                                ))}
+                            </Form.Control>
+                        </Form.Group>
+
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowAddModal(false)}>关闭</Button>
+                    <Button variant="primary" onClick={addItem}>添加</Button>
                 </Modal.Footer>
             </Modal>
 

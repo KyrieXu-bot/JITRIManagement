@@ -2,7 +2,6 @@
     display: flex;
     justify-content: space-around;
     flex-wrap: wrap; /* Allows the charts to wrap onto the next line */
-
     align-items: center;
     padding: 10px;
     height: 760px; /* Adjust height as needed */
@@ -13,12 +12,46 @@
     flex: 1 1 100%; /* Sets the basis for each chart to 50% of the container's width */
     max-width: 96%; /* Slightly less than half to fit two charts per line with padding/margin */
     height: 360px; /* Adjust height as needed */
-    margin: 0px;
+    margin: 20px; /* Add margin between charts */
     padding: 20px;
-    border-right: 1px solid #ccc;
-    border-bottom: 1px solid #ccc;
+    border: 1px solid #5f87a0; /* Add border with theme color */
+    border-radius: 8px; /* Add rounded corners */
+    background-color: #f8f9fa; /* Light background to make it visually distinct */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Add shadow for better visual effect */
 }
 
-.equipment-bar{
-    height: 200px;
+.total-price-container {
+    flex: 1 1 100%; /* Sets the container to full width */
+    max-width: 96%;
+    height: 250px; /* Adjust height if needed */
+    margin: 20px;
+    padding: 20px;
+    border: 2px solid #5f87a0; /* Add border with theme color */
+    border-radius: 8px; /* Rounded corners */
+    background-color: #f8f9fa; /* Light background color for visibility */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Consistent shadow for visual effect */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.total-price-container h2 {
+    font-size: 1.5em; /* Adjust heading size if needed */
+    color: #5f87a0; /* Use theme color */
+    margin-bottom: 10px; /* Add spacing between heading and value */
+}
+
+.total-price-value {
+    font-size: 4em; /* Make the total price value larger for emphasis */
+    font-weight: bold;
+    color: #5f87a0; /* Use theme color for consistency */
+}
+
+.equipment-bar {
+    height: 400px;
+    border: 1px solid #5f87a0; /* Ensure the same border style for the equipment bar */
+    border-radius: 8px; /* Rounded corners */
+    background-color: #f8f9fa; /* Light background color */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Same shadow for consistency */
 }

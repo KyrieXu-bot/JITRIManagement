@@ -135,6 +135,24 @@ router.patch('/:testItemId/discount', async (req, res) => {
 });
 
 
+// 添加检测项目
+router.patch('/add', async (req, res) => {
+    const addedFields = req.body;
+    try {
+        // 调用 db 方法进行数据库更新
+        const [result] = await db.addTestItem(addedFields);
+        if (result.affectedRows > 0) {
+            res.json({ success: true, message: '检测项目新增成功' });
+        } else {
+            res.status(404).json({ success: false, message: '检测项目新增失败' });
+        }
+    } catch (error) {
+        console.error('Failed to add test item:', error);
+        res.status(500).send({ message: '新增失败', error: error.message });
+    }
+});
+
+
 // 更新检测项目
 router.patch('/:testItemId', async (req, res) => {
     const { testItemId } = req.params;

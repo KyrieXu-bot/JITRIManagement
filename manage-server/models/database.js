@@ -892,6 +892,33 @@ async function updateSamples(orderNum, updatedFields) {
     }
 }
 
+// 更新样品信息
+async function addTestItem(addedFields) {
+    try {
+        
+        // 构造动态 SQL 查询
+        const fields = Object.keys(addedFields);
+        const values = Object.values(addedFields);
+        fields.push('create_time');  // 创建时间字段
+        values.push(new Date());  // 获取当前时间并添加到值列表中
+
+        const columnNames = fields.join(', ');
+        const placeholders = fields.map(() => '?').join(', ');
+
+        const query = `
+            INSERT INTO test_items (${columnNames})
+            VALUES (${placeholders});
+        `;
+
+        // 执行查询
+        const result = await db.query(query, values);
+
+        return result; // 返回执行结果
+    } catch (error) {
+        console.error('Error updating test item:', error);
+        throw error;
+    }
+}
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -922,5 +949,6 @@ module.exports = {
     saveFilesToDatabase,
     getFilesByProjectId,
     getFilesByTestItemId,
-    deleteFilesByProjectId
+    deleteFilesByProjectId,
+    addTestItem
 };
