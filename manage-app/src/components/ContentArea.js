@@ -62,12 +62,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         order_num: '',
         original_no: '',
         test_item: '',
-        test_method:'',
+        test_method: '',
         size: '',
-        quantity:'',
-        deadline:'',
-        note:'',
-        department_id:''
+        quantity: '',
+        deadline: '',
+        note: '',
+        department_id: ''
 
     });
     const [showAssignmentModal, setShowAssignmentModal] = useState(false);
@@ -140,6 +140,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (filterEmployee) {
                 params.append('employeeName', filterEmployee); // 添加员工名称到请求参数
             }
+            if (departmentID) {
+                params.append('departmentId', departmentID);
+            }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
             const sortedData = response.data.sort((a, b) => {
                 const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
@@ -152,7 +155,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [setError, filterStatus, selectedMonth, filterEmployee, filterOrderNum]);
+    }, [setError, filterStatus, selectedMonth, filterEmployee, filterOrderNum, departmentID]);
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
@@ -286,7 +289,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }));
 
             let totalPrice = 0;
-            for(let employee of employeeStats){
+            for (let employee of employeeStats) {
                 totalPrice += parseFloat(employee.total_listed_price);
             }
             setEmployeeStats(formattedEmployee);
@@ -320,8 +323,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     progress: 100,
                     type: 'task',
                     dependencies: '', // 这里可以添加任务依赖关系
-                    order_num:equipment.order_num,
-                    styles:{ progressColor: "#ffbb54", progressSelectedColor: "#ff9e0d" }
+                    order_num: equipment.order_num,
+                    styles: { progressColor: "#ffbb54", progressSelectedColor: "#ff9e0d" }
 
                 };
 
@@ -400,7 +403,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
 
-    
+
     //定义打开和关闭 完成Modal 的函数 
     const handleAdd = (item) => {
         // 可以根据需要预填充已知数据
@@ -412,9 +415,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             size: '',
             quantity: '',
             deadline: '',
-            note:'',
-            department_id:'',
-            status:'0',
+            note: '',
+            department_id: '',
+            status: '0',
         });
         setShowAddModal(true);
     };
@@ -577,7 +580,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } catch (error) {
             console.error('Error submitting assignment:', error);
             setError('Failed to fetch data'); // 更新错误状态
-            setAlertMessage('该项目已分配给指定成员，请勿重复分配！');
+            setAlertMessage(error.response.data.message);
             setShowAlert(true);
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
@@ -599,9 +602,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const submitReassignment = async () => {
         try {
             await axios.post(`${config.API_BASE_URL}/api/tests/reassign`, { testItemId: currentItem.testItemId, account, assignmentInfo });
-
             setShowReassignmentModal(false);
-
             // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
             if (role === 'employee' && selected === 'handleTests') {
                 fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
@@ -818,7 +819,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     }
 
 
-
     const handleCloseAndRefresh = () => {
         setShowDetailsModal(true);  // 关闭详情页
 
@@ -829,77 +829,139 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         let rows = [];
 
 
-        if (role === 'employee' && selected === 'handleTests') {
-            // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "状态", "审批意见", "剩余天数"];
-            rows = currentItems.map((item, index) => (
-                <tr key={index}>
-                    <td>{item.order_num}</td>
-                    <td>{item.original_no}</td>
-                    <td>{item.test_item}</td>
-                    <td>{item.machine_hours}</td>
-                    <td>{item.work_hours}</td>
-                    <td>{statusLabels[item.status]}</td>
-                    <td>{item.check_note}</td>
-                    <td>
-                        {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
-                    </td>
-                    <td className='fixed-column'>
-                        <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                        {(item.status !== '3') && (
-                            <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
-                        )}
-                        {/* 只有当状态不是'2'（已检测）时，才显示转办按钮 */}
-                        {(item.status === '0' || item.status === '1') && (
-                            <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
-                        )}
-                        {item.status !== '3' && (
-                            <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
-                        )}
-                    </td>
-                </tr>
-            ));
+        if (role === 'employee') {
+            switch (selected) {
+                case 'handleTests':
+                    // 为员工定制的视图逻辑
+                    headers = ["委托单号", "样品原号", "分配给我的检测项目", "机时", "工时", "状态", "审批意见", "剩余天数"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.order_num}</td>
+                            <td>{item.original_no}</td>
+                            <td>{item.test_item}</td>
+                            <td>{item.machine_hours}</td>
+                            <td>{item.work_hours}</td>
+                            <td>{statusLabels[item.status]}</td>
+                            <td>{item.check_note}</td>
+                            <td>
+                                {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+                            </td>
+                            <td className='fixed-column'>
+                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+                                {(item.status !== '3') && (
+                                    <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
+                                )}
+                                {/* 只有当状态不是'2'（已检测）时，才显示转办按钮 */}
+                                {(item.status === '0' || item.status === '1') && (
+                                    <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
+                                )}
+                                {item.status !== '3' && (
+                                    <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
+                                )}
+                            </td>
+                        </tr>
+                    ));
+                    break;
+                case 'getCommission':
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.order_num}</td>
+                            <td>{item.customer_name}</td>
+                            <td>{item.contact_name}</td>
+                            <td>{item.contact_phone_num}</td>
+                            <td>{item.contact_email}</td>
+                            <td>{item.payer_contact_name}</td>
+                            <td>{item.payer_contact_phone_num}</td>
+                            <td>{item.payer_address}</td>
+                            <td>{item.test_items}</td>
+                            <td>{item.material}</td>
+                            <td>{serviceTypeLabels[item.service_type]}</td>
+                            <td className='fixed-column'>
+                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+
+                            </td>
+                        </tr>
+                    ));
+                break;
+                default:
+                    headers = ["暂无数据"];
+                    rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
+                break;
+            }
+
             return { headers, rows };
-        } else if (role === 'supervisor' && selected === 'handleTests') {
+        } else if (role === 'supervisor') {
+            switch (selected) {
+                case 'handleTests':
+                    // 为员工定制的视图逻辑
+                    headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "剩余天数"];
+                    rows = currentItems.map((item, index) => (
 
-            // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "剩余天数"];
-            rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.order_num}</td>
+                            <td>{item.original_no}</td>
+                            <td>{item.test_item}</td>
+                            <td>{item.machine_hours}</td>
+                            <td>{item.work_hours}</td>
+                            <td>{item.listed_price}</td>
+                            <td>{item.discounted_price}</td>
+                            <td>{statusLabels[item.status]}</td>
+                            <td>
+                                {item.team_names ? `${item.team_names}` : '暂未分配'}
+                            </td>
+                            <td>
+                                {item.sales_names ? `${item.sales_names}` : '暂未分配'}
+                            </td>
+                            <td>{item.check_note}</td>
+                            <td>
+                                {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+                            </td>
 
-                <tr key={index}>
-                    <td>{item.order_num}</td>
-                    <td>{item.original_no}</td>
-                    <td>{item.test_item}</td>
-                    <td>{item.machine_hours}</td>
-                    <td>{item.work_hours}</td>
-                    <td>{item.listed_price}</td>
-                    <td>{item.discounted_price}</td>
-                    <td>{statusLabels[item.status]}</td>
-                    <td>
-                        {item.team_names ? `${item.team_names}` : '暂未分配'}
-                    </td>
-                    <td>
-                        {item.sales_names ? `${item.sales_names}` : '暂未分配'}
-                    </td>
-                    <td>{item.check_note}</td>
-                    <td>
-                        {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
-                    </td>
+                            <td className='fixed-column'>
+                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+                                {(item.status !== '3') && (
+                                    <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
+                                )}
+                                {item.status === '1' && role === 'supervisor' && (
+                                    <Button onClick={() => handleAssignment(item.test_item_id)}>指派</Button>
+                                )}
+                                {item.status !== '3' && (
+                                    <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
+                                )}
+                                {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
+                                {(item.status === '2' || item.status === '4') && item.listed_price && (
+                                    <Button variant="warning" onClick={() => handleCheck(item.test_item_id)}>审核</Button>
+                                )}
+                            </td>
+                        </tr>
+                    ));
+                    break;
+                case 'getCommission':
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.order_num}</td>
+                            <td>{item.customer_name}</td>
+                            <td>{item.contact_name}</td>
+                            <td>{item.contact_phone_num}</td>
+                            <td>{item.contact_email}</td>
+                            <td>{item.payer_contact_name}</td>
+                            <td>{item.payer_contact_phone_num}</td>
+                            <td>{item.payer_address}</td>
+                            <td>{item.test_items}</td>
+                            <td>{item.material}</td>
+                            <td>{serviceTypeLabels[item.service_type]}</td>
+                        </tr>
+                    ));
+                    break;
+                default:
+                    headers = ["暂无数据"];
+                    rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
+                    break;
 
-                    <td className='fixed-column'>
-                        <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                        {(item.status !== '3') && (
-                            <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
-                        )}
-                        {item.status === '1' && role === 'supervisor' && (
-                            <Button onClick={() => handleAssignment(item.test_item_id)}>指派</Button>
-                        )}
-                        {item.status !== '3' && (
-                            <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
-                        )}
-                    </td>
-                </tr>
-            ));
+            }
+
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
@@ -932,23 +994,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {item.status === '0' && (
                             <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                         )}
-                        {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
-                        {(item.status === '2' || item.status === '4') && item.listed_price && (
-                            <Button variant="warning" onClick={() => handleCheck(item.test_item_id)}>审核</Button>
-                        )}
+                        
                     </td>
                 </tr>
             ));
             return { headers, rows };
         } else if (role === 'sales' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见"];
+            headers = ["委托单号", "样品原号", "检测项目", "数量", "机时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>{item.order_num}</td>
                     <td>{item.original_no}</td>
                     <td>{item.test_item}</td>
+                    <td>{item.quantity}</td>
                     <td>{item.machine_hours}</td>
+                    <td>{item.listed_price}</td>
                     <td>{item.discounted_price}</td>
                     <td>{statusLabels[item.status]}</td>
                     <td>
@@ -959,6 +1020,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     </td>
                     <td>{item.check_note}</td>
                     <td className='fixed-column'>
+                        <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                         {item.status !== '3' && (
                             <Button onClick={() => handleDiscount(item.test_item_id)}>设置优惠价</Button>
                         )}
@@ -1012,7 +1074,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "标准价格","优惠价格","状态", "人员", "审批意见"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "标准价格", "优惠价格", "状态", "人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -1058,7 +1120,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <button onClick={onLogout}>登出</button>
             </nav>
             {selected === 'dataStatistics' ? (
-                <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} sumPrice={sumPrice}/>
+                <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} sumPrice={sumPrice} />
             ) : selected === 'timeline' ? (
                 <EquipmentTimeline tasks={equipmentTimeline} /> // 显示设备时间线
             ) : (
@@ -1139,14 +1201,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         nextPageText="下一页"
                     />
                     <div class='content'>
-                        
+
                         <table>
                             <thead>
                                 <tr>
                                     {headers.map(header =>
                                         <th key={header}>{header}</th>
                                     )}
-                                    <th className="fixed-column">操作</th> {/* 添加操作列的表头 */}
+                                    <th className="fixed-column">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1372,7 +1434,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </Form.Group>
                         <Form.Group controlId="formTestItem">
                             <Form.Label>检测项目<span style={{ color: 'red' }}>*</span></Form.Label>
-                            
+
                             <Form.Control
                                 type="text"
                                 value={addData.test_item}
@@ -1419,7 +1481,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 onChange={(e) => setAddData({ ...addData, note: e.target.value })}
                             />
                         </Form.Group>
-                        
+
                         <Form.Group controlId="formDepartmentId">
                             <Form.Label>所属部门<span style={{ color: 'red' }}>*</span></Form.Label>
                             <Form.Control
@@ -1495,29 +1557,29 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 value={sampleSolutionTypeLabels[currentItem.sample_solution_type]}
                                 onChange={(e) => setCurrentItem({ ...currentItem, sample_solution_type: e.target.value })}
                             >
-                            {Object.entries(sampleSolutionTypeLabels).map(([key, label]) => (
-                                <option key={key} value={key}>{label}</option>
-                            ))}
+                                {Object.entries(sampleSolutionTypeLabels).map(([key, label]) => (
+                                    <option key={key} value={key}>{label}</option>
+                                ))}
                             </Form.Control>
                         </Form.Group>
                         {/* 材料类型 */}
                         <Form.Group controlId="sampleType">
                             <Form.Label>材料类型</Form.Label>
                             {Object.entries(sampleTypeLabels).map(([key, label]) => (
-                            <Form.Check
-                                key={key}
-                                type="checkbox"
-                                label={label}
+                                <Form.Check
+                                    key={key}
+                                    type="checkbox"
+                                    label={label}
 
-                                onChange={(e) => {
-                                    console.log("sampletype",currentItem.sample_type)
-                                    const sampleTypeArray = formatSampleType(currentItem.sample_type);
-                                    const newSampleType = e.target.checked
-                                        ? [parseInt(key)]
-                                        : sampleTypeArray.filter(type => type !== parseInt(key));
-                                    setCurrentItem({ ...currentItem, sample_type: newSampleType});
-                                }}
-                            />
+                                    onChange={(e) => {
+                                        console.log("sampletype", currentItem.sample_type)
+                                        const sampleTypeArray = formatSampleType(currentItem.sample_type);
+                                        const newSampleType = e.target.checked
+                                            ? [parseInt(key)]
+                                            : sampleTypeArray.filter(type => type !== parseInt(key));
+                                        setCurrentItem({ ...currentItem, sample_type: newSampleType });
+                                    }}
+                                />
                             ))}
                         </Form.Group>
                     </Form>
@@ -1738,9 +1800,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <p>委托单号：<span>{selectedDetails.order_num}</span></p>
                     <p>样品原号：<span>{selectedDetails.original_no}</span></p>
                     <p>检测项目：<span>{selectedDetails.test_item}</span></p>
+                    <p>尺寸：<span>{selectedDetails.size}</span></p>
+                    <p>数量：<span>{selectedDetails.quantity}</span></p>
+                    <p>备注：<span>{selectedDetails.note}</span></p>
                     <p>机时：<span>{selectedDetails.machine_hours}</span>
                         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                         工时：<span>{selectedDetails.work_hours}</span></p>
+                    <p>标准价格：<span>{selectedDetails.listed_price}</span></p>
+                    <p>优惠价格：<span>{selectedDetails.discounted_price}</span></p>
                     <p>设备名称：<span>{selectedDetails.equipment_name}({selectedDetails.model})</span></p>
                     <p>状态：<span>{statusLabels[selectedDetails.status]}</span></p>
                     <p>审批意见：<span>{selectedDetails.check_note}</span></p>

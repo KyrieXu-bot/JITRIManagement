@@ -11,7 +11,7 @@ async function findUserByAccount(account) {
     return results[0] || null;
 }
 
-async function getAllOrders(orderNum) {
+async function getAllOrders(orderNum, departmentId) {
     let query = `
         SELECT 
             o.order_num, 
@@ -33,9 +33,17 @@ async function getAllOrders(orderNum) {
 
     `;
     const params = [];
+    let whereClauseAdded = false;
+
     if (orderNum !== undefined && orderNum !== '') {
         query += ' WHERE o.order_num LIKE ?';
         params.push(`%${orderNum}%`);
+        whereClauseAdded = true;
+    }
+    if (departmentId !== undefined && departmentId !== '') {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.department_id = ?';
+        params.push(departmentId);
+        whereClauseAdded = true;
     }
     query += `GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
@@ -414,7 +422,7 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
         `UPDATE test_items 
             SET status = ?
         `;
-    
+
     try {
         // 执行插入分配的用户信息
         await db.query(query, [testId, userId]);
@@ -800,7 +808,7 @@ async function saveFilesToDatabase(fileDetails) {
 
         for (const file of fileDetails) {
             const sql = `INSERT INTO project_files (filename, filepath, project_id, test_item_id) VALUES (?, ?, ?, ?)`;
-            const values = [file.filename, file.path, file.projectId,file.testItemId];
+            const values = [file.filename, file.path, file.projectId, file.testItemId];
             await connection.query(sql, values);
         }
 
@@ -831,7 +839,7 @@ async function getFilesByTestItemId(testItemId) {
 }
 
 // 获取与项目ID关联的文件
-async function getFilesByProjectId(projectId){
+async function getFilesByProjectId(projectId) {
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction(); // 开始事务
@@ -845,7 +853,7 @@ async function getFilesByProjectId(projectId){
 };
 
 // 删除与项目ID相关的文件记录
-async function deleteFilesByProjectId(projectId){
+async function deleteFilesByProjectId(projectId) {
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
@@ -895,7 +903,7 @@ async function updateSamples(orderNum, updatedFields) {
 // 更新样品信息
 async function addTestItem(addedFields) {
     try {
-        
+
         // 构造动态 SQL 查询
         const fields = Object.keys(addedFields);
         const values = Object.values(addedFields);
@@ -918,6 +926,29 @@ async function addTestItem(addedFields) {
         console.error('Error updating test item:', error);
         throw error;
     }
+}
+
+async function checkAssign(testItemId) {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Check the number of employees assigned to this test item
+        const employeeCountQuery = `
+            SELECT COUNT(*) AS employeeCount
+            FROM assignments
+            WHERE test_item_id = ? AND account NOT LIKE '%YW%'
+        `;
+        const [employeeCountResult] = await connection.query(employeeCountQuery, [testItemId]);
+        const employeeCount = employeeCountResult[0].employeeCount;
+        return employeeCount;
+    } catch (error) {
+        await connection.rollback(); // 如果有错误，回滚事务
+        throw error; // 将错误抛出以便捕获和处理
+    } finally {
+        connection.release();
+    }
+
 }
 module.exports = {
     findUserByAccount,
@@ -950,5 +981,6 @@ module.exports = {
     getFilesByProjectId,
     getFilesByTestItemId,
     deleteFilesByProjectId,
-    addTestItem
+    addTestItem,
+    checkAssign
 };

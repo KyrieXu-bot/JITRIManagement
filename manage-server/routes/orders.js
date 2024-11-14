@@ -5,7 +5,8 @@ const { getAllOrders, updateOrder, deleteOrder } = require('../models/database')
 router.get('/', async (req, res) => {
     try {
         const orderNum = req.query.orderNum;
-        const results = await getAllOrders(orderNum);
+        const departmentId = req.query.departmentId;
+        const results = await getAllOrders(orderNum, departmentId);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch commission:', error);

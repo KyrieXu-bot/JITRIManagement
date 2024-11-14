@@ -47,6 +47,7 @@ const EquipmentTimeline = ({ tasks }) => {
                     viewMode={viewMode === 'HalfHour' ? 'Hour' : viewMode} // 半小时模式也使用 Hour 显示
                     locale="zh-CN" // 如果需要中文格式
                     listCellWidth={listCellWidth}
+                    ganttHeight="100"
                 >
                 </Gantt>
             </div>

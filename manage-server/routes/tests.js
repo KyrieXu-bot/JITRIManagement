@@ -38,15 +38,20 @@ router.post('/assign', async (req, res) => {
     try {
         const results = await db.getAssignmentsInfo(testItemId, assignmentInfo)
         if(!results || results.length === 0){
+            const employeeCount = await db.checkAssign(testItemId);
+            if (employeeCount >= 2) {
+                // More than 3 employees already assigned, return an error
+                return res.status(409).json({ success: false, message: "错误：只能分配一个员工做实验!" });
+            }
             await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time);
-            res.status(200).json({ success: true, message: "检测项目分配成功" });
+            res.status(200).json({ success: true, message: "检测项目分配成功!" });
         }else{
             const userResult = await db.findUserByAccount(assignmentInfo);
             if(userResult.role != 'supervisor' || userResult.role != 'sales'){
                 // 如果数据库查询结果表明该项目已被分配并且不是组长指派的
-                res.status(409).json({ success: false, message: "项目已经被分配" });
+                res.status(409).json({ success: false, message: `错误：项目已经分配给${userResult.name}(${userResult.account})了！` });
             }else{
-                res.status(200).json({ success: true, message: "检测项目分配成功" });
+                res.status(200).json({ success: true, message: "检测项目分配成功!" });
             }
 
         }
