@@ -11,11 +11,11 @@
 }
 
 /* 侧边栏标题样式 */
-.sidebar h1 {
+.sidebar h3 {
     color: #0366d6; /* 深蓝色 */
     text-align: center;
     padding-bottom: 20px;
-    border-bottom: 2px solid #0366d6;
+
 }
 
 /* 无序列表样式 */
@@ -47,4 +47,50 @@
 .sidebar li.active {
     background-color: #024d86; /* 更深的蓝色 */
     color: #ffffff;
+}
+
+/* 为logo设置自适应样式 */
+.sidebar-logo {
+    width: 100%;    /* 设置宽度为100%，以适应父容器 */
+    height: auto;   /* 自动调整高度，保持纵横比 */
+    margin: 10px 0; /* 可选：添加一些上下间距 */
+    border-bottom: 2px solid #0366d6;
+
+
+}
+
+
+/* logo容器 */
+.logo-container {
+    position: relative;
+    width: 100%;
+    height: auto;
+}
+
+/* 为logo设置自适应样式 */
+.sidebar-logo {
+    width: 100%;
+    height: auto;
+    margin: 10px 0;
+}
+
+/* 隐藏文本，默认情况下不显示 */
+.home-link {
+    position: absolute;
+    top: 50%; /* 垂直居中 */
+    left: 50%; /* 水平居中 */
+    transform: translate(-50%, -50%); /* 完全居中 */
+    opacity: 0;
+    color: white;
+    background-color: rgba(0, 0, 0, 0.7); /* 半透明背景 */
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 16px;
+    pointer-events: none; /* 不干扰图片的点击事件 */
+    transition: opacity 0.3s ease; /* 添加渐变效果 */
+}
+
+/* 悬浮时显示文本 */
+.logo-container:hover .home-link {
+    opacity: 1;
 }

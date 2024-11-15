@@ -218,6 +218,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
             t.create_time,
             t.deadline,
             IFNULL(e.equipment_name, '') AS equipment_name,
+            t.appoint_time,
             e.model,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
              FROM assignments aa 
@@ -280,61 +281,6 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
 }
 
 
-// async function getAllTestItems(status, departmentId, month) {
-//     let query = `
-//         SELECT 
-//             t.test_item_id,
-//             t.original_no,
-//             t.test_item,
-//             t.test_method,
-//             t.order_num,
-//             t.status,
-//             t.machine_hours,
-//             t.work_hours,
-//             t.listed_price,
-//             t.discounted_price,
-//             t.equipment_id,
-//             t.check_note,
-//             t.create_time,
-//             t.deadline,
-//             e.equipment_name,
-//             e.model,
-//             COALESCE(GROUP_CONCAT(DISTINCT u.name ORDER BY u.name), '') AS assigned_accounts
-//         FROM
-//             test_items t
-//         LEFT JOIN
-//             assignments a ON t.test_item_id = a.test_item_id
-//         LEFT JOIN 
-//             equipment e ON e.equipment_id = t.equipment_id
-//         left join 
-//             users u on u.account = a.account 
-//     `;
-//     const params = [];
-//     if (departmentId !== undefined && departmentId !== '') {
-//         query += ' WHERE t.department_id = ?';
-//         params.push(departmentId);
-//         if (status !== undefined && status !== '') {
-//             query += ' AND t.status = ?';
-//             params.push(status);
-//         }
-//     } else {
-//         if (status !== undefined && status !== '') {
-//             query += ' WHERE t.status = ?';
-//             params.push(status);
-//         }
-//     }
-//     if(month !== undefined && month !== ''){
-//         query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
-//             params.push(month);
-//     }
-//     query += `GROUP BY t.test_item_id;`;
-
-//     const [results] = await db.query(query, params);
-//     return results;
-// }
-
-
-
 async function getAllTestItems(status, departmentId, month, employeeName, orderNum) {
     let query = `
         SELECT 
@@ -358,6 +304,7 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
             t.department_id,
             t.start_time,
             t.end_time,
+            t.appoint_time,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
@@ -416,7 +363,9 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
     return results;
 }
 
-async function assignTestToUser(testId, userId, equipment_id, start_time, end_time) {
+async function assignTestToUser(testId, userId, equipment_id, start_time, end_time, role) {
+    const connection = await db.getConnection(); // assuming you're using mysql2/promise or a similar library
+
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
     let updateQuery =
         `UPDATE test_items 
@@ -424,8 +373,10 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
         `;
 
     try {
+        await connection.beginTransaction();
+
         // 执行插入分配的用户信息
-        await db.query(query, [testId, userId]);
+        await connection.query(query, [testId, userId]);
 
 
         // 执行更新 test_items 的状态、设备ID、设备开始和结束时间
@@ -443,12 +394,28 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
             updateQuery += ', end_time = ?';
             params.push(end_time);
         }
+        // 判断室主任还是组长，以存储不同的修改时间
+        if (role !== undefined && role !== '') {
+            if(role === 'leader'){
+                updateQuery += ', assign_time = NOW()';
+            }else if(role === 'supervisor'){
+                updateQuery += ', appoint_time = NOW()';
+
+            }
+        }
         updateQuery += 'WHERE test_item_id = ?';
         params.push(testId);
-        await db.query(updateQuery, params);
+        await connection.query(updateQuery, params);
+        await connection.commit();
+
     } catch (error) {
+        await connection.rollback();
+
         console.error('Error assigning test to user:', error);
         throw new Error('Failed to assign test and update test item.');
+    } finally {
+        // Always release the connection back to the pool
+        connection.release();
     }
 }
 
@@ -478,7 +445,7 @@ async function updateTestItemStatus(finishData) {
 async function updateTestItemCheckStatus(testItemId, status, checkNote) {
     const query = `
         UPDATE test_items
-        SET status = ?, check_note = ?
+        SET status = ?, check_note = ? , check_time = NOW()
         WHERE test_item_id = ?
     `;
     await db.query(query, [status, checkNote, testItemId]);

@@ -1,0 +1,78 @@
+.homepage {
+    margin: 0px auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+}
+
+h2 {
+    font-size: 2em;
+    color: #333;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.dashboard {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard h3 {
+    font-size: 1.5em;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.order-item {
+    padding: 10px;
+    background-color: #e0f7fa;
+    border: 1px solid #00796b;
+    margin: 5px auto;
+    width: 90%;
+    border-radius: 4px;
+    font-size: 1.1em;
+    display: flex;
+    justify-content: space-between;
+}
+
+.order-item:hover {
+    background-color: #b2dfdb;
+    cursor: pointer;
+}
+
+.dashboard p {
+    font-size: 1.1em;
+    color: #757575;
+    text-align: center;
+}
+
+
+.block{
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    margin: 10px;
+}
+.block div {
+    width: 48%;
+    max-height: 600px;
+    min-height: 300px;
+    overflow: auto;
+    border: 1px solid black;
+}
+
+/* 按钮样式 */
+button {
+    border: none;
+    padding: 4px 8px;
+    margin: 2px;
+    border-radius: 3px;
+    cursor: pointer;
+    background-color: #5f87a0; /* 深天蓝色背景与表头一致 */
+    color: white;
+}
+
+button:hover {
+    background-color: #87CEFA; /* 鼠标悬浮时颜色 */
+}

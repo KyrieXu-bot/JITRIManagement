@@ -29,6 +29,7 @@ router.get('/', async (req, res) => {
 router.post('/assign', async (req, res) => {
     const { 
         testItemId, 
+        role,
         assignmentInfo, 
         equipment_id, 
         start_time, 
@@ -36,6 +37,10 @@ router.post('/assign', async (req, res) => {
     } = req.body;
 
     try {
+        if(!assignmentInfo || assignmentInfo === ''){
+            return res.status(409).json({ success: false, message: `提交错误：请选择分配人员！` });
+
+        }
         const results = await db.getAssignmentsInfo(testItemId, assignmentInfo)
         if(!results || results.length === 0){
             const employeeCount = await db.checkAssign(testItemId);
@@ -43,7 +48,7 @@ router.post('/assign', async (req, res) => {
                 // More than 3 employees already assigned, return an error
                 return res.status(409).json({ success: false, message: "错误：只能分配一个员工做实验!" });
             }
-            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time);
+            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role);
             res.status(200).json({ success: true, message: "检测项目分配成功!" });
         }else{
             const userResult = await db.findUserByAccount(assignmentInfo);

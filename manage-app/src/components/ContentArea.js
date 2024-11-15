@@ -7,12 +7,15 @@ import config from '../config/config'; // 确保路径正确
 import Pagination from 'react-js-pagination';
 import DataStatistics from '../components/DataStatistics';
 import EquipmentTimeline from '../components/EquipmentTimeline';
+import HomePage from '../components/HomePage';
+
 import FileUpload from '../components/FileUpload'; // 确保路径正确
 
 
 const ContentArea = ({ departmentID, account, selected, role, groupId, name, onLogout }) => {
 
     const [data, setData] = useState([]);
+    const [testId, setTestId] = useState('');
 
     const [showModal, setShowModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -224,7 +227,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             let endpoint = '';
             if (role === 'leader') {
                 endpoint = `/api/users/supervisors?departmentId=${departmentID}`;
-            } else if (role === 'supervisor') {
+            } else if (role === 'supervisor' || role === 'employee') {
                 endpoint = `/api/users/employees?departmentId=${departmentID}`;
             }
             const response = await axios.get(`${config.API_BASE_URL}${endpoint}`);
@@ -345,6 +348,26 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, []);
 
+
+    // const fetchAssignedNotTestedOrders = () => {
+    //     // 假设从服务器获取的数据
+    //     switch(role){
+    //         case 'leader':
+                
+    //             break;
+    //         case 'supervisor':
+    //             break;
+    //         case 'employee':
+    //             break;
+    //         case 'sales':
+    //             break;
+    //         default:
+    //             break;
+    //     }
+    //     setAssignedNotTestedOrders(orders.filter(order => order.status === 1));
+    // };
+
+
     useEffect(() => {
         if ((role === 'employee' || role === 'sales') && selected === 'handleTests') {
             fetchDataForEmployee(account);
@@ -368,10 +391,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchData('tests');
             }
         }
-        if (role === 'leader') {
+        // if (role === 'leader') {
+        //     fetchAssignableUsers();
+        // } else if (role === 'supervisor' || role === 'employee') {
+        //     fetchGroupUsers(groupId)
+        // }
+        if (role !== "sales" && role !== "admin") {
             fetchAssignableUsers();
-        } else if (role === 'supervisor' || role === 'employee') {
-            fetchGroupUsers(groupId)
         }
         fetchEquipments(departmentID);
         fetchMonths();
@@ -432,6 +458,31 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowDeleteConfirm(true);
         setCurrentItem({ identifier });
     };
+
+    // 控制分配Modal显示的方法
+    const showAssignmentModalHandler = (data) => {
+        setTestId(data.test_item_id)
+        setShowAssignmentModal(true);
+    };
+
+    const handleAssignment = (testItemId) => {
+        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
+        setShowAssignmentModal(true);
+    };
+
+
+    const handleReassignment = (testItemId) => {
+        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
+        setShowReassignmentModal(true);
+    };
+
+
+    const handleCheck = (testItemId) => {
+        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
+        setShowCheckModal(true);
+    };
+
+
 
     const addItem = async () => {
         if (!addData.test_item) {
@@ -530,31 +581,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     };
 
-    const handleAssignment = (testItemId) => {
-        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
-        setShowAssignmentModal(true);
-    };
-
-
-    const handleReassignment = (testItemId) => {
-        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
-        setShowReassignmentModal(true);
-    };
-
-
-    const handleCheck = (testItemId) => {
-        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
-        setShowCheckModal(true);
-    };
-
+    
     const submitAssignment = useCallback(async () => {
         try {
             const payload = {
-                testItemId: currentItem.testItemId,
+                testItemId: currentItem.testItemId ? currentItem.testItemId : testId,
                 assignmentInfo,
                 equipment_id: assignmentData.equipment_id,
                 start_time: assignmentData.start_time,
-                end_time: assignmentData.end_time
+                end_time: assignmentData.end_time,
+                role: role
             };
             const response = await axios.post(`${config.API_BASE_URL}/api/tests/assign`, payload);
             isAssignedToMeRef.current = (assignmentInfo === account); // Update the ref value based on the condition
@@ -595,6 +631,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchDataForEmployee,
         departmentID,
         fetchDataForSupervisor,
+        testId
 
     ]);
 
@@ -765,7 +802,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             // 如果没有提供截止日期或创建日期，不显示任何内容
             return null;
         }
+
         const deadlineDate = new Date(new Date(createDate).getTime() + deadlineDays * 24 * 60 * 60 * 1000);
+        console.log(deadlineDate)
+
         const daysLeft = calculateRemainingDays(deadlineDate);
 
         let displayText;
@@ -844,7 +884,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{statusLabels[item.status]}</td>
                             <td>{item.check_note}</td>
                             <td>
-                                {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+                                {(item.status === '1' || item.status === '2') ? renderDeadlineStatus(item.deadline, item.appoint_time) : ''}
                             </td>
                             <td className='fixed-column'>
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
@@ -883,11 +923,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             </td>
                         </tr>
                     ));
-                break;
+                    break;
                 default:
                     headers = ["暂无数据"];
                     rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
-                break;
+                    break;
             }
 
             return { headers, rows };
@@ -915,7 +955,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             </td>
                             <td>{item.check_note}</td>
                             <td>
-                                {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+                                {(item.status === '1' || item.status === '2') ? renderDeadlineStatus(item.deadline, item.appoint_time) : ''}
                             </td>
 
                             <td className='fixed-column'>
@@ -956,8 +996,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 default:
-                    headers = ["暂无数据"];
-                    rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
+
                     break;
 
             }
@@ -984,7 +1023,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                     <td>{item.check_note}</td>
                     <td>
-                        {(item.status === '0' || item.status === '1') ? renderDeadlineStatus(item.deadline, item.create_time) : ''}
+                        {(item.status === '1' || item.status === '2') ? renderDeadlineStatus(item.deadline, item.appoint_time) : ''}
 
                     </td>
 
@@ -994,7 +1033,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {item.status === '0' && (
                             <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                         )}
-                        
+
                     </td>
                 </tr>
             ));
@@ -1112,116 +1151,129 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const { headers, rows } = renderTable(currentItems);
 
-
     return (
         <div>
             <nav>
                 <span>{name}({account}),欢迎访问集萃检测管理系统</span>
                 <button onClick={onLogout}>登出</button>
             </nav>
-            {selected === 'dataStatistics' ? (
-                <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} sumPrice={sumPrice} />
-            ) : selected === 'timeline' ? (
-                <EquipmentTimeline tasks={equipmentTimeline} /> // 显示设备时间线
-            ) : (
-                <div>
-                    <h2>{selected === 'getCommission' ? '详细信息' : selected === 'getSamples' ? '样品管理' : '检测管理'}</h2>
-                    {selected === 'handleTests' ? (
-                        <div className="searchBar">
-                            <span>筛选项目状态：</span>
-                            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                                <option value="">全部状态</option>
-                                <option value="0">待分配</option>
-                                <option value="1">已分配待检测</option>
-                                <option value="2">已检测待审批</option>
-                                <option value="3">审批通过</option>
-                                <option value="4">审批失败</option>
 
-                            </select>&nbsp;&nbsp;&nbsp;
-                            <span>筛选月份：</span>
-                            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
-                                <option value="">选择月份</option>
-                                {months.map(({ month }) => (
-                                    <option key={month} value={month}>{month}</option>
-                                ))}
-                            </select>&nbsp;&nbsp;&nbsp;
-                            <span>筛选委托单号：</span>
-                            <input
-                                type="text"
-                                value={filterOrderNum}
-                                onChange={(e) => setFilterOrderNum(e.target.value)}
-                                placeholder="输入委托单号进行搜索"
-                            />
-                            {role === 'supervisor' || role === 'leader' ? (
-                                <button onClick={() => fetchDataForSupervisor(departmentID)}>查询单号</button>
-                            ) : (
-                                <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
+            {selected ? (
+                selected === 'dataStatistics' ? (
+                    <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} sumPrice={sumPrice} />
+                ) : selected === 'timeline' ? (
+                    <EquipmentTimeline tasks={equipmentTimeline} /> // 显示设备时间线
+                ) : (
+                    <div>
+                        <h2>{selected === 'getCommission' ? '详细信息'
+                            : selected === 'getSamples' ? '样品管理'
+                                : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
+                                    : '首页'}</h2>
+                        {selected === 'handleTests' ? (
+                            <div className="searchBar">
+                                <span>筛选项目状态：</span>
+                                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                                    <option value="">全部状态</option>
+                                    <option value="0">待分配</option>
+                                    <option value="1">已分配待检测</option>
+                                    <option value="2">已检测待审批</option>
+                                    <option value="3">审批通过</option>
+                                    <option value="4">审批失败</option>
 
-                            )}&nbsp;&nbsp;&nbsp;
-                            <span>筛选人员：</span>
-                            <input
-                                type="text"
-                                value={filterEmployee}
-                                onChange={(e) => setFilterEmployee(e.target.value)}
-                                placeholder="输入员工名称进行搜索"
-                            />
-                            <button onClick={() => fetchData('tests')}>查询员工</button>
+                                </select>&nbsp;&nbsp;&nbsp;
+                                <span>筛选月份：</span>
+                                <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                                    <option value="">选择月份</option>
+                                    {months.map(({ month }) => (
+                                        <option key={month} value={month}>{month}</option>
+                                    ))}
+                                </select>&nbsp;&nbsp;&nbsp;
+                                <span>筛选委托单号：</span>
+                                <input
+                                    type="text"
+                                    value={filterOrderNum}
+                                    onChange={(e) => setFilterOrderNum(e.target.value)}
+                                    placeholder="输入委托单号进行搜索"
+                                />
+                                {role === 'supervisor' || role === 'leader' ? (
+                                    <button onClick={() => fetchDataForSupervisor(departmentID)}>查询单号</button>
+                                ) : (
+                                    <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
+
+                                )}&nbsp;&nbsp;&nbsp;
+                                <span>筛选人员：</span>
+                                <input
+                                    type="text"
+                                    value={filterEmployee}
+                                    onChange={(e) => setFilterEmployee(e.target.value)}
+                                    placeholder="输入员工名称进行搜索"
+                                />
+                                <button onClick={() => fetchData('tests')}>查询员工</button>
+                            </div>
+                        ) : selected === 'getCommission' ? (
+
+                            <div className="searchBar">
+                                <span>筛选委托单号：</span>
+                                <input
+                                    type="text"
+                                    value={filterOrderNum}
+                                    onChange={(e) => setFilterOrderNum(e.target.value)}
+                                    placeholder="输入委托单号进行搜索"
+                                />
+                                <button onClick={() => fetchData('orders')}>查询单号</button>
+
+                            </div>
+                        ) : (
+                            <div>
+                            </div>
+                        )}
+
+                        <Pagination
+                            activePage={activePage}
+                            itemsCountPerPage={itemsCountPerPage}
+                            totalItemsCount={totalItemsCount}
+                            onChange={handlePageChange}
+                            pageRangeDisplayed={3}
+                            innerClass="pagination"
+                            itemClass="pagination-item" // 添加样式类
+                            linkClass="pagination-link" // 添加样式类
+                            hideDisabled={true} // 隐藏不可用的分页链接
+                            firstPageText="首页"  // 首页
+                            lastPageText="尾页"   // 尾页
+                            prevPageText="上一页"
+                            nextPageText="下一页"
+                        />
+                        <div class='content'>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        {headers.map(header =>
+                                            <th key={header}>{header}</th>
+                                        )}
+                                        <th className="fixed-column">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rows}
+                                </tbody>
+                            </table>
                         </div>
-                    ) : selected === 'getCommission' ? (
-
-                        <div className="searchBar">
-                            <span>筛选委托单号：</span>
-                            <input
-                                type="text"
-                                value={filterOrderNum}
-                                onChange={(e) => setFilterOrderNum(e.target.value)}
-                                placeholder="输入委托单号进行搜索"
-                            />
-                            <button onClick={() => fetchData('orders')}>查询单号</button>
-
-                        </div>
-                    ) : (
-                        <div>
-                        </div>
-                    )}
-
-                    <Pagination
-                        activePage={activePage}
-                        itemsCountPerPage={itemsCountPerPage}
-                        totalItemsCount={totalItemsCount}
-                        onChange={handlePageChange}
-                        pageRangeDisplayed={3}
-                        innerClass="pagination"
-                        itemClass="pagination-item" // 添加样式类
-                        linkClass="pagination-link" // 添加样式类
-                        hideDisabled={true} // 隐藏不可用的分页链接
-                        firstPageText="首页"  // 首页
-                        lastPageText="尾页"   // 尾页
-                        prevPageText="上一页"
-                        nextPageText="下一页"
-                    />
-                    <div class='content'>
-
-                        <table>
-                            <thead>
-                                <tr>
-                                    {headers.map(header =>
-                                        <th key={header}>{header}</th>
-                                    )}
-                                    <th className="fixed-column">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows}
-                            </tbody>
-                        </table>
 
                     </div>
 
+
+                )
+            ) : (
+                <div>
+                    <HomePage 
+                        role={role} 
+                        assignedNotTestedOrders={data} 
+                        onShowAssignment={showAssignmentModalHandler}
+                    />
                 </div>
 
-
             )}
+
 
 
 
@@ -1815,7 +1867,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <p>设备开始时间：<span>{selectedDetails.start_time}</span></p>
                     <p>设备结束时间：<span>{selectedDetails.end_time}</span></p>
 
-                    <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.create_time)}</p>
+                    <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.appoint_time)}</p>
                     <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh} />
                 </Modal.Body>
                 <Modal.Footer>

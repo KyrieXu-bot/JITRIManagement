@@ -7,7 +7,7 @@ import './App.css';
 import { AuthProvider } from './context/AuthContext';
 
 function App() {
-  const [selected, setSelected] = useState('customers');
+  const [selected, setSelected] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false); // 初始时未登录
   const [userRole, setUserRole] = useState('');
   const [userAccount, setUserAccount] = useState('');

@@ -3,7 +3,10 @@ import '../css/Sidebar.css';
 const Sidebar = ({ onSelect, selected, role  }) => {
     return (
         <div className="sidebar">
-            <h1>集萃检测管理系统</h1>
+            <div className="logo-container">
+                <img src='/JITRI-logo.jpg' alt='logo' className="sidebar-logo" onClick={() => onSelect('')}></img>
+                <div className="home-link">回到首页</div>
+            </div>
             <ul>
                 {role === 'admin' && (
                     <>
