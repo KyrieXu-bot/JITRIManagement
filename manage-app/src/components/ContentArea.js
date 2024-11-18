@@ -183,6 +183,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 return numA - numB;
             });
             setData(sortedData);
+            console.log("yupppp")
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
         }
@@ -369,7 +370,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
     useEffect(() => {
-        if ((role === 'employee' || role === 'sales') && selected === 'handleTests') {
+        if ((role === 'employee' || role === 'sales')) {
             fetchDataForEmployee(account);
         } else if (role === 'supervisor' || role === 'leader') {
             if (selected === 'dataStatistics') {
@@ -804,8 +805,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
 
         const deadlineDate = new Date(new Date(createDate).getTime() + deadlineDays * 24 * 60 * 60 * 1000);
-        console.log(deadlineDate)
-
         const daysLeft = calculateRemainingDays(deadlineDate);
 
         let displayText;
@@ -1269,6 +1268,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         role={role} 
                         assignedNotTestedOrders={data} 
                         onShowAssignment={showAssignmentModalHandler}
+                        renderDeadlineStatus={renderDeadlineStatus}
                     />
                 </div>
 

@@ -1,28 +1,59 @@
 import React from 'react';
 import '../css/HomePage.css'
-const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment}) => {
+const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, renderDeadlineStatus}) => {
+    console.log(assignedNotTestedOrders)
     const notAssigned = assignedNotTestedOrders.filter(order => order.status === '0');
     const notTested = assignedNotTestedOrders.filter(order => order.status === '1');
     const checked = assignedNotTestedOrders.filter(order => order.status === '3');
+    let totalMachineHours = 0;
+    let totalWorkHours = 0;
+    let totalListedPrice = 0;
+    let totalDiscountedPrice = 0;
+    for(let order of assignedNotTestedOrders){
+        // 使用 Number() 将所有数值转换为数字，并检查是否为有效数值
+        totalMachineHours += Number(order.machine_hours) || 0;   // 如果不是有效数值，就加0
+        totalWorkHours += Number(order.work_hours) || 0;
+        totalListedPrice += Number(order.listed_price) || 0;
+        totalDiscountedPrice += Number(order.discounted_price) || 0;
+    }
+    totalDiscountedPrice = Number(totalDiscountedPrice);
+    totalListedPrice = Number(totalListedPrice);
+    const formattedDiscount = new Intl.NumberFormat('zh-CN', {
+        style: 'currency',
+        currency: 'CNY',
+        minimumFractionDigits: 2
+    }).format(totalDiscountedPrice);
+
+    const formattedListed = new Intl.NumberFormat('zh-CN', {
+        style: 'currency',
+        currency: 'CNY',
+        minimumFractionDigits: 2
+    }).format(totalListedPrice);
 
     const renderRoleContent = () => {
         switch (role) {
             case 'leader':
                 return (
                     <div>
-                        <p>欢迎室主任！这里是您的工作面板。这里有已分配但未检测的委托单号。</p>
+                        <p>欢迎室主任！这里是您的工作面板，显示您当前负责的检测项目。</p>
                     </div>
                 );
             case 'supervisor':
                 return (
                     <div>
-                        <p>欢迎组长！您可以查看您负责的已分配但未指派/检测的委托单号。</p>
+                        <p>欢迎组长！您可以查看您负责的指派/检测的委托单号。</p>
                     </div>
                 );
             case 'employee':
                 return (
                     <div>
-                        <p>欢迎实验员！这是您的工作面板，显示您当前已分配但未检测的委托单号。</p>
+                        <p>欢迎实验员！这是您的工作面板，显示您当前负责的检测项目。</p>
+                    </div>
+                );
+            case 'sales':
+                return (
+                    <div>
+                        <p>欢迎业务员！这是您的工作面板，显示您当前负责的业务委托数据。</p>
                     </div>
                 );
             default:
@@ -39,7 +70,71 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment}) => {
         <div className="homepage">
             <h1>集萃检测管理系统</h1>
             {renderRoleContent()}
-
+            {role === 'leader' || role === 'supervisor' ? (
+                <nav className='navGroup'>
+                    <div className='countGroup'>
+                        检测项目总数量：
+                        <br />
+                        <p>{assignedNotTestedOrders.length}个</p>
+                    </div>
+                    <div className='countGroup'>
+                        审批通过总量：
+                        <br />
+                        <p>{checked.length}个</p>
+                    </div>
+                    <div className='countGroup'>
+                        小组总委托额：
+                        <br />
+                        <p>{formattedListed}元</p>
+                    </div>
+                    <div className='countGroup'>
+                        最终优惠总额：
+                        <br />
+                        <p>{formattedDiscount}元</p>
+                    </div>
+                </nav>
+            ) : role === 'employee' ? (
+                <nav className='navGroup'>
+                    <div className='countGroup'>
+                        检测项目总数量：
+                        <br />
+                        <p>{assignedNotTestedOrders.length}个</p>
+                    </div>
+                    <div className='countGroup'>
+                        审批通过总量：
+                        <br />
+                        <p>{checked.length}个</p>
+                    </div>
+                    <div className='countGroup'>
+                        我的总工时
+                        <br />
+                        <p>{totalWorkHours}小时</p>
+                    </div>
+                    <div className='countGroup'>
+                        我的总机时
+                        <br />
+                        <p>{totalMachineHours}小时</p>
+                    </div>
+                </nav>
+            ) : (
+                <nav className='navGroup'>
+                <div className='countGroup'>
+                    检测项目总数量：
+                    <br />
+                    <p>{assignedNotTestedOrders.length}个</p>
+                </div>
+                <div className='countGroup'>
+                    检测项目总委托额：
+                    <br />
+                    <p>{formattedListed}元</p>
+                </div>
+                <div className='countGroup'>
+                    总优惠委托额：
+                    <br />
+                    <p>{formattedDiscount}元</p>
+                </div>
+            </nav>
+            )}
             <div className="dashboard">
 
                 {role === 'leader' ? (
@@ -54,23 +149,17 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment}) => {
                                             委托单号: {order.order_num}
                                             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                                             检测项目：{order.test_item}
+                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                            开单时间：{new Date(order.create_time).toLocaleString()}
                                             <button onClick={() => onShowAssignment(order)}>立即分配</button>
+                                        
                                         </li>
 
                                     ))}
                                 </ul>
                                 
                             </div>
-                            <div className='countGroup'>
-                                检测项目总数量：
-                                <br />
-                                {assignedNotTestedOrders.length}个
-                            </div>
-                            <div className='countGroup'>
-                                审批通过总量：
-                                <br />
-                                {checked.length}个
-                            </div>
+                            
                         </div>
                     ) : (
                         <p>没有找到任何待检测的委托单号。</p>
@@ -78,23 +167,25 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment}) => {
                 ) : role === 'supervisor' || role === 'employee' ? (
                     notTested.length > 0 ? (
                         <div className='block'>
-                            <div>
-                                <h3>待检测项目：{notTested.length}个</h3>
-                                <ul>
+                            <h3>待完成项目：<span className='projTitle'>{notTested.length}个</span></h3>
 
+                            <div>
+                                <ul>
                                     {notTested.map((order) => (
                                         <li key={order.order_num} className="order-item">
                                             委托单号: {order.order_num}
                                             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                                             检测项目：{order.test_item}
+                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                            开单时间：{new Date(order.create_time).toLocaleString()}
+                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                            剩余时间：{renderDeadlineStatus(order.deadline, order.appoint_time)}
+
                                         </li>
                                     ))}
                                 </ul>
-                                
                             </div>
-                            <div>
-                                需要展示的其他内容
-                            </div>
+
                         </div>
 
                     ) : (

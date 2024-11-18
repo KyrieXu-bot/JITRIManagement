@@ -364,7 +364,7 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
 }
 
 async function assignTestToUser(testId, userId, equipment_id, start_time, end_time, role) {
-    const connection = await db.getConnection(); // assuming you're using mysql2/promise or a similar library
+    const connection = await db.getConnection(); 
 
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
     let updateQuery =
@@ -470,6 +470,7 @@ async function getAssignedTestsByUser(userId, status, month, employeeName, order
         t.deadline,
         IFNULL(e.equipment_name, '') AS equipment_name,
         e.model,
+        t.appoint_time,
         (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
         FROM assignments aa 
         JOIN users ua ON ua.account = aa.account
