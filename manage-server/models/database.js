@@ -590,13 +590,15 @@ async function getAssignmentsInfo(testItemId, account) {
 async function getEquipmentsByDepartment(departmentId) {
     const query = `
         SELECT 
-            equipment_id,
-            equipment_name,
-            model
-        FROM equipment
-        WHERE department_id = ?
+            e.equipment_id,
+            e.equipment_name,
+            e.model,
+            e.equipment_label
+        FROM equipment e
+        WHERE e.department_id = ?
     `;
-    const [results] = await db.query(query, departmentId);
+    
+    const [results] = await db.query(query, [departmentId]);
     return results;
 }
 

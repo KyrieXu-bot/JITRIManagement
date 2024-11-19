@@ -1,7 +1,6 @@
 import React from 'react';
 import '../css/HomePage.css'
 const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, renderDeadlineStatus}) => {
-    console.log(assignedNotTestedOrders)
     const notAssigned = assignedNotTestedOrders.filter(order => order.status === '0');
     const notTested = assignedNotTestedOrders.filter(order => order.status === '1');
     const checked = assignedNotTestedOrders.filter(order => order.status === '3');

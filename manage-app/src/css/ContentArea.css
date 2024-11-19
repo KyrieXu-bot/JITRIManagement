@@ -3,7 +3,7 @@
 /* 主内容区域的基础样式 */
 .content {
     max-height: 650px;
-    width: 80%; /* 占据除侧边栏外的剩余宽度 */
+    width: 85%; /* 占据除侧边栏外的剩余宽度 */
     float: right; /* 使内容区在侧边栏右侧 */
     padding: 10px; /* 内边距 */
     background-color: #fff; /* 背景颜色 */

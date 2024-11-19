@@ -64,8 +64,6 @@ h2 {
 button {
     border: none;
     padding: 4px 8px;
-    margin-left: 50px;
-
     border-radius: 3px;
     cursor: pointer;
     background-color: #5f87a0; /* 深天蓝色背景与表头一致 */
