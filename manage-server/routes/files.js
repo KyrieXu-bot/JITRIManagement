@@ -21,7 +21,9 @@ const storage = multer.diskStorage({
     // }
     filename: function (req, file, cb) {
         const uploadPath = path.join(__dirname, '../uploads/');
-        const originalName = file.originalname;
+        const originalName = Buffer.from(file.originalname, "latin1").toString(
+            "utf8"
+          );
         let fileName = originalName;
         let count = 0;
 

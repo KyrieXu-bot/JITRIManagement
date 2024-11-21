@@ -923,7 +923,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'handleTests':
                     // 为员工定制的视图逻辑
-                    headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见", "剩余天数"];
+                    headers = ["委托单号", "样品原号", "检测项目", "机时", "工时", "检测人员", "标准价格", "优惠价格", "状态", "业务人员", "审批意见", "剩余天数"];
                     rows = currentItems.map((item, index) => (
 
                         <tr key={index}>
@@ -932,12 +932,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.test_item}</td>
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
-                            <td>{item.listed_price}</td>
-                            <td>{item.discounted_price}</td>
-                            <td>{statusLabels[item.status]}</td>
                             <td>
                                 {item.team_names ? `${item.team_names}` : '暂未分配'}
                             </td>
+                            <td>{item.listed_price}</td>
+                            <td>{item.discounted_price}</td>
+                            <td>{statusLabels[item.status]}</td>
                             <td>
                                 {item.sales_names ? `${item.sales_names}` : '暂未分配'}
                             </td>
