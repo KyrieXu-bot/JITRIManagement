@@ -4,7 +4,7 @@ const Sidebar = ({ onSelect, selected, role  }) => {
     return (
         <div className="sidebar">
             <div className="logo-container">
-                <img src='/JITRI-logo.jpg' alt='logo' className="sidebar-logo" onClick={() => onSelect('')}></img>
+                <img src='/JITRI-logo.png' alt='logo' className="sidebar-logo" onClick={() => onSelect('')}></img>
                 <div className="home-link">回到首页</div>
             </div>
             <ul>
