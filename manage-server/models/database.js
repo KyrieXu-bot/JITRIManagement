@@ -364,7 +364,7 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
 }
 
 async function assignTestToUser(testId, userId, equipment_id, start_time, end_time, role) {
-    const connection = await db.getConnection(); 
+    const connection = await db.getConnection();
 
     const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
     let updateQuery =
@@ -396,9 +396,9 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
         }
         // 判断室主任还是组长，以存储不同的修改时间
         if (role !== undefined && role !== '') {
-            if(role === 'leader'){
+            if (role === 'leader') {
                 updateQuery += ', assign_time = NOW()';
-            }else if(role === 'supervisor'){
+            } else if (role === 'supervisor') {
                 updateQuery += ', appoint_time = NOW()';
 
             }
@@ -597,7 +597,7 @@ async function getEquipmentsByDepartment(departmentId) {
         FROM equipment e
         WHERE e.department_id = ?
     `;
-    
+
     const [results] = await db.query(query, [departmentId]);
     return results;
 }
@@ -920,6 +920,122 @@ async function checkAssign(testItemId) {
     }
 
 }
+
+
+async function getCustomers(searchNameTerm, searchContactNameTerm, searchContactPhoneTerm) {
+    const connection = await db.getConnection();
+    try {
+        let query = `
+            SELECT 
+                customer_id,
+                customer_name,
+                customer_address,
+                contact_name,
+                contact_phone_num,
+                contact_email,
+                balance
+            FROM customers
+        `;
+
+        const queryParams = [];
+        const conditions = [];
+
+        if (searchNameTerm) {
+            conditions.push('customer_name LIKE ?');
+            queryParams.push(`%${searchNameTerm}%`);
+        }
+
+        if (searchContactNameTerm) {
+            conditions.push('contact_name LIKE ?');
+            queryParams.push(`%${searchContactNameTerm}%`);
+        }
+
+        if (searchContactPhoneTerm) {
+            conditions.push('contact_phone_num LIKE ?');
+            queryParams.push(`%${searchContactPhoneTerm}%`);
+        }
+
+        // 如果有任何条件，添加 WHERE 子句
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        const [rows] = await connection.query(query, queryParams);
+        return rows;
+
+    } finally {
+        connection.release();
+    }
+}
+
+async function getTransactions() {
+    const connection = await db.getConnection();
+    try {
+        let query = `
+            SELECT 
+                t.transaction_id,
+                c.customer_name,
+                t.transaction_type,
+                t.amount,
+                t.balance_after_transaction,
+                t.transaction_time,
+                t.description
+            FROM transactions t
+            LEFT JOIN
+                customers c
+                ON c.customer_id = t.customer_id
+        `;
+        const queryParams = [];
+
+        const [rows] = await connection.query(query, queryParams);
+        return rows;
+
+    } finally {
+        connection.release();
+    }
+}
+
+async function makeDeposit(customerId, amount, description) {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        // 更新客户余额
+        const updateBalanceQuery = `
+            UPDATE customers 
+            SET balance = balance + ? 
+            WHERE customer_id = ?
+        `;
+        await connection.execute(updateBalanceQuery, [amount, customerId]);
+
+        // 获取更新后的余额
+        const [balanceResult] = await connection.execute(`
+            SELECT balance 
+            FROM customers 
+            WHERE customer_id = ?
+        `, [customerId]);
+
+        const newBalance = balanceResult[0].balance;
+
+        // 插入交易记录
+        const insertTransactionQuery = `
+            INSERT INTO transactions (customer_id, transaction_type, amount, balance_after_transaction, transaction_time, description)
+            VALUES (?, 'DEPOSIT', ?, ?, NOW(), ?)
+        `;
+        await connection.execute(insertTransactionQuery, [customerId, amount, newBalance, description]);
+
+        // 提交事务
+        await connection.commit();
+
+        console.log('充值成功');
+    } catch (error) {
+        // 回滚事务
+        await connection.rollback();
+        console.error('充值失败:', error.message);
+        throw error;
+    } finally {
+        connection.release();
+    }
+}
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -952,5 +1068,8 @@ module.exports = {
     getFilesByTestItemId,
     deleteFilesByProjectId,
     addTestItem,
-    checkAssign
+    checkAssign,
+    getCustomers,
+    getTransactions,
+    makeDeposit
 };

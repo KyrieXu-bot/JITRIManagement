@@ -66,4 +66,16 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+
+// 为客户充值
+router.post('/deposit', async (req, res) => {
+    try {
+        const {customer_id, amount, description} = req.body;
+        const result = await db.makeDeposit(customer_id, amount, description);
+        res.status(201).json(result);
+    } catch (error) {
+        res.status(500).send({ message: "Error creating customer", error: error.message });
+    }
+});
+
 module.exports = router;

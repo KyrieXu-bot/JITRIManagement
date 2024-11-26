@@ -22,7 +22,7 @@
 .sidebar ul {
     list-style: none;
     padding: 0;
-    margin-top: 20px;
+    margin: 0;
 }
 
 /* 列表项样式 */
@@ -93,4 +93,52 @@
 /* 悬浮时显示文本 */
 .logo-container:hover .home-link {
     opacity: 1;
+}
+
+
+/* 列表项样式 */
+.menu-item {
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #006666; /* 稍浅的青色背景 */
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+.menu-item:hover {
+    background-color: #008888; /* 悬浮时的颜色 */
+}
+
+/* 子菜单的样式 */
+.submenu {
+    list-style-type: none;
+    padding-left: 20px;  /* 使子菜单项缩进 */
+    background-color: #f4f9fc; /* 淡蓝色背景与主菜单区分 */
+    border-radius: 5px; /* 圆角效果 */
+}
+
+/* 子菜单项的样式 */
+.submenu li {
+    padding: 8px 0;
+    cursor: pointer;
+    background-color: #f4f9fc; /* 默认淡蓝色 */
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* 鼠标悬停时子菜单项的效果 */
+.submenu li:hover {
+    background-color: #0366d6; /* 深蓝色背景 */
+    color: #ffffff; /* 白色文字 */
+}
+
+/* 当前选中的子菜单项 */
+.submenu li.active {
+    font-weight: bold;
+    background-color: #024d86; /* 更深的蓝色 */
+    color: white;
 }

@@ -73,9 +73,20 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         department_id: ''
 
     });
+
+    //充值数据
+    const [depositData, setDepositData] = useState({
+        amount:'',
+        description:''
+    });
+    const [errorMessage, setErrorMessage] = useState('');
+
     const [showAssignmentModal, setShowAssignmentModal] = useState(false);
     const [showReassignmentModal, setShowReassignmentModal] = useState(false);
     const [showCheckModal, setShowCheckModal] = useState(false);
+    const [showDepositModal, setShowDepositModal] = useState(false);
+    const [showCustomerModal, setShowCustomerModal] = useState(false);
+
     const [assignmentInfo, setAssignmentInfo] = useState('');
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedDetails, setSelectedDetails] = useState({});
@@ -263,7 +274,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             const response = await axios.get(`${config.API_BASE_URL}/api/tests/equipments?departmentId=${departmentID}`);
             const equipments = response.data;
             setEquipments(equipments);
-            console.log(response.data)
             if (equipments.length > 0) {
                 setAssignmentInfo(equipments[0].name); // 默认选中第一个
             }
@@ -349,6 +359,35 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, []);
 
+
+    const fetchCustomers = useCallback(async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/customers/`, {
+                params: {
+
+                }
+            });
+
+            setData(response.data);
+        } catch (error) {
+            console.error('Error fetching months:', error);
+        }
+    }, []);
+
+    const fetchTransactions = useCallback(async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/transactions/`, {
+                params: {
+
+                }
+            });
+
+            setData(response.data);
+        } catch (error) {
+            console.error('Error fetching months:', error);
+        }
+    }, []);
+
     useEffect(() => {
         if ((role === 'employee' || role === 'sales')) {
             fetchDataForEmployee(account);
@@ -370,6 +409,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchData('samples');
             } else if (selected === 'getTests') {
                 fetchData('tests');
+            } else if (selected === 'customerInfo') {
+                fetchCustomers();
+            } else if (selected === 'transactionHistory') {
+                fetchTransactions();
             }
         }
         if (role !== "sales" && role !== "admin") {
@@ -396,6 +439,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchStatistics,
         fetchTimeline,
         fetchMonths,
+        fetchCustomers,
+        fetchTransactions
     ]);
 
 
@@ -416,6 +461,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setCurrentItem(item);
         setShowModal(true);
     };
+
+
+    const handleEditCustomer = (item) => {
+        setCurrentItem(item);
+        setShowCustomerModal(true);
+    }
+    const handleDeposit = (item) => {
+        setCurrentItem(item);
+        setShowDepositModal(true);
+    };
+
 
     //定义打开和关闭 完成Modal 的函数 
     const handleAdd = (item) => {
@@ -580,6 +636,20 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     };
 
+    //充值判断
+    const handleDepositChange = (e) => {
+        const value = parseFloat(e.target.value);
+        setDepositData({ ...depositData, amount: value });
+
+        // 检查金额是否超出阈值
+        if (value > 1000000) {
+            setErrorMessage('充值金额不能超过 1000000 元。');
+        } else if (value < 0) {
+            setErrorMessage('充值金额不能为负数。');
+        } else {
+            setErrorMessage(''); // 清除错误信息
+        }
+    };
 
     const addItem = async () => {
         if (!addData.test_item) {
@@ -752,8 +822,36 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     };
 
+    const submitDeposit = async () => {
+        if (depositData.amount <= 0) {
+            setErrorMessage('请输入有效的充值金额，必须大于 0。');
+            return;
+        }
 
+        if (depositData.amount > 1000000) {
+            setErrorMessage('充值金额不能超过 1000000 元。');
+            return;
+        }
 
+        // 清除错误信息并提交
+        setErrorMessage('');
+
+        try{
+            await axios.post(`${config.API_BASE_URL}/api/customers/deposit`, { 
+                customer_id: currentItem.customer_id,
+                amount: depositData.amount,
+                description: depositData.description
+            })
+            fetchCustomers();
+            setShowSuccessToast(true); // Show success message
+            setTimeout(() => setShowSuccessToast(false), 3000);
+            setShowDepositModal(false);
+        } catch (error){
+            console.error('充值失败:', error);
+            setError('未能给客户充值');
+            setTimeout(() => setError(''), 3000);
+        }
+    }
     //审批方法
     const submitCheck = (action) => {
         if (action === 'approve' && !window.confirm('请再次确认此操作。点击通过后不可修改！')) {
@@ -1127,6 +1225,40 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </tr>
                     ));
                     break;
+                case 'customerInfo':
+                    headers = ["客户ID", "客户/单位名称", "地址", "联系人名称", "联系人手机号", "邮箱", "当前余额"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.customer_id}</td>
+                            <td>{item.customer_name}</td>
+                            <td>{item.customer_address}</td>
+                            <td>{item.contact_name}</td>
+                            <td>{item.contact_phone_num}</td>
+                            <td>{item.contact_email}</td>
+                            <td>{item.balance}</td>
+                            <td className='fixed-column'>
+                                <Button variant="success" onClick={() => handleDeposit(item)}>充值</Button>
+                                <Button onClick={() => handleEditCustomer(item)}>修改</Button>
+
+                            </td>
+                        </tr>
+                    ));
+                    break;
+
+                case 'transactionHistory':
+                    headers = ["交易ID", "客户/单位名称", "交易类型", "交易金额", "交易后余额", "交易时间", "描述"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.transaction_id}</td>
+                            <td>{item.customer_name}</td>
+                            <td>{item.transaction_type}</td>
+                            <td>{item.amount}</td>
+                            <td>{item.balance_after_transaction}</td>
+                            <td>{new Date(item.transaction_time).toLocaleString()}</td>
+                            <td>{item.description}</td>
+                        </tr>
+                    ));
+                    break;
                 default:
                     headers = ["暂无数据"];
                     rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
@@ -1156,7 +1288,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         <h2>{selected === 'getCommission' ? '详细信息'
                             : selected === 'getSamples' ? '样品管理'
                                 : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
-                                    : '首页'}</h2>
+                                    : selected === 'customerInfo' ? '客户信息'
+                                        : selected === 'transactionHistory' ? '交易流水'
+                                            : '首页'}</h2>
                         {selected === 'handleTests' ? (
                             <div className="searchBar">
                                 <span>筛选项目状态：</span>
@@ -1238,7 +1372,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         {headers.map(header =>
                                             <th key={header}>{header}</th>
                                         )}
-                                        <th className="fixed-column">操作</th>
+                                        {selected !== 'transactionHistory' && (
+                                            <th className="fixed-column">操作</th>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1547,7 +1683,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
 
-
+            {/* 编辑样品 */}
             <Modal show={showSampleModal} onHide={() => setShowSampleModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>编辑样品：{currentItem.order_num}</Modal.Title>
@@ -1829,7 +1965,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 disabled // 操作员默认为登录账户，禁止编辑
                             />
                         </Form.Group>
-                    
+
                         <Row>
                             {/* 设备分类标签选择（一级菜单，使用select） */}
                             <Col md={6}>
@@ -1911,6 +2047,115 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
+
+            {/* 充值按钮 */}
+            <Modal show={showDepositModal} onHide={() => setShowDepositModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>客户充值</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group>
+                            <Form.Label>充值金额:</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={depositData.amount}
+                                onChange={handleDepositChange}
+                                step="0.01" // 确保支持小数输入
+                                min="0" // 限制输入为非负数
+                                max="1000000" // 设置最大金额
+                                required
+                            />
+                            {errorMessage && (
+                            <Form.Text className="text-danger">{errorMessage}</Form.Text>
+                            )}
+                        </Form.Group>
+                    </Form>
+                    <Form>
+                        <Form.Group>
+                            <Form.Label>交易描述:</Form.Label>
+                            <Form.Control
+                                as="textarea"
+                                rows={3} // 设置显示行数，调整文本框的高度
+                                name="description"
+                                value={depositData.description}
+                                onChange={e => setDepositData({ ...depositData, description: e.target.value})}
+                                placeholder="请输入交易备注/描述信息"
+                            />
+                            {errorMessage && (
+                            <Form.Text className="text-danger">{errorMessage}</Form.Text>
+                            )}
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowDepositModal(false)}>取消</Button>
+                    <Button variant="success" onClick={submitDeposit}>充值
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* 编辑客户 */}
+            <Modal show={showCustomerModal} onHide={() => setShowCustomerModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>编辑客户：{currentItem.customer_name}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        {/* 客户名称 */}
+                        <Form.Group controlId="customerName">
+                            <Form.Label>样品名称</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.customer_name}
+                                onChange={(e) => setCurrentItem({ ...currentItem, customer_name: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 地址 */}
+                        <Form.Group controlId="address">
+                            <Form.Label>地址</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.customer_address}
+                                onChange={(e) => setCurrentItem({ ...currentItem, customer_address: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 联系人名称 */}
+                        <Form.Group controlId="contactName">
+                            <Form.Label>联系人名称</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.contact_name}
+                                onChange={(e) => setCurrentItem({ ...currentItem, contact_name: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 联系人手机 */}
+                        <Form.Group controlId="contactPhoneNum">
+                            <Form.Label>联系人手机</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.contact_phone_num}
+                                onChange={(e) => setCurrentItem({ ...currentItem, contact_phone_num: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 联系人邮箱 */}
+                        <Form.Group controlId="contactEmail">
+                            <Form.Label>联系人邮箱</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.contact_email}
+                                onChange={(e) => setCurrentItem({ ...currentItem, contact_email: e.target.value })}
+                            />
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowCustomerModal(false)}>关闭</Button>
+                    <Button variant="primary" onClick={updateSample}>保存更改</Button>
+                </Modal.Footer>
+            </Modal>
+
+
             <Modal show={showAlert} onHide={() => setShowAlert(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>分配状态</Modal.Title>
@@ -1920,6 +2165,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <Button variant="secondary" onClick={() => setShowAlert(false)}>关闭</Button>
                 </Modal.Footer>
             </Modal>
+
         </div>
     );
 };
