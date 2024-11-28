@@ -22,8 +22,15 @@ table {
     margin: 0px auto; /* 增加上下外边距并居中显示 */
 
 }
+th:first-child, td:first-child{
+    min-width: 100px;
+    border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
+    padding: 9px 15px; /* 增加填充以改善视觉效果 */
+    text-align: center; /* 文本居中 */
+}
 
-th, td {
+
+th:not(:first-child), td:not(:first-child){
     min-width: 200px;
     border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
     padding: 9px 15px; /* 增加填充以改善视觉效果 */
@@ -113,6 +120,7 @@ nav{
 .searchBar {
     display: flex;
     flex-wrap: wrap;
+    justify-content: space-between;
     align-items: center;
     gap: 15px;
     padding: 10px;
@@ -161,6 +169,88 @@ nav{
 .searchBar button:focus {
     outline: none;
 }
+
+/* 审核页面数据div */
+.check-box{
+    display: flex;
+    justify-content: space-between;
+    width: 80%;
+    margin: 10px 0px;
+}
+
+/* 审核页面批注 */
+.check-note{
+    font-size: 13px;
+    margin: 10px 0px;
+    color: red;
+}
+
+/* 表格容器 */
+.invoice-table {
+    width: 100%;
+    border-collapse: collapse; /* 合并表格边框 */
+    margin-top: 20px;
+}
+
+.invoice-table th, .invoice-table td {
+    padding: 12px 15px; /* 增加内边距 */
+    border: 1px solid #ddd; /* 边框颜色 */
+    text-align: center; /* 居中对齐文本 */
+    min-width: 100px;
+}
+
+.invoice-table th {
+    background-color: #5f87a0; /* 表头背景颜色 */
+    color: white; /* 表头文字颜色 */
+}
+
+.invoice-table tr:nth-child(even) {
+    background-color: #f4f7f9; /* 条纹背景色 */
+}
+
+.invoice-table tr:hover {
+    background-color: #eef2f7; /* 鼠标悬停时的背景颜色 */
+}
+
+/* 合并 Invoice ID 和 操作列 */
+.invoice-table .invoice-id-cell {
+    text-align: center;
+    vertical-align: middle;
+    background-color: #f7f9fc;
+    font-weight: bold;
+}
+
+
+/* test-items 列表项容器 */
+.test-items {
+    padding: 10px;
+    background-color: #f7f9fc; /* 背景色更柔和 */
+    border-radius: 8px; /* 让背景颜色与边框相对柔和 */
+    box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.1); /* 为项目添加轻微的阴影效果 */
+    margin-bottom: 10px; /* 增加底部间距，防止过于紧凑 */
+}
+
+/* test-items 的项目列表 */
+.test-items ul {
+    padding-left: 20px; /* 为列表项增加左侧间距 */
+    list-style-type: disc; /* 使用圆点样式 */
+    margin: 0;
+}
+
+/* 单个检测项目项 */
+.test-items li {
+    font-size: 14px; /* 设置合适的字体大小 */
+    color: #333; /* 使用深灰色文字 */
+    line-height: 1.6; /* 行高增加，提升可读性 */
+    margin-bottom: 6px; /* 增加项目间距，避免过于拥挤 */
+}
+
+/* 单个检测项目内的内容对齐 */
+.test-items li span {
+    font-weight: bold; /* 检测项目名称加粗 */
+    color: #5f87a0; /* 深蓝色使其突出 */
+}
+
 
 
 /* 基础样式调整，以适应移动设备 */
@@ -226,6 +316,43 @@ nav{
 
     .searchBar button {
         width: 100%; /* 按钮在小屏幕上充满容器宽度 */
+    }
+
+    /* 开单css */
+    .invoice-table {
+        font-size: 12px; /* 更小的字体 */
+        overflow-x: auto; /* 添加水平滚动条 */
+    }
+
+    .invoice-table th, .invoice-table td {
+        padding: 8px 10px;
+    }
+
+    /* 让操作按钮在小屏幕上垂直排列 */
+    .invoice-table .action-btns {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .invoice-table .action-btns button {
+        width: 100%; /* 让按钮充满整个行 */
+        margin-bottom: 10px; /* 增加按钮之间的间距 */
+    }
+
+    .invoice-table .details-btn {
+        width: 100%; /* 详情按钮在小屏幕上也充满宽度 */
+    }
+
+    .test-items {
+        padding: 8px; /* 调整内边距以适应小屏幕 */
+    }
+
+    .test-items ul {
+        padding-left: 15px; /* 减少左侧间距 */
+    }
+
+    .test-items li {
+        font-size: 12px; /* 在小屏幕上减小字体大小 */
     }
 }
 

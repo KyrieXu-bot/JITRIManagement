@@ -24,30 +24,33 @@ async function getAllOrders(orderNum, departmentId) {
             p.payer_address,
             GROUP_CONCAT(t.test_item SEPARATOR ', ') AS test_items,
             s.material,
-            o.service_type
+            o.service_type,
+            o.order_status,
+            SUM(t.discounted_price) AS total_discounted_price,
+            u.name
         FROM orders o
         JOIN customers c ON o.customer_id = c.customer_id
         JOIN payments p ON o.payment_id = p.payment_id
         JOIN test_items t ON o.order_num = t.order_num
         JOIN samples s ON o.order_num = s.order_num
-
+        LEFT JOIN assignments a ON t.test_item_id = a.test_item_id
+        LEFT JOIN users u ON a.account = u.account
     `;
     const params = [];
-    let whereClauseAdded = false;
-
+    query += 'WHERE u.role = ?';
+    params.push('sales');
     if (orderNum !== undefined && orderNum !== '') {
-        query += ' WHERE o.order_num LIKE ?';
+        query += ' AND o.order_num LIKE ?';
         params.push(`%${orderNum}%`);
-        whereClauseAdded = true;
     }
     if (departmentId !== undefined && departmentId !== '') {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.department_id = ?';
+        query += 'AND t.department_id = ?';
         params.push(departmentId);
-        whereClauseAdded = true;
     }
+    
     query += `GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
-                p.payer_address, o.service_type`;
+                p.payer_address, o.service_type, o.order_status, u.name`;
     const [results] = await db.query(query, params);
     return results;
 }
@@ -1036,6 +1039,112 @@ async function makeDeposit(customerId, amount, description) {
         connection.release();
     }
 }
+
+async function handleCheckout( orderNums ) {
+    try {
+        // 查询指定订单的discounted_price是否存在
+        let query = `
+            SELECT 
+                o.order_num, 
+                t.test_item,
+                t.discounted_price 
+            FROM orders o
+            JOIN test_items t ON o.order_num = t.order_num
+            WHERE o.order_num IN (?) AND t.discounted_price IS NULL
+        `;
+        const [missingPrices] = await db.query(query, [orderNums]);
+
+        // 如果有订单没有填写交易价格，返回错误信息
+        if (missingPrices.length > 0) {
+            let errorMessage = '';
+            let currentOrderNum = '';
+            missingPrices.forEach(item => {
+                if (item.order_num !== currentOrderNum) {
+                    if (currentOrderNum !== '') {
+                        errorMessage += '\n';  // 添加顿号分隔符
+                    }
+                    currentOrderNum = item.order_num;
+                    errorMessage += `${item.order_num}委托单的`;
+                }
+                errorMessage += `"${item.test_item}"项目未填写交易价格;\n`;
+            });
+
+            return {
+                success: false,
+                message: errorMessage
+            };
+        }
+
+        // 如果所有价格都存在，更新订单状态为已结算
+        query = `
+            UPDATE orders
+            SET order_status = 1
+            WHERE order_num IN (?) AND order_status = 0
+        `;
+        await db.query(query, [orderNums]);
+
+
+        // 在invoices表中插入一条记录（自增ID）
+        query = `
+            INSERT INTO invoices (created_at)
+            VALUES (NOW())
+        `;
+        const [invoiceResult] = await db.query(query);
+
+        // 获取新生成的发票ID
+        const invoiceId = invoiceResult.insertId;
+
+        // 在invoice_orders表中将开票ID和委托单号关联起来
+        const invoiceOrders = orderNums.map(orderNum => [invoiceId, orderNum]);
+        query = `
+            INSERT INTO invoice_orders (invoice_id, order_num)
+            VALUES ?
+        `;
+        await db.query(query, [invoiceOrders]);
+
+
+
+        return { success: true };
+    } catch (error) {
+        console.error('结算操作失败:', error);
+        throw new Error('结算失败，请稍后重试');
+    } 
+}
+
+
+async function getInvoiceDetails() {
+    const query = `
+        SELECT 
+            io.invoice_id, 
+            o.order_num, 
+            c.customer_name, 
+            c.contact_name, 
+            c.contact_phone_num, 
+            t.test_item, 
+            t.discounted_price, 
+            t.listed_price,
+            t.work_hours,
+            t.machine_hours,
+            u.name
+        FROM invoice_orders io
+        JOIN orders o ON io.order_num = o.order_num
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN test_items t ON o.order_num = t.order_num
+        JOIN assignments a ON a.test_item_id = t.test_item_id
+        JOIN users u ON a.account = u.account
+        WHERE u.role = 'sales'
+        ORDER BY io.invoice_id, o.order_num, t.test_item_id;
+    `;
+
+    try {
+        const [results] = await db.query(query);
+        return results;  // 返回扁平化的查询结果
+    } catch (error) {
+        console.error('获取发票详情失败:', error);
+        throw new Error('查询发票详情时出错');
+    }
+}
+
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -1071,5 +1180,7 @@ module.exports = {
     checkAssign,
     getCustomers,
     getTransactions,
-    makeDeposit
+    makeDeposit,
+    handleCheckout,
+    getInvoiceDetails
 };

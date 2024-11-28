@@ -42,7 +42,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     //按月份筛选
     const [months, setMonths] = useState([]);
     const [selectedMonth, setSelectedMonth] = useState('');
-
+    const [selectedOrders, setSelectedOrders] = useState([]);
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [selectedLabel, setSelectedLabel] = useState(''); // 当前选择的设备分类标签
     const [filteredEquipments, setFilteredEquipments] = useState([]); // 二级菜单：根据分类标签筛选设备
     //领导点击分配时候的数据
@@ -76,8 +77,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     //充值数据
     const [depositData, setDepositData] = useState({
-        amount:'',
-        description:''
+        amount: '',
+        description: ''
     });
     const [errorMessage, setErrorMessage] = useState('');
 
@@ -130,7 +131,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         3: '寄回'
     }
 
+    const orderStatusLabels = {
+        0: '未结算',
+        1: '已结算',
+        2: '已入账'
+    }
 
+    const transactionTypeLabels = {
+        'DEPOSIT': '充值',
+        'WITHDRAW': '消费'
+    }
     // 静态部门数据
     const departments = [
         { department_id: 1, department_name: '显微组织表征实验室' },
@@ -231,6 +241,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setTimeout(() => setError(''), 3000);
         }
     }, [role, account, filterStatus, setError, selectedMonth, filterEmployee, filterOrderNum]);
+
+    //拉取发票信息
+    const fetchInvoices = useCallback(async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/orders/invoices`);
+            const invoices = response.data;
+            setData(invoices);
+        } catch (error) {
+            console.error('拉取发票信息错误:', error);
+        }
+    }, []);
+
 
     // 拉取可分配的用户列表
     const fetchAssignableUsers = useCallback(async () => {
@@ -388,6 +410,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, []);
 
+
     useEffect(() => {
         if ((role === 'employee' || role === 'sales')) {
             fetchDataForEmployee(account);
@@ -413,6 +436,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchCustomers();
             } else if (selected === 'transactionHistory') {
                 fetchTransactions();
+            } else if (selected === 'getChecked') {
+                fetchInvoices();
             }
         }
         if (role !== "sales" && role !== "admin") {
@@ -440,7 +465,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchTimeline,
         fetchMonths,
         fetchCustomers,
-        fetchTransactions
+        fetchTransactions,
+        fetchInvoices
     ]);
 
 
@@ -520,9 +546,50 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
 
-    const handleCheck = (testItemId) => {
-        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
+    const handleCheck = (item) => {
+        setCurrentItem(item); // 假设我们需要订单号来处理分配
         setShowCheckModal(true);
+    };
+
+
+    // 处理选中的委托单
+    const handleCheckboxChange = (orderNum) => {
+        setSelectedOrders(prev => {
+            if (prev.includes(orderNum)) {
+                return prev.filter(order => order !== orderNum);
+            } else {
+                return [...prev, orderNum];
+            }
+        });
+    };
+
+    // 执行结算操作
+    const handleCheckout = async () => {
+        try {
+            // 发送请求到后端检查每个订单的交易价格
+            setShowCheckoutModal(false);
+            const response = await axios.post(`${config.API_BASE_URL}/api/orders/checkout`, { orderNums: selectedOrders });
+            if (response.data.success) {
+                // 如果结算成功，更新状态
+                setShowSuccessToast(true); // 显示成功提示
+                setTimeout(() => setShowSuccessToast(false), 3000);
+                fetchData('orders');
+                setSelectedOrders([]);
+            }
+        } catch (error) {
+            // 如果请求失败，显示详细错误信息
+            if (error.response) {
+                // 如果后端有响应，显示后端返回的消息
+                alert(`错误: \n${error.response.data.message || '发生错误，请稍后重试'}`);
+            } else if (error.request) {
+                // 如果没有收到响应，显示请求发送失败的提示
+                alert('请求失败，请稍后重试');
+
+            } else {
+                // 如果是其他错误
+                alert(`发生未知错误: ${error.message}`);
+            }
+        }
     };
 
     //定义打开和关闭 完成Modal 的函数 
@@ -836,8 +903,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         // 清除错误信息并提交
         setErrorMessage('');
 
-        try{
-            await axios.post(`${config.API_BASE_URL}/api/customers/deposit`, { 
+        try {
+            await axios.post(`${config.API_BASE_URL}/api/customers/deposit`, {
                 customer_id: currentItem.customer_id,
                 amount: depositData.amount,
                 description: depositData.description
@@ -846,7 +913,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setShowSuccessToast(true); // Show success message
             setTimeout(() => setShowSuccessToast(false), 3000);
             setShowDepositModal(false);
-        } catch (error){
+        } catch (error) {
             console.error('充值失败:', error);
             setError('未能给客户充值');
             setTimeout(() => setError(''), 3000);
@@ -859,9 +926,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
         const status = action === 'approve' ? 3 : 4; // 3 for approve, 4 for reject
         const payload = {
-            testItemId: currentItem.testItemId,
+            testItemId: currentItem.test_item_id,
             status: status,
             checkNote: checkNote,
+            discountedPrice: currentItem.discounted_price,
+            orderNum: currentItem.order_num
         };
         updateTestStatus(payload);
     };
@@ -953,7 +1022,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const renderTable = () => {
         let headers = [];
         let rows = [];
-
 
         if (role === 'employee') {
             switch (selected) {
@@ -1056,8 +1124,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
                                 )}
                                 {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
-                                {(item.status === '2' || item.status === '4') && item.listed_price && (
-                                    <Button variant="warning" onClick={() => handleCheck(item.test_item_id)}>审核</Button>
+                                {(item.status === '2' || item.status === '4') && item.discounted_price && (
+                                    <Button variant="warning" onClick={() => handleCheck(item)}>审核</Button>
                                 )}
                             </td>
                         </tr>
@@ -1158,13 +1226,23 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             // 默认视图
             switch (selected) {
                 case 'getCommission':
-                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
+                    headers = ["选择", "委托单号", "委托单位", "联系人", "联系电话", "结算状态", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
+                            <td>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedOrders.includes(item.order_num)}
+                                    onChange={() => handleCheckboxChange(item.order_num)}
+                                />
+                            </td>
                             <td>{item.order_num}</td>
                             <td>{item.customer_name}</td>
                             <td>{item.contact_name}</td>
                             <td>{item.contact_phone_num}</td>
+                            <td>{orderStatusLabels[item.order_status]}</td>
+                            <td>{item.total_discounted_price}</td>
+                            <td>{item.name}</td>
                             <td>{item.contact_email}</td>
                             <td>{item.payer_contact_name}</td>
                             <td>{item.payer_contact_phone_num}</td>
@@ -1172,12 +1250,61 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.test_items}</td>
                             <td>{item.material}</td>
                             <td>{serviceTypeLabels[item.service_type]}</td>
+
                             <td className='fixed-column'>
                                 <Button onClick={() => handleAdd(item)}>添加检测</Button>
                                 <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
                             </td>
                         </tr>
                     ));
+                    break;
+                case 'getChecked':
+                    headers = ["发票号", "委托单号", "客户名称", "联系人", "联系电话", "检测项目", "操作"];
+                    currentItems.forEach((invoice) => {
+                        if (invoice && invoice.order_details && Array.isArray(invoice.order_details)){
+                            invoice.order_details.forEach((order, orderIndex) => {
+                                rows.push(
+                                    <tr key={order.order_num}>
+                                        {/* 合并 Invoice ID 和 操作列 */}
+                                        {orderIndex === 0 && (
+                                            <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
+                                                {invoice.invoice_number ? invoice.invoice_number : '暂未填写'}
+                                            </td>
+                                            
+                                        )}
+                                        
+                                        <td>{order.order_num}</td>
+                                        <td>{order.customer_name}</td>
+                                        <td>{order.contact_name}</td>
+                                        <td>{order.contact_phone_num}</td>
+                                        <td className="test-items">
+                                            {/* 展示检测项目 */}
+                                            <ul>
+                                                {order.items.map((item, index) => (
+                                                    <li key={index}>
+                                                        {item.test_item} - {item.discounted_price} 元
+                                                        <Button className="details-btn">详情</Button>
+
+                                                    </li>
+                                                    
+                                                ))}
+                                            </ul>
+                                        </td>
+                                        {/* 操作按钮 */}
+                                        {orderIndex === 0 && (
+                                            <td rowSpan={invoice.order_details.length}>                                   
+                                                <div className="action-btns">
+                                                    <Button>设置最终价</Button>
+                                                    <Button variant="success">入账</Button>
+                                                </div>
+                                            </td>
+                                        )}
+                                        
+                                    </tr>
+                                );
+                            });
+                        }
+                    });
                     break;
                 case 'getSamples':
                     headers = ["样品名称", "材料", "货号", "材料规范", "样品处置", "材料类型", "订单编号"];
@@ -1199,7 +1326,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "标准价格", "优惠价格", "状态", "人员", "审批意见"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "机时", "工时", "标准价格", "优惠价格", "状态", "实验人员", "业务人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -1211,7 +1338,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.listed_price}</td>
                             <td>{item.discounted_price}</td>
                             <td>{statusLabels[item.status]}</td>
-                            <td>{item.assigned_accounts}</td>
+                            <td>{item.team_names}</td>
+
+                            <td>{item.sales_names}</td>
                             <td>{item.check_note}</td>
 
                             <td className='fixed-column'>
@@ -1251,7 +1380,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         <tr key={index}>
                             <td>{item.transaction_id}</td>
                             <td>{item.customer_name}</td>
-                            <td>{item.transaction_type}</td>
+                            <td>{transactionTypeLabels[item.transaction_type]}</td>
                             <td>{item.amount}</td>
                             <td>{item.balance_after_transaction}</td>
                             <td>{new Date(item.transaction_time).toLocaleString()}</td>
@@ -1270,6 +1399,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     const { headers, rows } = renderTable(currentItems);
+
 
     return (
         <div>
@@ -1335,15 +1465,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         ) : selected === 'getCommission' ? (
 
                             <div className="searchBar">
-                                <span>筛选委托单号：</span>
-                                <input
-                                    type="text"
-                                    value={filterOrderNum}
-                                    onChange={(e) => setFilterOrderNum(e.target.value)}
-                                    placeholder="输入委托单号进行搜索"
-                                />
-                                <button onClick={() => fetchData('orders')}>查询单号</button>
-
+                                <div>
+                                    <span>筛选委托单号：</span>
+                                    <input
+                                        type="text"
+                                        value={filterOrderNum}
+                                        onChange={(e) => setFilterOrderNum(e.target.value)}
+                                        placeholder="输入委托单号进行搜索"
+                                    />
+                                    <button onClick={() => fetchData('orders')}>查询单号</button>
+                                </div>
+                                <div>
+                                    <span>开票入账请点：</span>
+                                    <button onClick={() => setShowCheckoutModal(true)} disabled={selectedOrders.length === 0}>
+                                        一键结算
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <div>
@@ -1366,21 +1503,36 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             nextPageText="下一页"
                         />
                         <div class='content'>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        {headers.map(header =>
-                                            <th key={header}>{header}</th>
-                                        )}
-                                        {selected !== 'transactionHistory' && (
-                                            <th className="fixed-column">操作</th>
-                                        )}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {rows}
-                                </tbody>
-                            </table>
+                            {selected === 'getChecked' ? (
+                                <table className='invoice-table'>
+                                    <thead>
+                                        <tr>
+                                            {headers.map(header =>
+                                                <th key={header}>{header}</th>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rows}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            {headers.map(header =>
+                                                <th key={header}>{header}</th>
+                                            )}
+                                            {selected !== 'transactionHistory' && (
+                                                <th className="fixed-column">操作</th>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rows}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
 
                     </div>
@@ -1913,7 +2065,23 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <Modal.Title>审批页面</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
+
                     <Form>
+                        <div className='check-box'>
+                            <div>
+                                <strong>机时：</strong> {currentItem.machine_hours} 小时
+                            </div>
+                            <div>
+                                <strong>工时：</strong> {currentItem.work_hours} 小时
+                            </div>
+                        </div>
+                        <div>
+                            <strong>优惠价格：</strong> ¥ {currentItem.discounted_price}
+                        </div>
+                        {/* <p className='check-note'>
+                            注：审批以后将以交易价"{currentItem.discounted_price}"对该检测客户的余额进行扣款
+                        </p> */}
+                        <hr></hr>
                         <Form.Group controlId="formAssignmentInfo">
                             <Form.Label>请审批：</Form.Label>
 
@@ -2067,7 +2235,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 required
                             />
                             {errorMessage && (
-                            <Form.Text className="text-danger">{errorMessage}</Form.Text>
+                                <Form.Text className="text-danger">{errorMessage}</Form.Text>
                             )}
                         </Form.Group>
                     </Form>
@@ -2079,11 +2247,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 rows={3} // 设置显示行数，调整文本框的高度
                                 name="description"
                                 value={depositData.description}
-                                onChange={e => setDepositData({ ...depositData, description: e.target.value})}
+                                onChange={e => setDepositData({ ...depositData, description: e.target.value })}
                                 placeholder="请输入交易备注/描述信息"
                             />
                             {errorMessage && (
-                            <Form.Text className="text-danger">{errorMessage}</Form.Text>
+                                <Form.Text className="text-danger">{errorMessage}</Form.Text>
                             )}
                         </Form.Group>
                     </Form>
@@ -2166,6 +2334,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
+            {/* 结算Modal */}
+            <Modal show={showCheckoutModal} onHide={() => setShowCheckoutModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>结算确认</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>确认结算选中的 {selectedOrders.length} 个委托单吗？</p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowCheckoutModal(false)}>取消</Button>
+                    <Button variant="primary" onClick={handleCheckout}>确认结算</Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

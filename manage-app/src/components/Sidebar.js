@@ -2,9 +2,13 @@ import React, { useState } from 'react';
 import '../css/Sidebar.css';
 const Sidebar = ({ onSelect, selected, role }) => {
     const [isCustomersMenuOpen, setIsCustomersMenuOpen] = useState(false);
+    const [isCommissionsMenuOpen, setIsCommissionsMenuOpen] = useState(false);
 
     const toggleCustomersMenu = () => {
         setIsCustomersMenuOpen(!isCustomersMenuOpen);
+    };
+    const toggleCommissionsMenu = () => {
+        setIsCommissionsMenuOpen(!isCommissionsMenuOpen);
     };
     return (
         <div className="sidebar">
@@ -15,16 +19,11 @@ const Sidebar = ({ onSelect, selected, role }) => {
             <ul>
                 {role === 'admin' && (
                     <>
-                        <li className={selected === 'getCommission' ? 'active' : ''} onClick={() => onSelect('getCommission')}>委托单</li>
-                        <li className={selected === 'getSamples' ? 'active' : ''} onClick={() => onSelect('getSamples')}>样品管理</li>
-                        <li className={selected === 'getTests' ? 'active' : ''} onClick={() => onSelect('getTests')}>检测管理</li>
-                        <li className={selected === 'getReports' ? 'active' : ''} onClick={() => onSelect('getReports')}>报告管理</li>
                         {/* 客户管理菜单 */}
                         <li className={`menu-item ${isCustomersMenuOpen ? 'expanded' : ''}`} onClick={toggleCustomersMenu}>
                             客户管理
                             <span className="arrow">{isCustomersMenuOpen ? '▼' : '▶'}</span>
                         </li>
-
                         {/* 客户管理的二级菜单 */}
                         {isCustomersMenuOpen && (
                             <ul className="submenu">
@@ -42,6 +41,35 @@ const Sidebar = ({ onSelect, selected, role }) => {
                                 </li>
                             </ul>
                         )}
+                        {/* 委托管理菜单 */}
+                        <li className={`menu-item ${isCommissionsMenuOpen ? 'expanded' : ''}`} onClick={toggleCommissionsMenu}>
+                            委托单管理
+                            <span className="arrow">{isCommissionsMenuOpen ? '▼' : '▶'}</span>
+                        </li>
+
+                        {/* 委托管理的二级菜单 */}
+                        {isCommissionsMenuOpen && (
+                            <ul className="submenu">
+                                <li
+                                    className={selected === 'getCommission' ? 'active' : ''}
+                                    onClick={() => onSelect('getCommission')}
+                                >
+                                    详细信息
+                                </li>
+                                <li
+                                    className={selected === 'getChecked' ? 'active' : ''}
+                                    onClick={() => onSelect('getChecked')}
+                                >
+                                    已结算订单
+                                </li>
+                            </ul>
+                        )}
+                        <li className={selected === 'getSamples' ? 'active' : ''} onClick={() => onSelect('getSamples')}>样品管理</li>
+                        <li className={selected === 'getTests' ? 'active' : ''} onClick={() => onSelect('getTests')}>检测管理</li>
+                        <li className={selected === 'getReports' ? 'active' : ''} onClick={() => onSelect('getReports')}>报告管理</li>
+
+
+
 
 
                     </>
