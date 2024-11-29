@@ -2,11 +2,22 @@
 
 .content-area{
     display: flex; /* 使用 Flex 布局 */
-    flex-direction: column; /* 垂直排列 sidebar 和 content */
-    height: 100vh; /* 确保内容区域的高度占满整个视口 */
+    flex-direction: column;
+    flex-grow: 1; /* 让 content-area 占据剩余的空间 */
+    height: 100%; /* 确保内容区域的高度占满整个视口 */
     width: 82%;
-}
+    box-sizing: border-box;
 
+}
+ .content-area>nav{
+    flex-shrink: 0; /* 防止 nav 被压缩 */
+    height: 60px; /* 设置固定高度 (可以根据需要调整) */
+
+ }
+.content-head{
+    flex-shrink: 0; /* 防止 .content-head 被压缩 */
+    height: auto;
+}
 /* 主内容区域的基础样式 */
 .content {
     margin-top: 10px;
@@ -16,7 +27,8 @@
     box-sizing: border-box;
     overflow: auto; /* 隐藏内容溢出 */
     position: relative;
-    flex-grow: 1;
+    flex-basis: 600px;
+    flex-shrink: 0;
 }
 
 /* 表格样式 */

@@ -16,8 +16,7 @@
 .timeline-container {
 
     padding: 20px;
-    width: 80%;
-    float: right;
+    width: 100%;
     background-color: var(--background-color); /* 使用模板中的背景色 */
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 添加轻微阴影效果 */

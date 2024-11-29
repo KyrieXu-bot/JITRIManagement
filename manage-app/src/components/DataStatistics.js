@@ -5,7 +5,7 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice}) => {
     return (
 
         <div className="chart-container">
-
+            <h2>数据统计</h2>
             {/* 总委托金额 */}
             <div className="total-price-container">
                 <h2>总委托金额</h2>

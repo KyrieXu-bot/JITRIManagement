@@ -1458,7 +1458,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 ) : selected === 'timeline' ? (
                     <EquipmentTimeline tasks={equipmentTimeline} /> // 显示设备时间线
                 ) : (
-                    <div>
+                    <>
+                    <div className='content-head'>
                         <h2>{selected === 'getCommission' ? '详细信息'
                             : selected === 'getSamples' ? '样品管理'
                             : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
@@ -1547,6 +1548,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             prevPageText="上一页"
                             nextPageText="下一页"
                         />
+                        </div>
                         <div class='content'>
                             {selected === 'getChecked' ? (
                                 <table className='invoice-table'>
@@ -1580,7 +1582,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             )}
                         </div>
 
-                    </div>
+                        </>
 
 
                 )

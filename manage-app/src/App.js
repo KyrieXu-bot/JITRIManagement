@@ -53,16 +53,16 @@ function App() {
 
   return (
     <AuthProvider>
-      <div className="App">
       {isLoggedIn ? (
-          // 登录后显示的界面
-          <>
-              <Sidebar
+        // 登录后显示的界面
+        <div className="App">
+            <Sidebar
               onSelect={setSelected} selected={selected} 
               role={userRole} 
               account={userAccount} 
-              departmentID={userDepartment} />
-              <ContentArea 
+              departmentID={userDepartment}
+            />
+            <ContentArea 
               selected={selected} 
               role={userRole} 
               account={userAccount} 
@@ -70,13 +70,12 @@ function App() {
               groupId={userGroup}
               name={userName}
               onLogout={handleLogout}
-              />
-          </>
+            />
+        </div>
       ) : (
-          // 未登录时显示登录界面
-          <LoginForm onLoginSuccess={handleLoginSuccess} />
+        // 未登录时显示登录界面
+        <LoginForm onLoginSuccess={handleLoginSuccess} />
       )}
-    </div>
     </AuthProvider>
 
   );
