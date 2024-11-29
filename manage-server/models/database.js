@@ -1125,6 +1125,16 @@ async function getInvoiceDetails() {
             t.listed_price,
             t.work_hours,
             t.machine_hours,
+            t.size,
+            t.quantity,
+            t.check_note,
+            t.original_no,
+            t.test_method,
+            t.status,
+            t.create_time,
+            t.note,
+            i.invoice_number,
+            i.final_price,
             u.name
         FROM invoice_orders io
         JOIN orders o ON io.order_num = o.order_num
@@ -1132,6 +1142,7 @@ async function getInvoiceDetails() {
         JOIN test_items t ON o.order_num = t.order_num
         JOIN assignments a ON a.test_item_id = t.test_item_id
         JOIN users u ON a.account = u.account
+        JOIN invoices i ON i.invoice_id = io.invoice_id
         WHERE u.role = 'sales'
         ORDER BY io.invoice_id, o.order_num, t.test_item_id;
     `;
@@ -1142,6 +1153,22 @@ async function getInvoiceDetails() {
     } catch (error) {
         console.error('获取发票详情失败:', error);
         throw new Error('查询发票详情时出错');
+    }
+}
+
+async function setFinalPrice(invoiceId, finalPrice) {
+    try {
+        // 更新订单的最终价格
+        const [result] = await db.execute(`
+            UPDATE invoices
+            SET final_price = ?
+            WHERE invoice_id = ?
+        `, [finalPrice, invoiceId]);
+
+        return result;
+    } catch (error) {
+        console.error('数据库操作最终价修改错误:', error);
+        throw error; // 抛出错误供上层处理
     }
 }
 
@@ -1182,5 +1209,6 @@ module.exports = {
     getTransactions,
     makeDeposit,
     handleCheckout,
-    getInvoiceDetails
+    getInvoiceDetails,
+    setFinalPrice
 };

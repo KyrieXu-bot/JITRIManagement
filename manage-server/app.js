@@ -14,6 +14,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // 定义路由
 
 const customersRoutes = require('./routes/customers');
+const transactionRoutes = require('./routes/transactions');
 const ordersRoutes = require('./routes/orders')
 const samplesRoutes = require('./routes/samples')
 const testsRoutes = require('./routes/tests')
@@ -24,6 +25,7 @@ const monthsRoutes = require('./routes/months')
 const filesRoutes = require('./routes/files')
 
 app.use('/api/customers', customersRoutes);
+app.use('/api/transactions', transactionRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/samples', samplesRoutes);
 app.use('/api/tests', testsRoutes);

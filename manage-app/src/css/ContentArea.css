@@ -1,23 +1,28 @@
 /* ContentArea.css */
 
-/* 主内容区域的基础样式 */
-.content {
-    max-height: 650px;
-    width: 85%; /* 占据除侧边栏外的剩余宽度 */
-    float: right; /* 使内容区在侧边栏右侧 */
-    padding: 10px; /* 内边距 */
-    background-color: #fff; /* 背景颜色 */
-    box-sizing: border-box;
-    overflow: scroll; /* 隐藏内容溢出 */
-    position: relative;
-
+.content-area{
+    display: flex; /* 使用 Flex 布局 */
+    flex-direction: column; /* 垂直排列 sidebar 和 content */
+    height: 100vh; /* 确保内容区域的高度占满整个视口 */
+    width: 82%;
 }
 
+/* 主内容区域的基础样式 */
+.content {
+    margin-top: 10px;
+    width: 100%; /* 占据除侧边栏外的剩余宽度 */
+    padding: 0px; /* 内边距 */
+    background-color: #fff; /* 背景颜色 */
+    box-sizing: border-box;
+    overflow: auto; /* 隐藏内容溢出 */
+    position: relative;
+    flex-grow: 1;
+}
 
 /* 表格样式 */
 table {
     width: 100%;
-    border-collapse: separate; /* 用于支持圆角边框 */
+    border-collapse: collapse; /* 用于支持圆角边框 */
     border-spacing: 0;
     margin: 0px auto; /* 增加上下外边距并居中显示 */
 
@@ -91,18 +96,6 @@ button:hover {
     margin-bottom: 10px;
 }
 
-.form-label {
-    display: block;
-    margin-bottom: 5px;
-}
-
-.form-control {
-    display: block;
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-}
 
 nav{
     text-align: right;
@@ -190,66 +183,117 @@ nav{
     width: 100%;
     border-collapse: collapse; /* 合并表格边框 */
     margin-top: 20px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.1); /* 为表格增加较强的阴影 */
+    border-radius: 8px; /* 圆角效果 */
+    background: linear-gradient(145deg, #f7f9fc, #e1e7f3); /* 渐变背景色 */
+    overflow: hidden; /* 防止子元素溢出 */
 }
 
-.invoice-table th, .invoice-table td {
-    padding: 12px 15px; /* 增加内边距 */
-    border: 1px solid #ddd; /* 边框颜色 */
-    text-align: center; /* 居中对齐文本 */
-    min-width: 100px;
-}
-
+/* 表头样式 */
 .invoice-table th {
-    background-color: #5f87a0; /* 表头背景颜色 */
-    color: white; /* 表头文字颜色 */
-}
-
-.invoice-table tr:nth-child(even) {
-    background-color: #f4f7f9; /* 条纹背景色 */
-}
-
-.invoice-table tr:hover {
-    background-color: #eef2f7; /* 鼠标悬停时的背景颜色 */
-}
-
-/* 合并 Invoice ID 和 操作列 */
-.invoice-table .invoice-id-cell {
-    text-align: center;
-    vertical-align: middle;
-    background-color: #f7f9fc;
+    padding: 15px;
+    background: linear-gradient(145deg, #5f87a0, #406d8e); /* 渐变色背景 */
+    color: white;
+    text-transform: uppercase;
     font-weight: bold;
+    border-top-left-radius: 8px; /* 左上圆角 */
+    border-top-right-radius: 8px; /* 右上圆角 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* 为表头添加轻微阴影 */
 }
 
-
-/* test-items 列表项容器 */
-.test-items {
-    padding: 10px;
-    background-color: #f7f9fc; /* 背景色更柔和 */
-    border-radius: 8px; /* 让背景颜色与边框相对柔和 */
-    box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.1); /* 为项目添加轻微的阴影效果 */
-    margin-bottom: 10px; /* 增加底部间距，防止过于紧凑 */
+/* 表格单元格样式 */
+.invoice-table th, .invoice-table td {
+    min-width: 150px;
+    padding: 12px 20px;
+    border: 1px solid #ddd;
+    text-align: center;
+    font-size: 14px;
+    border-radius: 5px; /* 细圆角 */
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* test-items 的项目列表 */
-.test-items ul {
-    padding-left: 20px; /* 为列表项增加左侧间距 */
-    list-style-type: disc; /* 使用圆点样式 */
-    margin: 0;
+/* 条纹效果 */
+.invoice-table tr:nth-child(even) {
+    background-color: #f1f5f9; /* 淡蓝色背景 */
 }
 
-/* 单个检测项目项 */
-.test-items li {
-    font-size: 14px; /* 设置合适的字体大小 */
-    color: #333; /* 使用深灰色文字 */
-    line-height: 1.6; /* 行高增加，提升可读性 */
-    margin-bottom: 6px; /* 增加项目间距，避免过于拥挤 */
+/* 细致的阴影效果 */
+.invoice-table td {
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05); /* 内部阴影效果 */
 }
 
-/* 单个检测项目内的内容对齐 */
-.test-items li span {
-    font-weight: bold; /* 检测项目名称加粗 */
-    color: #5f87a0; /* 深蓝色使其突出 */
+/* 操作列和按钮 */
+.invoice-table .action-btns {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap-reverse;
+    gap: 10px;
 }
+
+.invoice-table .action-btns button {
+    color: white;
+    width: 100%;
+
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.action-btns button:last-of-type{
+    background-color: #3e8e41; /* 绿色按钮 */
+    height: 60px;
+}
+
+.invoice-table .action-btns button:last-of-type:hover {
+    background-color: #2c6d2f; /* 按钮悬停时的颜色 */
+}
+
+.test-item-list {
+    list-style-type: none; /* Remove default bullets */
+    padding-left: 0; /* Remove left padding */
+  }
+  
+  .test-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px; /* Add spacing between items */
+    padding: 5px 0;
+    border-bottom: 1px solid #ddd; /* Optional: Add a light border between items */
+  }
+  
+  .test-item-details {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 70%; /* Take most of the space */
+  }
+  
+  .test-item-name {
+    font-weight: bold;
+  }
+  
+  .test-item-price {
+    color: #007bff;
+    font-size: 14px;
+  }
+  
+  .details-btn {
+    margin-left: 10px;
+    padding: 4px 10px;
+    font-size: 12px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  .details-btn:hover {
+    background-color: #0056b3;
+  }
 
 
 
@@ -293,21 +337,7 @@ nav{
         justify-content: space-between; /* 改进导航项的布局 */
     }
 
-    /* Sidebar.css 对于手机屏幕的优化 */
-    .sidebar {
-        width: 100%; /* 在小屏幕上占满宽度 */
-        height: auto; /* 高度自适应 */
-        padding: 10px; /* 减少内边距 */
-        position: relative; /* 如果需要的话，可以使其相对定位 */
-    }
-
-    .sidebar ul {
-        text-align: center; /* 中心对齐侧边栏内容 */
-    }
-
-    .sidebar li {
-        display: block; /* 使列表项堆叠而非并列 */
-    }
+    
 
     .searchBar {
         flex-direction: column;
@@ -322,6 +352,7 @@ nav{
     .invoice-table {
         font-size: 12px; /* 更小的字体 */
         overflow-x: auto; /* 添加水平滚动条 */
+        border: 1px solid black;
     }
 
     .invoice-table th, .invoice-table td {

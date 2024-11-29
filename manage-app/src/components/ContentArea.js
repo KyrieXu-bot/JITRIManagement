@@ -41,6 +41,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [activePage, setActivePage] = useState(1);
     //按月份筛选
     const [months, setMonths] = useState([]);
+    const [finalPrice, setFinalPrice] = useState('');
+
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedOrders, setSelectedOrders] = useState([]);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -87,7 +89,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showCheckModal, setShowCheckModal] = useState(false);
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [showCustomerModal, setShowCustomerModal] = useState(false);
+    const [showFinalPriceModal, setShowFinalPriceModal] = useState(false);
 
+    
     const [assignmentInfo, setAssignmentInfo] = useState('');
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedDetails, setSelectedDetails] = useState({});
@@ -659,6 +663,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
 
+    const handleAddFinalPrice = (invoiceId) => {
+        setCurrentItem({ invoiceId });
+        setShowFinalPriceModal(true);
+    }
+
     // 设置标价
     const handleQuote = async (testItemId) => {
         const newPrice = prompt("请输入标准价格:");
@@ -935,6 +944,26 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         updateTestStatus(payload);
     };
 
+
+    const submitFinalPrice = async (invoiceId) => {
+        try{
+            if(finalPrice){
+                await axios.post(`${config.API_BASE_URL}/api/orders/finalPrice`,{
+                    invoiceId: invoiceId,
+                    finalPrice: finalPrice
+                })
+                fetchInvoices();
+                setShowSuccessToast(true); // Show success message
+                setTimeout(() => setShowSuccessToast(false), 3000);
+                setShowFinalPriceModal(false);
+            }
+
+        } catch (error){
+            console.error('开票价设置失败:', error);
+            setError('未能成功设置开票价');
+            setTimeout(() => setError(''), 3000);
+        }
+    }
     const updateTestStatus = async (payload) => {
         try {
             await axios.post(`${config.API_BASE_URL}/api/tests/update-check`, payload);
@@ -1259,47 +1288,62 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getChecked':
-                    headers = ["发票号", "委托单号", "客户名称", "联系人", "联系电话", "检测项目", "操作"];
+                    headers = ["发票号", "委托单号", "客户名称", "联系人", "联系电话", "业务员", "检测项目", "开票价", "操作"];
                     currentItems.forEach((invoice) => {
-                        if (invoice && invoice.order_details && Array.isArray(invoice.order_details)){
+                        if (invoice && invoice.order_details && Array.isArray(invoice.order_details)) {
                             invoice.order_details.forEach((order, orderIndex) => {
                                 rows.push(
                                     <tr key={order.order_num}>
                                         {/* 合并 Invoice ID 和 操作列 */}
                                         {orderIndex === 0 && (
                                             <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
-                                                {invoice.invoice_number ? invoice.invoice_number : '暂未填写'}
+                                                <strong>
+                                                    {invoice.invoice_number ? invoice.invoice_number : '暂未填写'}
+                                                </strong>
                                             </td>
-                                            
+
                                         )}
-                                        
+
                                         <td>{order.order_num}</td>
                                         <td>{order.customer_name}</td>
                                         <td>{order.contact_name}</td>
                                         <td>{order.contact_phone_num}</td>
+                                        <td>{order.name}</td>
                                         <td className="test-items">
                                             {/* 展示检测项目 */}
-                                            <ul>
+                                            <ul className="test-item-list">
                                                 {order.items.map((item, index) => (
-                                                    <li key={index}>
-                                                        {item.test_item} - {item.discounted_price} 元
-                                                        <Button className="details-btn">详情</Button>
+                                                    <li key={index} className="test-item">
+                                                        <div className="test-item-details">
+                                                            <span className="test-item-name">{item.test_item}</span>
+                                                            <span className="test-item-price">{item.discounted_price} 元</span>
+                                                        </div>
+                                                        <Button className="details-btn" onClick={() => handleShowDetails(item)}>详情</Button>
 
                                                     </li>
-                                                    
+
                                                 ))}
                                             </ul>
                                         </td>
+                                        {/* 合并 Invoice ID 和 操作列 */}
+                                        {orderIndex === 0 && (
+                                            <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
+                                                <strong>{order.final_price}</strong>
+                                            </td>
+
+                                        )}
                                         {/* 操作按钮 */}
                                         {orderIndex === 0 && (
-                                            <td rowSpan={invoice.order_details.length}>                                   
+                                            <td rowSpan={invoice.order_details.length}>
                                                 <div className="action-btns">
-                                                    <Button>设置最终价</Button>
-                                                    <Button variant="success">入账</Button>
+                                                    <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button>
+                                                    <Button>导出</Button>
+                                                    <Button>入账</Button>
+
                                                 </div>
                                             </td>
                                         )}
-                                        
+
                                     </tr>
                                 );
                             });
@@ -1402,7 +1446,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
     return (
-        <div>
+        <div className='content-area'>
             <nav>
                 <span>{name}({account}),欢迎访问集萃检测管理系统</span>
                 <button onClick={onLogout}>登出</button>
@@ -1417,10 +1461,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <div>
                         <h2>{selected === 'getCommission' ? '详细信息'
                             : selected === 'getSamples' ? '样品管理'
-                                : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
-                                    : selected === 'customerInfo' ? '客户信息'
-                                        : selected === 'transactionHistory' ? '交易流水'
-                                            : '首页'}</h2>
+                            : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
+                            : selected === 'customerInfo' ? '客户信息'
+                            : selected === 'transactionHistory' ? '交易流水'
+                            : selected === 'getChecked' ? '结算账单明细'
+                            : '首页'}</h2>
                         {selected === 'handleTests' ? (
                             <div className="searchBar">
                                 <span>筛选项目状态：</span>
@@ -2345,6 +2390,31 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowCheckoutModal(false)}>取消</Button>
                     <Button variant="primary" onClick={handleCheckout}>确认结算</Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* 审批按钮 */}
+            <Modal show={showFinalPriceModal} onHide={() => setShowFinalPriceModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>开票价格填写</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+
+                    <Form>
+                        <Form.Group>
+                            <Form.Label>请输入开票的总价格：（精确到两位小数）</Form.Label>
+
+                            <Form.Control
+                                type="number"
+                                onChange={(e) => setFinalPrice(e.target.value)}>
+                            </Form.Control>
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowFinalPriceModal(false)}>取消</Button>
+                    <Button variant="success" onClick={() => submitFinalPrice(currentItem.invoiceId)}>通过</Button>
+
                 </Modal.Footer>
             </Modal>
         </div>

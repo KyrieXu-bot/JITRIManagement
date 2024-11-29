@@ -2,8 +2,9 @@
 
 /* 侧边栏的基础样式 */
 .sidebar {
-    width: 15%;
-    float: left;
+    width: 20%;
+    min-width: 200px; /* 设置最小宽度 */
+    max-width: 300px; /* 设置最大宽度 */
     background-color: #f0f0f0;
     height: 100vh; /* 全屏高度 */
     padding: 20px;
@@ -141,4 +142,22 @@
     font-weight: bold;
     background-color: #024d86; /* 更深的蓝色 */
     color: white;
+}
+
+@media (max-width: 768px) {
+    /* Sidebar.css 对于手机屏幕的优化 */
+    .sidebar {
+        width: 100%; /* 在小屏幕上占满宽度 */
+        height: auto; /* 高度自适应 */
+        padding: 10px; /* 减少内边距 */
+        position: relative; /* 如果需要的话，可以使其相对定位 */
+    }
+
+    .sidebar ul {
+        text-align: center; /* 中心对齐侧边栏内容 */
+    }
+
+    .sidebar li {
+        display: block; /* 使列表项堆叠而非并列 */
+    }
 }

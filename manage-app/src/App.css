@@ -1,5 +1,8 @@
 .App {
   text-align: center;
+  display: flex;
+  height: 100%; /* 确保父级容器占满视口 */
+  justify-content: space-between;
 }
 
 .App-logo {
