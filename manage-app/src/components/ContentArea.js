@@ -31,8 +31,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipmentStats, setEquipmentStats] = useState([]);
     const [sumPrice, setSumPrice] = useState('');
     const [equipmentTimeline, setEquipmentTimeline] = useState([]);
+    const [accountTime, setAccountTime] = useState([]);
+
     const [filterEmployee, setFilterEmployee] = useState('');
     const [filterOrderNum, setFilterOrderNum] = useState('');
+    const [invoiceNumber, setInvoiceNumber] = useState('');
+
     const [filterData, setFilterData] = useState('');
     const [activePage, setActivePage] = useState(1);
     //按月份筛选
@@ -65,6 +69,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showCustomerModal, setShowCustomerModal] = useState(false);
     const [showPayerModal, setShowPayerModal] = useState(false);
     const [showFinalPriceModal, setShowFinalPriceModal] = useState(false);
+    const [showAccountModal, setShowAccountModal] = useState(false);
+
     const [assignmentInfo, setAssignmentInfo] = useState('');
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedDetails, setSelectedDetails] = useState({});
@@ -691,10 +697,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowDetailsModal(true);
     };
 
-
+    // 设置最终价
     const handleAddFinalPrice = (invoiceId) => {
         setCurrentItem({ invoiceId });
         setShowFinalPriceModal(true);
+    }
+
+    const handleAccount = (item) => {
+        setCurrentItem(item);
+
+        setShowAccountModal(true);
     }
 
     // 设置标价
@@ -1006,7 +1018,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         updateTestStatus(payload);
     };
 
-
+    //设置最终价操作
     const submitFinalPrice = async (invoiceId) => {
         try {
             if (finalPrice) {
@@ -1026,6 +1038,32 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setTimeout(() => setError(''), 3000);
         }
     }
+
+    //入账操作
+    const submitAccount = async (invoiceId) => {
+        try {
+            if (invoiceNumber) {
+                await axios.post(`${config.API_BASE_URL}/api/orders/account`, {
+                    invoiceId: invoiceId,
+                    invoiceNumber: invoiceNumber,
+                    orderStatus: '2',
+                    amount: currentItem.order_details[0].final_price,
+                    accountTime:accountTime
+                })
+                fetchInvoices();
+                setShowSuccessToast(true); // Show success message
+                setTimeout(() => setShowSuccessToast(false), 3000);
+                setShowAccountModal(false);
+            }
+
+        } catch (error) {
+            console.error('入账失败:', error);
+            setError('未能成功入账');
+            setTimeout(() => setError(''), 3000);
+        }
+    }
+
+
     const updateTestStatus = async (payload) => {
         try {
             await axios.post(`${config.API_BASE_URL}/api/tests/update-check`, payload);
@@ -1424,7 +1462,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                                 <div className="action-btns">
                                                     <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button>
                                                     <Button>导出</Button>
-                                                    <Button>入账</Button>
+                                                    <Button onClick={() => handleAccount(invoice)}>入账</Button>
 
                                                 </div>
                                             </td>
@@ -1525,10 +1563,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'transactionHistory':
-                    headers = ["交易ID", "客户/单位名称", "联系人/导师名称", "交易类型", "交易金额", "交易后余额", "交易时间", "描述"];
+                    headers = ["客户/单位名称", "联系人/导师名称", "交易类型", "交易金额", "交易后余额", "交易时间", "描述"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
-                            <td>{item.transaction_id}</td>
                             <td>{item.payer_name}</td>
                             <td>{item.payer_contact_name}</td>
                             <td>{transactionTypeLabels[item.transaction_type]}</td>
@@ -2706,7 +2743,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
-            {/* 审批按钮 */}
+            {/* 设置最终价按钮 */}
             <Modal show={showFinalPriceModal} onHide={() => setShowFinalPriceModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>开票价格填写</Modal.Title>
@@ -2726,10 +2763,67 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowFinalPriceModal(false)}>取消</Button>
-                    <Button variant="success" onClick={() => submitFinalPrice(currentItem.invoiceId)}>通过</Button>
+                    <Button variant="success" onClick={() => submitFinalPrice(currentItem.invoiceId)}>设置价格</Button>
 
                 </Modal.Footer>
             </Modal>
+
+            {/* 设置最终价按钮 */}
+            <Modal show={showAccountModal} onHide={() => setShowAccountModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>入账信息填写</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group>
+                            <Form.Label>请输入发票号(必填)</Form.Label>
+                            <Form.Control
+                                type="number"
+                                onChange={(e) => setInvoiceNumber(e.target.value)}>
+                            </Form.Control>
+                        </Form.Group>
+                        <hr style={{ borderWidth: '3px' }}></hr>
+                        <Form.Group>
+                            <Form.Label style={{color:'red'}}>请再次确认扣款信息！</Form.Label>
+                            <p>客户名称：
+                                <strong>
+                                    {currentItem.order_details ? currentItem.order_details[0].customer_name : '未提供'}
+                                </strong>
+                            </p>
+                            <p>付款方/导师: <strong>
+                                {currentItem.order_details ? 
+                                `${currentItem.order_details[0].payer_name} | ${currentItem.order_details[0].payer_contact_name}
+                                (Tel: ${currentItem.order_details[0].payer_contact_phone_num})` 
+                                : '未提供'}
+                            </strong>
+                            </p>
+                            <p>最终开票价格: 
+                                <strong>
+                                    {currentItem.order_details ?  
+                                `${currentItem.order_details[0].final_price}` 
+                                : '未提供'}
+                                </strong>
+                            </p>
+
+                        </Form.Group>
+                        {/* 入账时间 */}
+                        <Form.Group controlId="accountTime">
+                            <Form.Label>入账时间</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={accountTime}
+                                onChange={e => setAccountTime(e.target.value)}
+                            />
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowAccountModal(false)}>取消</Button>
+                    <Button variant="success" onClick={() => submitAccount(currentItem.invoice_id)}>扣款并入账</Button>
+
+                </Modal.Footer>
+            </Modal>
+
         </div>
     );
 };

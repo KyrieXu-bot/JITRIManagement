@@ -37,18 +37,17 @@ async function getAllOrders(orderNum, departmentId) {
         LEFT JOIN users u ON a.account = u.account
     `;
     const params = [];
-    query += 'WHERE u.role = ?';
-    params.push('sales');
+    query += `WHERE c.category = '1' AND p.category = '1' `;
     if (orderNum !== undefined && orderNum !== '') {
         query += ' AND o.order_num LIKE ?';
         params.push(`%${orderNum}%`);
     }
-    if (departmentId !== undefined && departmentId !== '') {
+    if (departmentId) {
         query += 'AND t.department_id = ?';
         params.push(departmentId);
     }
     
-    query += `GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
+    query += ` GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
                 p.payer_address, o.service_type, o.order_status, u.name`;
     const [results] = await db.query(query, params);
@@ -927,7 +926,7 @@ async function checkAssign(testItemId) {
 
 async function getCustomers(filterData) {
     const connection = await db.getConnection();
-    let whereSql;
+    let whereSql='';
     let queryParams = [];
 
     // 如果 filterData 有值，添加模糊查询条件
@@ -943,7 +942,7 @@ async function getCustomers(filterData) {
         // 动态生成 WHERE 子句的查询条件
         const conditions = fields.map(field => `${field} LIKE ?`).join(' OR ');
 
-        whereSql = `WHERE (${conditions})`;
+        whereSql = `AND (${conditions})`;
 
         // 填充查询参数，所有字段都使用 filterData 进行模糊查询
         queryParams = Array(fields.length).fill(`%${filterData}%`);
@@ -959,12 +958,17 @@ async function getCustomers(filterData) {
                 contact_phone_num,
                 contact_email
             FROM customers
+            WHERE category = '1'
             ${whereSql};
         `;
-
         const [rows] = await connection.query(query, queryParams);
+
         return rows;
 
+
+    } catch (error) {
+        await connection.rollback(); // 如果有错误，回滚事务
+        throw error; // 将错误抛出以便捕获和处理
     } finally {
         connection.release();
     }
@@ -993,9 +997,7 @@ async function getPayers(filterData) {
         ];
         // 动态生成 WHERE 子句的查询条件
         const conditions = fields.map(field => `${field} LIKE ?`).join(' OR ');
-
-        whereSql = `WHERE (${conditions})`;
-
+        whereSql = `AND (${conditions})`;
         // 填充查询参数，所有字段都使用 filterData 进行模糊查询
         queryParams = Array(fields.length).fill(`%${filterData}%`);
     }
@@ -1015,11 +1017,10 @@ async function getPayers(filterData) {
                 area,
                 organization
             FROM payments
+            WHERE category = '1'
             ${whereSql};
         `;
-
         const [rows] = await connection.query(query, queryParams);
-
         return rows;
 
     } catch(error) {
@@ -1225,6 +1226,7 @@ async function getInvoiceDetails(filterData) {
             c.contact_name, 
             c.contact_phone_num, 
             p.payer_contact_name,
+            p.payer_contact_phone_num,
             p.payer_name,
             t.test_item, 
             t.discounted_price, 

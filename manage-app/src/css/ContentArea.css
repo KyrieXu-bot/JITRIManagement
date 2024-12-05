@@ -39,16 +39,9 @@ table {
     margin: 0px auto; /* 增加上下外边距并居中显示 */
 
 }
-th:first-child, td:first-child{
-    min-width: 100px;
-    border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
-    padding: 9px 15px; /* 增加填充以改善视觉效果 */
-    text-align: center; /* 文本居中 */
-}
 
-
-th:not(:first-child), td:not(:first-child){
-    min-width: 200px;
+th, td{
+    min-width: 250px;
     border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
     padding: 9px 15px; /* 增加填充以改善视觉效果 */
     text-align: center; /* 文本居中 */
@@ -214,7 +207,7 @@ nav{
 
 /* 表格单元格样式 */
 .invoice-table th, .invoice-table td{
-    min-width: 200px;
+    min-width: 250px;
     padding: 12px 20px;
     border: 1px solid #ddd;
     text-align: center;

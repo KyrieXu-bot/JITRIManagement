@@ -105,6 +105,7 @@ router.get('/invoices', async (req, res) => {
                     final_price: item.final_price,
                     payer_name: item.payer_name,
                     payer_contact_name: item.payer_contact_name,
+                    payer_contact_phone_num: item.payer_contact_phone_num,
                     items: []
                 });
             }
@@ -173,6 +174,36 @@ router.post('/finalPrice', async (req, res) => {
     } catch (error) {
         console.error('设置开票价时发生错误:', error);
         return res.status(500).json({ message: '服务器错误，未能成功设置开票价' });
+    }
+});
+
+
+// 入账的路由
+router.post('/account', async (req, res) => {
+    const { invoiceId, invoiceNumber, orderStatus, amount, accountTime} = req.body;
+
+    console.log(invoiceId);
+    console.log(invoiceNumber);
+    console.log(orderStatus);
+    console.log(amount);
+    console.log(accountTime);
+
+    return;
+
+    try {
+        // 调用数据库函数设置开票价
+        const result = await account(invoiceId, finalPrice);
+
+        if (result.affectedRows > 0) {
+            // 如果更新成功，返回成功响应
+            return res.status(200).json({ message: '入账成功' });
+        } else {
+            // 如果没有找到该订单或其他问题，返回失败响应
+            return res.status(404).json({ message: '入账失败失败' });
+        }
+    } catch (error) {
+        console.error('入账时发生错误:', error);
+        return res.status(500).json({ message: '服务器错误，未能成功入账' });
     }
 });
 
