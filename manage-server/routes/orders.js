@@ -63,11 +63,13 @@ router.post('/checkout', async (req, res) => {
 // 获取所有发票及其对应的订单和检测项
 router.get('/invoices', async (req, res) => {
     try {
+        let filterData = req.query.filterData;
         // 获取所有发票详细信息
-        const invoiceDetails = await getInvoiceDetails();
+        const invoiceDetails = await getInvoiceDetails(filterData);
         // 用来存储按发票分组的数据
         const invoiceData = [];
         let currentInvoiceId = null;
+        let createdAt = null;
         let currentInvoiceNum = null;
         let currentOrderNum = null;
         let orderDetails = [];
@@ -80,13 +82,14 @@ router.get('/invoices', async (req, res) => {
                     invoiceData.push({
                         invoice_id: currentInvoiceId,
                         invoice_number: currentInvoiceNum,
-
+                        created_at: createdAt,
                         order_details: orderDetails
                     });
                 }
                 // 更新 currentInvoiceId 并重置 orderDetails
                 currentInvoiceId = item.invoice_id;
                 currentInvoiceNum = item.invoice_number;
+                createdAt = item.created_at;
                 orderDetails = [];
             }
 
@@ -100,6 +103,8 @@ router.get('/invoices', async (req, res) => {
                     contact_phone_num: item.contact_phone_num,
                     name: item.name,
                     final_price: item.final_price,
+                    payer_name: item.payer_name,
+                    payer_contact_name: item.payer_contact_name,
                     items: []
                 });
             }
@@ -129,6 +134,7 @@ router.get('/invoices', async (req, res) => {
             invoiceData.push({
                 invoice_id: currentInvoiceId,
                 invoice_number: currentInvoiceNum,
+                created_at: createdAt,
                 order_details: orderDetails
             });
         }

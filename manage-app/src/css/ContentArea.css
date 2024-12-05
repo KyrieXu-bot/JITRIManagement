@@ -125,7 +125,7 @@ nav{
 .searchBar {
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-between;
+    justify-content: space-around;
     align-items: center;
     gap: 15px;
     padding: 10px;
@@ -198,7 +198,6 @@ nav{
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.1); /* 为表格增加较强的阴影 */
     border-radius: 8px; /* 圆角效果 */
     background: linear-gradient(145deg, #f7f9fc, #e1e7f3); /* 渐变背景色 */
-    overflow: hidden; /* 防止子元素溢出 */
 }
 
 /* 表头样式 */
@@ -214,14 +213,20 @@ nav{
 }
 
 /* 表格单元格样式 */
-.invoice-table th, .invoice-table td {
-    min-width: 150px;
+.invoice-table th, .invoice-table td{
+    min-width: 200px;
     padding: 12px 20px;
     border: 1px solid #ddd;
     text-align: center;
     font-size: 14px;
     border-radius: 5px; /* 细圆角 */
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
+
+}
+
+.invoice-table th:first-child, .invoice-table td:first-child{
+    min-width: 100px;
+    max-width: 150px;
 }
 
 /* 条纹效果 */
@@ -307,7 +312,12 @@ nav{
     background-color: #0056b3;
   }
 
-
+  /* 高亮部分 */
+  .highlight {
+    background-color: yellow;
+    color: black;
+    font-weight: bold;
+  }
 
 /* 基础样式调整，以适应移动设备 */
 @media (max-width: 768px) {

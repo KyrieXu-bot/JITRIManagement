@@ -31,7 +31,13 @@ const Sidebar = ({ onSelect, selected, role }) => {
                                     className={selected === 'customerInfo' ? 'active' : ''}
                                     onClick={() => onSelect('customerInfo')}
                                 >
-                                    客户信息
+                                    委托方信息
+                                </li>
+                                <li
+                                    className={selected === 'payerInfo' ? 'active' : ''}
+                                    onClick={() => onSelect('payerInfo')}
+                                >
+                                    付款方信息
                                 </li>
                                 <li
                                     className={selected === 'transactionHistory' ? 'active' : ''}

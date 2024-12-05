@@ -7,7 +7,8 @@ const db = require('../models/database'); // 这是一个示例路径，你需�
 // 获取所有客户
 router.get('/', async (req, res) => {
     try {
-        const customers = await db.getCustomers();
+        let filterData = req.query.filterData;
+        const customers = await db.getCustomers(filterData);
         res.json(customers);
     } catch (error) {
         res.status(500).send({ message: "Error retrieving customers", error: error.message });
@@ -39,18 +40,35 @@ router.post('/', async (req, res) => {
 });
 
 // 更新客户信息
-router.put('/:id', async (req, res) => {
+router.patch('/:customer_id', async (req, res) => {
+    const customerId = req.params.customer_id;
+    const { customer_name, customer_address, contact_name, contact_phone_num, contact_email, category, area, organization } = req.body;
+  
+    // 组织更新数据
+    const customerData = {
+      customer_id: customerId,
+      customer_name,
+      customer_address,
+      contact_name,
+      contact_phone_num,
+      contact_email,
+      category,
+      area,
+      organization
+    };
+  
     try {
-        const updatedCustomer = await db.updateCustomer(req.params.id, req.body);
-        if (updatedCustomer) {
-            res.json(updatedCustomer);
-        } else {
-            res.status(404).send({ message: "Customer not found" });
-        }
-    } catch (error) {
-        res.status(500).send({ message: "Error updating customer", error: error.message });
+      const [result] = await db.updateCustomer(customerData);  // 调用 database.js 中的方法执行 SQL
+      if (result.affectedRows > 0) {
+        res.status(200).json({ success: true, message: 'Customer updated successfully' });
+      } else {
+        res.status(404).json({ success: false, message: 'Customer not found' });
+      }
+    } catch (err) {
+      console.error('Error updating customer:', err);
+      res.status(500).json({ success: false, message: 'Error updating customer' });
     }
-});
+  });
 
 // 删除客户
 router.delete('/:id', async (req, res) => {
@@ -66,16 +84,5 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-
-// 为客户充值
-router.post('/deposit', async (req, res) => {
-    try {
-        const {customer_id, amount, description} = req.body;
-        const result = await db.makeDeposit(customer_id, amount, description);
-        res.status(201).json(result);
-    } catch (error) {
-        res.status(500).send({ message: "Error creating customer", error: error.message });
-    }
-});
 
 module.exports = router;

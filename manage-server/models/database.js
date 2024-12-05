@@ -925,8 +925,30 @@ async function checkAssign(testItemId) {
 }
 
 
-async function getCustomers(searchNameTerm, searchContactNameTerm, searchContactPhoneTerm) {
+async function getCustomers(filterData) {
     const connection = await db.getConnection();
+    let whereSql;
+    let queryParams = [];
+
+    // 如果 filterData 有值，添加模糊查询条件
+    if (filterData) {
+        // 通过字段名数组动态构建模糊查询条件
+        const fields = [
+            'customer_name',
+            'customer_address',
+            'contact_name',
+            'contact_phone_num',
+            'contact_email',
+        ];
+        // 动态生成 WHERE 子句的查询条件
+        const conditions = fields.map(field => `${field} LIKE ?`).join(' OR ');
+
+        whereSql = `WHERE (${conditions})`;
+
+        // 填充查询参数，所有字段都使用 filterData 进行模糊查询
+        queryParams = Array(fields.length).fill(`%${filterData}%`);
+    }
+
     try {
         let query = `
             SELECT 
@@ -935,33 +957,10 @@ async function getCustomers(searchNameTerm, searchContactNameTerm, searchContact
                 customer_address,
                 contact_name,
                 contact_phone_num,
-                contact_email,
-                balance
+                contact_email
             FROM customers
+            ${whereSql};
         `;
-
-        const queryParams = [];
-        const conditions = [];
-
-        if (searchNameTerm) {
-            conditions.push('customer_name LIKE ?');
-            queryParams.push(`%${searchNameTerm}%`);
-        }
-
-        if (searchContactNameTerm) {
-            conditions.push('contact_name LIKE ?');
-            queryParams.push(`%${searchContactNameTerm}%`);
-        }
-
-        if (searchContactPhoneTerm) {
-            conditions.push('contact_phone_num LIKE ?');
-            queryParams.push(`%${searchContactPhoneTerm}%`);
-        }
-
-        // 如果有任何条件，添加 WHERE 子句
-        if (conditions.length > 0) {
-            query += ' WHERE ' + conditions.join(' AND ');
-        }
 
         const [rows] = await connection.query(query, queryParams);
         return rows;
@@ -971,13 +970,73 @@ async function getCustomers(searchNameTerm, searchContactNameTerm, searchContact
     }
 }
 
-async function getTransactions() {
+async function getPayers(filterData) {
+    const connection = await db.getConnection();
+    // 如果 filterData 有值，添加模糊查询条件
+    let whereSql = '';
+    let queryParams = [];
+
+    if (filterData) {
+        // 通过字段名数组动态构建模糊查询条件
+        const fields = [
+            'payer_name',
+            'payer_address',
+            'payer_contact_name',
+            'payer_contact_phone_num',
+            'bank_name',
+            'tax_number',
+            'bank_account',
+            'payer_contact_email',
+            'balance',
+            'area',
+            'organization'
+        ];
+        // 动态生成 WHERE 子句的查询条件
+        const conditions = fields.map(field => `${field} LIKE ?`).join(' OR ');
+
+        whereSql = `WHERE (${conditions})`;
+
+        // 填充查询参数，所有字段都使用 filterData 进行模糊查询
+        queryParams = Array(fields.length).fill(`%${filterData}%`);
+    }
+    try {
+        let query = `
+            SELECT 
+                payment_id,
+                payer_name,
+                payer_address,
+                payer_contact_name,
+                payer_contact_phone_num,
+                bank_name,
+                tax_number,
+                bank_account,
+                payer_contact_email,
+                balance,
+                area,
+                organization
+            FROM payments
+            ${whereSql};
+        `;
+
+        const [rows] = await connection.query(query, queryParams);
+
+        return rows;
+
+    } catch(error) {
+        console.error('查询付款方失败:', error.message);
+        throw error;
+    } finally {
+        connection.release();
+    }
+}
+async function getTransactions(filterPayerContactName, filterPayerName, transactionType) {
     const connection = await db.getConnection();
     try {
         let query = `
             SELECT 
                 t.transaction_id,
-                c.customer_name,
+                p.payer_name,
+                p.payer_contact_name,
                 t.transaction_type,
                 t.amount,
                 t.balance_after_transaction,
@@ -985,12 +1044,29 @@ async function getTransactions() {
                 t.description
             FROM transactions t
             LEFT JOIN
-                customers c
-                ON c.customer_id = t.customer_id
+                payments p
+                ON p.payment_id = t.payment_id
         `;
-        const queryParams = [];
+        const params = [];
+        let whereClauseAdded = false;
+        // 动态添加 WHERE 条件
+        if (filterPayerContactName) {
+            query += ' WHERE p.payer_contact_name LIKE ?';
+            params.push(`%${filterPayerContactName}%`);
+            whereClauseAdded = true;
+        }
 
-        const [rows] = await connection.query(query, queryParams);
+        if (filterPayerName) {
+            query += (whereClauseAdded ? ' AND' : ' WHERE') + ' p.payer_name LIKE ?';
+            params.push(`%${filterPayerName}%`);
+            whereClauseAdded = true;
+        }
+        if (transactionType) {
+            query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.transaction_type = ?';
+            params.push(transactionType);
+            whereClauseAdded = true;
+        }
+        const [rows] = await connection.query(query, params);
         return rows;
 
     } finally {
@@ -998,33 +1074,34 @@ async function getTransactions() {
     }
 }
 
-async function makeDeposit(customerId, amount, description) {
+async function makeDeposit(paymentId, amount, description) {
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
         // 更新客户余额
         const updateBalanceQuery = `
-            UPDATE customers 
+            UPDATE payments 
             SET balance = balance + ? 
-            WHERE customer_id = ?
+            WHERE payment_id = ?
         `;
-        await connection.execute(updateBalanceQuery, [amount, customerId]);
+        await connection.execute(updateBalanceQuery, [amount, paymentId]);
 
         // 获取更新后的余额
         const [balanceResult] = await connection.execute(`
             SELECT balance 
-            FROM customers 
-            WHERE customer_id = ?
-        `, [customerId]);
+            FROM payments 
+            WHERE payment_id = ?
+        `, [paymentId]);
 
+        console.log(balanceResult[0])
         const newBalance = balanceResult[0].balance;
 
         // 插入交易记录
         const insertTransactionQuery = `
-            INSERT INTO transactions (customer_id, transaction_type, amount, balance_after_transaction, transaction_time, description)
+            INSERT INTO transactions (payment_id, transaction_type, amount, balance_after_transaction, transaction_time, description)
             VALUES (?, 'DEPOSIT', ?, ?, NOW(), ?)
         `;
-        await connection.execute(insertTransactionQuery, [customerId, amount, newBalance, description]);
+        await connection.execute(insertTransactionQuery, [paymentId, amount, newBalance, description]);
 
         // 提交事务
         await connection.commit();
@@ -1112,14 +1189,43 @@ async function handleCheckout( orderNums ) {
 }
 
 
-async function getInvoiceDetails() {
+async function getInvoiceDetails(filterData) {
+    // 如果 filterData 为空，只筛选 sales 角色
+    let whereSql = `
+        WHERE u.role = 'sales'
+    `;
+    let queryParams = [];
+
+    // 如果 filterData 有值，添加模糊查询条件
+    if (filterData) {
+        whereSql += `
+            AND (
+                o.order_num LIKE ? OR
+                c.customer_name LIKE ? OR
+                c.contact_name LIKE ? OR
+                c.contact_phone_num LIKE ? OR
+                t.test_item LIKE ? OR
+                t.discounted_price LIKE ? OR
+                t.listed_price LIKE ? OR
+                i.invoice_number LIKE ? OR
+                i.final_price LIKE ? OR
+                u.name LIKE ?
+            )
+        `;
+        // 填充查询参数，所有字段都使用 filterData 进行模糊查询
+        queryParams = Array(10).fill(`%${filterData}%`);
+    }
+
     const query = `
         SELECT 
             io.invoice_id, 
+            io.created_at,
             o.order_num, 
             c.customer_name, 
             c.contact_name, 
             c.contact_phone_num, 
+            p.payer_contact_name,
+            p.payer_name,
             t.test_item, 
             t.discounted_price, 
             t.listed_price,
@@ -1139,16 +1245,18 @@ async function getInvoiceDetails() {
         FROM invoice_orders io
         JOIN orders o ON io.order_num = o.order_num
         JOIN customers c ON o.customer_id = c.customer_id
+        JOIN payments p on p.payment_id = o.payment_id
         JOIN test_items t ON o.order_num = t.order_num
         JOIN assignments a ON a.test_item_id = t.test_item_id
         JOIN users u ON a.account = u.account
         JOIN invoices i ON i.invoice_id = io.invoice_id
-        WHERE u.role = 'sales'
+
+        ${whereSql}
         ORDER BY io.invoice_id, o.order_num, t.test_item_id;
     `;
 
     try {
-        const [results] = await db.query(query);
+        const [results] = await db.query(query, queryParams);
         return results;  // 返回扁平化的查询结果
     } catch (error) {
         console.error('获取发票详情失败:', error);
@@ -1171,6 +1279,73 @@ async function setFinalPrice(invoiceId, finalPrice) {
         throw error; // 抛出错误供上层处理
     }
 }
+
+// 执行更新操作的函数
+const updateCustomer = (customerData) => {
+    const { customer_id, customer_name, customer_address, contact_name, contact_phone_num, contact_email, category, area, organization } = customerData;
+  
+    const sql = `
+      UPDATE customers
+      SET 
+        customer_name = ?, 
+        customer_address = ?, 
+        contact_name = ?, 
+        contact_phone_num = ?, 
+        contact_email = ?, 
+        category = ?, 
+        area = ?, 
+        organization = ?
+      WHERE customer_id = ?
+    `;
+  
+    const values = [customer_name || null, 
+                    customer_address || null, 
+                    contact_name || null, 
+                    contact_phone_num || null, 
+                    contact_email || null, 
+                    category || null, 
+                    area || null, 
+                    organization || null, 
+                    customer_id];
+    return db.execute(sql, values);
+  };
+  
+  const updatePayer = (paymentData) => {
+    const { payment_id, payer_name, payer_address, payer_phone_num, bank_name, tax_number, bank_account, payer_contact_name, payer_contact_phone_num, payer_contact_email, category, area, organization } = paymentData;
+    const sql = `
+      UPDATE payments
+      SET 
+        payer_name = ?, 
+        payer_address = ?, 
+        payer_phone_num = ?, 
+        bank_name = ?, 
+        tax_number = ?, 
+        bank_account = ?, 
+        payer_contact_name = ?, 
+        payer_contact_phone_num = ?, 
+        payer_contact_email = ?, 
+        category = ?, 
+        area = ?, 
+        organization = ?
+      WHERE payment_id = ?
+    `;
+  
+    const values = [payer_name || null,
+                    payer_address || null, 
+                    payer_phone_num || null,
+                    bank_name || null,
+                    tax_number || null,
+                    bank_account || null,
+                    payer_contact_name || null,
+                    payer_contact_phone_num || null,
+                    payer_contact_email || null,
+                    category || null, 
+                    area || null, 
+                    organization || null, 
+                    payment_id];
+    return db.execute(sql, values);
+  };
+
 
 module.exports = {
     findUserByAccount,
@@ -1210,5 +1385,8 @@ module.exports = {
     makeDeposit,
     handleCheckout,
     getInvoiceDetails,
-    setFinalPrice
+    setFinalPrice,
+    getPayers,
+    updateCustomer,
+    updatePayer
 };

@@ -13,18 +13,13 @@ import FileUpload from '../components/FileUpload'; // 确保路径正确
 
 
 const ContentArea = ({ departmentID, account, selected, role, groupId, name, onLogout }) => {
-
     const [data, setData] = useState([]);
     const [testId, setTestId] = useState('');
-    const [showModal, setShowModal] = useState(false);
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showSampleModal, setShowSampleModal] = useState(false);
     const [currentItem, setCurrentItem] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
     const [showFailureToast, setShowFailureToast] = useState(false); // 控制Toast显示的状态
     const [, setError] = useState('');
-    const [showFinishModal, setShowFinishModal] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
     const [assignableUsers, setAssignableUsers] = useState([]);
     const [checkNote, setCheckNote] = useState('');
@@ -38,16 +33,49 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipmentTimeline, setEquipmentTimeline] = useState([]);
     const [filterEmployee, setFilterEmployee] = useState('');
     const [filterOrderNum, setFilterOrderNum] = useState('');
+    const [filterData, setFilterData] = useState('');
     const [activePage, setActivePage] = useState(1);
     //按月份筛选
     const [months, setMonths] = useState([]);
     const [finalPrice, setFinalPrice] = useState('');
-
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedOrders, setSelectedOrders] = useState([]);
-    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [selectedLabel, setSelectedLabel] = useState(''); // 当前选择的设备分类标签
     const [filteredEquipments, setFilteredEquipments] = useState([]); // 二级菜单：根据分类标签筛选设备
+    const [transactionType, setTransactionType] = useState('');
+    const [filterPayerContactName, setFilterPayerContactName] = useState('');
+    const [filterPayerName, setFilterPayerName] = useState('');
+
+
+    //充值数据
+    const [depositData, setDepositData] = useState({
+        amount: '',
+        description: ''
+    });
+    const [errorMessage, setErrorMessage] = useState('');
+    const [showModal, setShowModal] = useState(false);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [showFinishModal, setShowFinishModal] = useState(false);
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [showSampleModal, setShowSampleModal] = useState(false);
+    const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+    const [showReassignmentModal, setShowReassignmentModal] = useState(false);
+    const [showCheckModal, setShowCheckModal] = useState(false);
+    const [showDepositModal, setShowDepositModal] = useState(false);
+    const [showCustomerModal, setShowCustomerModal] = useState(false);
+    const [showPayerModal, setShowPayerModal] = useState(false);
+    const [showFinalPriceModal, setShowFinalPriceModal] = useState(false);
+    const [assignmentInfo, setAssignmentInfo] = useState('');
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [selectedDetails, setSelectedDetails] = useState({});
+    const itemsCountPerPage = 10;
+    const totalItemsCount = data.length;
+
+    //分页
+    const indexOfLastItem = activePage * itemsCountPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
+    const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
+
     //领导点击分配时候的数据
     const [assignmentData, setAssignmentData] = useState({
         equipment_id: '',
@@ -76,32 +104,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         department_id: ''
 
     });
-
-    //充值数据
-    const [depositData, setDepositData] = useState({
-        amount: '',
-        description: ''
-    });
-    const [errorMessage, setErrorMessage] = useState('');
-
-    const [showAssignmentModal, setShowAssignmentModal] = useState(false);
-    const [showReassignmentModal, setShowReassignmentModal] = useState(false);
-    const [showCheckModal, setShowCheckModal] = useState(false);
-    const [showDepositModal, setShowDepositModal] = useState(false);
-    const [showCustomerModal, setShowCustomerModal] = useState(false);
-    const [showFinalPriceModal, setShowFinalPriceModal] = useState(false);
-
-    
-    const [assignmentInfo, setAssignmentInfo] = useState('');
-    const [showDetailsModal, setShowDetailsModal] = useState(false);
-    const [selectedDetails, setSelectedDetails] = useState({});
-    const itemsCountPerPage = 10;
-    const totalItemsCount = data.length;
-
-    //分页
-    const indexOfLastItem = activePage * itemsCountPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
-    const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
 
 
 
@@ -152,6 +154,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         { department_id: 3, department_name: '力学性能测试实验室' }
     ];
 
+    const areas = ['上海', '省内', '省外', '苏州', '相城'];
+    const organizations = ['高校', '集萃体系', '企业', '研究所']
 
     const fetchData = useCallback(async (endpoint) => {
         try {
@@ -249,13 +253,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     //拉取发票信息
     const fetchInvoices = useCallback(async () => {
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/api/orders/invoices`);
+            const params = new URLSearchParams();
+            if (filterData) params.append('filterData', filterData);
+            const response = await axios.get(`${config.API_BASE_URL}/api/orders/invoices?${params}`);
             const invoices = response.data;
             setData(invoices);
         } catch (error) {
             console.error('拉取发票信息错误:', error);
         }
-    }, []);
+    }, [filterData]);
 
 
     // 拉取可分配的用户列表
@@ -388,31 +394,44 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const fetchCustomers = useCallback(async () => {
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/api/customers/`, {
-                params: {
-
-                }
-            });
-
+            const params = new URLSearchParams();
+            if (filterData) params.append('filterData', filterData);
+            const response = await axios.get(`${config.API_BASE_URL}/api/customers?${params}`);
             setData(response.data);
         } catch (error) {
-            console.error('Error fetching months:', error);
+            console.error('Error fetching customers:', error);
         }
-    }, []);
+    }, [filterData]);
+
+    const fetchPayers = useCallback(async () => {
+        try {
+            const params = new URLSearchParams();
+            if (filterData) params.append('filterData', filterData);
+            const response = await axios.get(`${config.API_BASE_URL}/api/payers?${params}`);
+            setData(response.data);
+        } catch (error) {
+            console.error('Error fetching payers:', error);
+        }
+    }, [filterData]);
 
     const fetchTransactions = useCallback(async () => {
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/api/transactions/`, {
-                params: {
-
-                }
-            });
-
+            const params = new URLSearchParams();
+            if (filterPayerName) {
+                params.append('filterPayerName', filterPayerName);
+            }
+            if (filterPayerContactName) {
+                params.append('filterPayerContactName', filterPayerContactName);  // 添加月份到请求参数
+            }
+            if (transactionType) {
+                params.append('transactionType', transactionType); // 添加员工名称到请求参数
+            }
+            const response = await axios.get(`${config.API_BASE_URL}/api/transactions?${params}`);
             setData(response.data);
         } catch (error) {
-            console.error('Error fetching months:', error);
+            console.error('Error fetching transaction:', error);
         }
-    }, []);
+    }, [filterPayerName, filterPayerContactName, transactionType]);
 
 
     useEffect(() => {
@@ -438,6 +457,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchData('tests');
             } else if (selected === 'customerInfo') {
                 fetchCustomers();
+            } else if (selected === 'payerInfo') {
+                fetchPayers();
             } else if (selected === 'transactionHistory') {
                 fetchTransactions();
             } else if (selected === 'getChecked') {
@@ -470,7 +491,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchMonths,
         fetchCustomers,
         fetchTransactions,
-        fetchInvoices
+        fetchInvoices,
+        fetchPayers
     ]);
 
 
@@ -497,6 +519,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setCurrentItem(item);
         setShowCustomerModal(true);
     }
+
+    const handleEditPayer = (item) => {
+        setCurrentItem(item);
+        setShowPayerModal(true);
+    }
+
+
     const handleDeposit = (item) => {
         setCurrentItem(item);
         setShowDepositModal(true);
@@ -673,8 +702,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         const newPrice = prompt("请输入标准价格:");
         if (newPrice && !isNaN(parseFloat(newPrice))) {
             try {
-                const response = await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/price`, { listedPrice: newPrice });
-                console.log(response.data.message);
+                await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/price`, { listedPrice: newPrice });
                 fetchDataForSupervisor(departmentID); // 重新获取数据以更新UI
             } catch (error) {
                 console.error('Error updating price:', error);
@@ -782,7 +810,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const updateSample = async () => {
 
         try {
-            console.log("beforeupdate", currentItem.sample_type)
             if (selected === 'getSamples') {
                 const response = await axios.patch(`${config.API_BASE_URL}/api/samples/${currentItem.order_num}`, currentItem);
                 if (response.data.success) {
@@ -801,6 +828,41 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     };
 
+    const updateCustomer = async () => {
+
+        try {
+            const response = await axios.patch(`${config.API_BASE_URL}/api/customers/${currentItem.customer_id}`, currentItem);
+            if (response.data.success) {
+                // 成功提示
+                setShowCustomerModal(false);
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                fetchCustomers()
+            } else {
+                setShowFailureToast(true)
+            }
+        } catch (error) {
+            console.error('Error updating customers:', error);
+        }
+    };
+
+    const updatePayer = async () => {
+
+        try {
+            const response = await axios.patch(`${config.API_BASE_URL}/api/payers/${currentItem.payment_id}`, currentItem);
+            if (response.data.success) {
+                // 成功提示
+                setShowPayerModal(false);
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                fetchPayers()
+            } else {
+                setShowFailureToast(true)
+            }
+        } catch (error) {
+            console.error('Error updating payers:', error);
+        }
+    };
     const deleteItem = async () => {
         try {
             if (!window.confirm('请再次确认此【删除】操作！')) {
@@ -913,12 +975,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setErrorMessage('');
 
         try {
-            await axios.post(`${config.API_BASE_URL}/api/customers/deposit`, {
-                customer_id: currentItem.customer_id,
+            await axios.post(`${config.API_BASE_URL}/api/payers/deposit`, {
+                payment_id: currentItem.payment_id,
                 amount: depositData.amount,
                 description: depositData.description
             })
-            fetchCustomers();
+            fetchPayers();
             setShowSuccessToast(true); // Show success message
             setTimeout(() => setShowSuccessToast(false), 3000);
             setShowDepositModal(false);
@@ -946,9 +1008,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
     const submitFinalPrice = async (invoiceId) => {
-        try{
-            if(finalPrice){
-                await axios.post(`${config.API_BASE_URL}/api/orders/finalPrice`,{
+        try {
+            if (finalPrice) {
+                await axios.post(`${config.API_BASE_URL}/api/orders/finalPrice`, {
                     invoiceId: invoiceId,
                     finalPrice: finalPrice
                 })
@@ -958,7 +1020,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 setShowFinalPriceModal(false);
             }
 
-        } catch (error){
+        } catch (error) {
             console.error('开票价设置失败:', error);
             setError('未能成功设置开票价');
             setTimeout(() => setError(''), 3000);
@@ -1047,6 +1109,20 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     }
 
 
+    // 高亮匹配部分
+    const highlightText = (text, searchText) => {
+        if (!searchText) return text;  // 如果没有输入查询条件，直接返回原始文本
+
+        if (text) {
+            const regex = new RegExp(`(${searchText})`, 'gi'); // 使用正则表达式进行不区分大小写的匹配
+            const parts = text.split(regex);  // 根据匹配结果拆分字符串
+
+            // 将匹配的部分包裹在 <span> 标签中，添加高亮样式
+            return parts.map((part, index) =>
+                regex.test(part) ? <span key={index} className="highlight">{part}</span> : part
+            );
+        }
+    };
 
     const renderTable = () => {
         let headers = [];
@@ -1288,7 +1364,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getChecked':
-                    headers = ["发票号", "委托单号", "客户名称", "联系人", "联系电话", "业务员", "检测项目", "开票价", "操作"];
+                    headers = ["发票号", "委托单号", "客户名称", "联系人", "联系电话", "付款方", "付款联系人", "业务员", "检测项目", "开票价", "创建时间"];
                     currentItems.forEach((invoice) => {
                         if (invoice && invoice.order_details && Array.isArray(invoice.order_details)) {
                             invoice.order_details.forEach((order, orderIndex) => {
@@ -1298,17 +1374,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         {orderIndex === 0 && (
                                             <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
                                                 <strong>
-                                                    {invoice.invoice_number ? invoice.invoice_number : '暂未填写'}
+                                                    {highlightText(invoice.invoice_number ? invoice.invoice_number : '暂未填写', filterData)}
                                                 </strong>
                                             </td>
 
                                         )}
 
-                                        <td>{order.order_num}</td>
-                                        <td>{order.customer_name}</td>
-                                        <td>{order.contact_name}</td>
-                                        <td>{order.contact_phone_num}</td>
-                                        <td>{order.name}</td>
+                                        <td>{highlightText(order.order_num, filterData)}</td>
+                                        <td>{highlightText(order.customer_name, filterData)}</td>
+                                        <td>{highlightText(order.contact_name, filterData)}</td>
+                                        <td>{highlightText(order.contact_phone_num, filterData)}</td>
+                                        <td>{highlightText(order.payer_name, filterData)}</td>
+                                        <td>{highlightText(order.payer_contact_name, filterData)}</td>
+                                        <td>{highlightText(order.name, filterData)}</td>
                                         <td className="test-items">
                                             {/* 展示检测项目 */}
                                             <ul className="test-item-list">
@@ -1325,16 +1403,24 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                                 ))}
                                             </ul>
                                         </td>
+
                                         {/* 合并 Invoice ID 和 操作列 */}
                                         {orderIndex === 0 && (
-                                            <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
-                                                <strong>{order.final_price}</strong>
-                                            </td>
+                                            <>
+                                                <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
+                                                    <strong>{highlightText(order.final_price, filterData)}</strong>
+                                                </td>
+                                                <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
+                                                    {highlightText(new Date(invoice.created_at).toLocaleString(), filterData)}
+                                                </td>
+
+                                            </>
+
 
                                         )}
                                         {/* 操作按钮 */}
                                         {orderIndex === 0 && (
-                                            <td rowSpan={invoice.order_details.length}>
+                                            <td rowSpan={invoice.order_details.length} className='fixed-column'>
                                                 <div className="action-btns">
                                                     <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button>
                                                     <Button>导出</Button>
@@ -1399,18 +1485,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'customerInfo':
-                    headers = ["客户ID", "客户/单位名称", "地址", "联系人名称", "联系人手机号", "邮箱", "当前余额"];
+                    headers = ["客户/单位名称", "地址", "联系人名称", "联系人手机号", "邮箱"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
-                            <td>{item.customer_id}</td>
-                            <td>{item.customer_name}</td>
-                            <td>{item.customer_address}</td>
-                            <td>{item.contact_name}</td>
-                            <td>{item.contact_phone_num}</td>
-                            <td>{item.contact_email}</td>
-                            <td>{item.balance}</td>
+                            <td>{highlightText(item.customer_name, filterData)}</td>
+                            <td>{highlightText(item.customer_address, filterData)}</td>
+                            <td>{highlightText(item.contact_name, filterData)}</td>
+                            <td>{highlightText(item.contact_phone_num, filterData)}</td>
+                            <td>{highlightText(item.contact_email, filterData)}</td>
                             <td className='fixed-column'>
-                                <Button variant="success" onClick={() => handleDeposit(item)}>充值</Button>
                                 <Button onClick={() => handleEditCustomer(item)}>修改</Button>
 
                             </td>
@@ -1418,12 +1501,36 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
 
+                case 'payerInfo':
+                    headers = ["付款方", "地址", "联系人/导师名称", "联系人手机号", "邮箱", "银行名称", "税号", "银行账号", "区域", "单位性质", "当前余额"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{highlightText(item.payer_name, filterData)}</td>
+                            <td>{highlightText(item.payer_address, filterData)}</td>
+                            <td>{highlightText(item.payer_contact_name, filterData)}</td>
+                            <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
+                            <td>{highlightText(item.payer_contact_email, filterData)}</td>
+                            <td>{highlightText(item.bank_name, filterData)}</td>
+                            <td>{highlightText(item.tax_number, filterData)}</td>
+                            <td>{highlightText(item.bank_account, filterData)}</td>
+                            <td>{highlightText(item.area, filterData)}</td>
+                            <td>{highlightText(item.organization, filterData)}</td>
+                            <td>{highlightText(item.balance, filterData)}</td>
+                            <td className='fixed-column'>
+                                <Button variant="success" onClick={() => handleDeposit(item)}>充值</Button>
+                                <Button onClick={() => handleEditPayer(item)}>修改</Button>
+
+                            </td>
+                        </tr>
+                    ));
+                    break;
                 case 'transactionHistory':
-                    headers = ["交易ID", "客户/单位名称", "交易类型", "交易金额", "交易后余额", "交易时间", "描述"];
+                    headers = ["交易ID", "客户/单位名称", "联系人/导师名称", "交易类型", "交易金额", "交易后余额", "交易时间", "描述"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.transaction_id}</td>
-                            <td>{item.customer_name}</td>
+                            <td>{item.payer_name}</td>
+                            <td>{item.payer_contact_name}</td>
                             <td>{transactionTypeLabels[item.transaction_type]}</td>
                             <td>{item.amount}</td>
                             <td>{item.balance_after_transaction}</td>
@@ -1459,59 +1566,33 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <EquipmentTimeline tasks={equipmentTimeline} /> // 显示设备时间线
                 ) : (
                     <>
-                    <div className='content-head'>
-                        <h2>{selected === 'getCommission' ? '详细信息'
-                            : selected === 'getSamples' ? '样品管理'
-                            : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
-                            : selected === 'customerInfo' ? '客户信息'
-                            : selected === 'transactionHistory' ? '交易流水'
-                            : selected === 'getChecked' ? '结算账单明细'
-                            : '首页'}</h2>
-                        {selected === 'handleTests' ? (
-                            <div className="searchBar">
-                                <span>筛选项目状态：</span>
-                                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                                    <option value="">全部状态</option>
-                                    <option value="0">待分配</option>
-                                    <option value="1">已分配待检测</option>
-                                    <option value="2">已检测待审批</option>
-                                    <option value="3">审批通过</option>
-                                    <option value="4">审批失败</option>
+                        <div className='content-head'>
+                            <h2>{selected === 'getCommission' ? '详细信息'
+                                : selected === 'getSamples' ? '样品管理'
+                                    : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
+                                        : selected === 'customerInfo' ? '客户信息'
+                                            : selected === 'transactionHistory' ? '交易流水'
+                                                : selected === 'getChecked' ? '结算账单明细'
+                                                    : '首页'}</h2>
+                            {selected === 'handleTests' ? (
+                                <div className="searchBar">
+                                    <span>筛选项目状态：</span>
+                                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                                        <option value="">全部状态</option>
+                                        <option value="0">待分配</option>
+                                        <option value="1">已分配待检测</option>
+                                        <option value="2">已检测待审批</option>
+                                        <option value="3">审批通过</option>
+                                        <option value="4">审批失败</option>
 
-                                </select>&nbsp;&nbsp;&nbsp;
-                                <span>筛选月份：</span>
-                                <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
-                                    <option value="">选择月份</option>
-                                    {months.map(({ month }) => (
-                                        <option key={month} value={month}>{month}</option>
-                                    ))}
-                                </select>&nbsp;&nbsp;&nbsp;
-                                <span>筛选委托单号：</span>
-                                <input
-                                    type="text"
-                                    value={filterOrderNum}
-                                    onChange={(e) => setFilterOrderNum(e.target.value)}
-                                    placeholder="输入委托单号进行搜索"
-                                />
-                                {role === 'supervisor' || role === 'leader' ? (
-                                    <button onClick={() => fetchDataForSupervisor(departmentID)}>查询单号</button>
-                                ) : (
-                                    <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
-
-                                )}&nbsp;&nbsp;&nbsp;
-                                <span>筛选人员：</span>
-                                <input
-                                    type="text"
-                                    value={filterEmployee}
-                                    onChange={(e) => setFilterEmployee(e.target.value)}
-                                    placeholder="输入员工名称进行搜索"
-                                />
-                                <button onClick={() => fetchData('tests')}>查询员工</button>
-                            </div>
-                        ) : selected === 'getCommission' ? (
-
-                            <div className="searchBar">
-                                <div>
+                                    </select>&nbsp;&nbsp;&nbsp;
+                                    <span>筛选月份：</span>
+                                    <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                                        <option value="">选择月份</option>
+                                        {months.map(({ month }) => (
+                                            <option key={month} value={month}>{month}</option>
+                                        ))}
+                                    </select>&nbsp;&nbsp;&nbsp;
                                     <span>筛选委托单号：</span>
                                     <input
                                         type="text"
@@ -1519,35 +1600,136 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         onChange={(e) => setFilterOrderNum(e.target.value)}
                                         placeholder="输入委托单号进行搜索"
                                     />
-                                    <button onClick={() => fetchData('orders')}>查询单号</button>
-                                </div>
-                                <div>
-                                    <span>开票入账请点：</span>
-                                    <button onClick={() => setShowCheckoutModal(true)} disabled={selectedOrders.length === 0}>
-                                        一键结算
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div>
-                            </div>
-                        )}
+                                    {role === 'supervisor' || role === 'leader' ? (
+                                        <button onClick={() => fetchDataForSupervisor(departmentID)}>查询单号</button>
+                                    ) : (
+                                        <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
 
-                        <Pagination
-                            activePage={activePage}
-                            itemsCountPerPage={itemsCountPerPage}
-                            totalItemsCount={totalItemsCount}
-                            onChange={handlePageChange}
-                            pageRangeDisplayed={3}
-                            innerClass="pagination"
-                            itemClass="pagination-item" // 添加样式类
-                            linkClass="pagination-link" // 添加样式类
-                            hideDisabled={true} // 隐藏不可用的分页链接
-                            firstPageText="首页"  // 首页
-                            lastPageText="尾页"   // 尾页
-                            prevPageText="上一页"
-                            nextPageText="下一页"
-                        />
+                                    )}&nbsp;&nbsp;&nbsp;
+                                    <span>筛选人员：</span>
+                                    <input
+                                        type="text"
+                                        value={filterEmployee}
+                                        onChange={(e) => setFilterEmployee(e.target.value)}
+                                        placeholder="输入员工名称进行搜索"
+                                    />
+                                    <button onClick={() => fetchData('tests')}>查询员工</button>
+                                </div>
+                            ) : selected === 'getCommission' ? (
+
+                                <div className="searchBar">
+                                    <div>
+                                        <span>筛选委托单号：</span>
+                                        <input
+                                            type="text"
+                                            value={filterOrderNum}
+                                            onChange={(e) => setFilterOrderNum(e.target.value)}
+                                            placeholder="输入委托单号进行搜索"
+                                        />
+                                        <button onClick={() => fetchData('orders')}>查询单号</button>
+                                    </div>
+                                    {role === 'admin' && (
+                                        <div>
+                                            <span>开票入账请点：</span>
+                                            <button onClick={() => setShowCheckoutModal(true)} disabled={selectedOrders.length === 0}>
+                                                一键结算
+                                            </button>
+                                        </div>
+                                    )}
+
+                                </div>
+                            ) : selected === 'getChecked' ? (
+                                <div>
+                                    <div className="searchBar">
+                                        <div>
+                                            <span>页面搜索：</span>
+                                            <input
+                                                type="text"
+                                                value={filterData}
+                                                onChange={(e) => setFilterData(e.target.value)}
+                                                placeholder="搜索"
+                                            />
+                                            <button onClick={() => fetchInvoices()}>查询</button>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            ) : selected === 'customerInfo' ? (
+                                <div className="searchBar">
+                                    <div>
+                                        <span>页面搜索：</span>
+                                        <input
+                                            type="text"
+                                            value={filterData}
+                                            onChange={(e) => setFilterData(e.target.value)}
+                                            placeholder="搜索"
+                                        />
+                                        <button onClick={() => fetchPayers()}>查询</button>
+                                    </div>
+                                </div>
+                            ) : selected === 'payerInfo' ? (
+                                <div className="searchBar">
+                                    <div>
+                                        <span>页面搜索：</span>
+                                        <input
+                                            type="text"
+                                            value={filterData}
+                                            onChange={(e) => setFilterData(e.target.value)}
+                                            placeholder="搜索"
+                                        />
+                                        <button onClick={() => fetchPayers()}>查询</button>
+                                    </div>
+                                </div>
+                            ) : selected === 'transactionHistory' ? (
+                                <div className="searchBar">
+                                    <div>
+                                        <span>付款方：</span>
+                                        <input
+                                            type="text"
+                                            value={filterPayerName}
+                                            onChange={(e) => setFilterPayerName(e.target.value)}
+                                            placeholder="输入付款方进行搜索"
+                                        />
+                                        <button onClick={() => fetchTransactions()}>查询</button>
+                                    </div>
+                                    <div>
+                                        <span>付款/导师联系人：</span>
+                                        <input
+                                            type="text"
+                                            value={filterPayerContactName}
+                                            onChange={(e) => setFilterPayerContactName(e.target.value)}
+                                            placeholder="输入付款联系人进行搜索"
+                                        />
+                                        <button onClick={() => fetchTransactions()}>查询</button>
+                                    </div>
+                                    <div>
+                                        <span>交易类型: </span>
+                                        <select value={transactionType} onChange={e => setTransactionType(e.target.value)}>
+                                            <option value="DEPOSIT">充值</option>
+                                            <option value="WITHDRAW">消费</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                </div>
+                            )}
+
+                            <Pagination
+                                activePage={activePage}
+                                itemsCountPerPage={itemsCountPerPage}
+                                totalItemsCount={totalItemsCount}
+                                onChange={handlePageChange}
+                                pageRangeDisplayed={3}
+                                innerClass="pagination"
+                                itemClass="pagination-item" // 添加样式类
+                                linkClass="pagination-link" // 添加样式类
+                                hideDisabled={true} // 隐藏不可用的分页链接
+                                firstPageText="首页"  // 首页
+                                lastPageText="尾页"   // 尾页
+                                prevPageText="上一页"
+                                nextPageText="下一页"
+                            />
                         </div>
                         <div class='content'>
                             {selected === 'getChecked' ? (
@@ -1557,6 +1739,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             {headers.map(header =>
                                                 <th key={header}>{header}</th>
                                             )}
+                                            <th className="fixed-column">操作</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1582,7 +1765,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             )}
                         </div>
 
-                        </>
+                    </>
 
 
                 )
@@ -1948,7 +2131,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     label={label}
 
                                     onChange={(e) => {
-                                        console.log("sampletype", currentItem.sample_type)
                                         const sampleTypeArray = formatSampleType(currentItem.sample_type);
                                         const newSampleType = e.target.checked
                                             ? [parseInt(key)]
@@ -2319,7 +2501,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <Form>
                         {/* 客户名称 */}
                         <Form.Group controlId="customerName">
-                            <Form.Label>样品名称</Form.Label>
+                            <Form.Label>客户名称</Form.Label>
                             <Form.Control
                                 type="text"
                                 value={currentItem.customer_name}
@@ -2366,9 +2548,138 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowCustomerModal(false)}>关闭</Button>
-                    <Button variant="primary" onClick={updateSample}>保存更改</Button>
+                    <Button variant="primary" onClick={updateCustomer}>保存更改</Button>
                 </Modal.Footer>
             </Modal>
+
+
+            {/* 编辑付款方 */}
+            <Modal show={showPayerModal} onHide={() => setShowPayerModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>编辑付款方：{currentItem.payer_name}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        {/* 付款方名称 */}
+                        <Form.Group controlId="payerName">
+                            <Form.Label></Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.payer_name}
+                                onChange={(e) => setCurrentItem({ ...currentItem, payer_name: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 地址 */}
+                        <Form.Group controlId="address">
+                            <Form.Label>地址</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.payer_address}
+                                onChange={(e) => setCurrentItem({ ...currentItem, payer_address: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 付款方电话 */}
+                        <Form.Group controlId="payerPhoneNum">
+                            <Form.Label>付款方电话</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.payer_phone_num}
+                                onChange={(e) => setCurrentItem({ ...currentItem, payer_phone_num: e.target.value })}
+                            />
+                        </Form.Group>
+
+                        {/* 开户银行 */}
+                        <Form.Group controlId="bankName">
+                            <Form.Label>开户银行</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.bank_name}
+                                onChange={(e) => setCurrentItem({ ...currentItem, bank_name: e.target.value })}
+                            />
+                        </Form.Group>
+
+                        {/* 税号 */}
+                        <Form.Group controlId="taxNumber">
+                            <Form.Label>税号</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.tax_number}
+                                onChange={(e) => setCurrentItem({ ...currentItem, tax_number: e.target.value })}
+                            />
+                        </Form.Group>
+
+                        {/* 银行账号 */}
+                        <Form.Group controlId="taxNumber">
+                            <Form.Label>银行账号</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.bank_account}
+                                onChange={(e) => setCurrentItem({ ...currentItem, bank_account: e.target.value })}
+                            />
+                        </Form.Group>
+
+
+                        {/* 联系人名称 */}
+                        <Form.Group controlId="payerContactName">
+                            <Form.Label>联系人名称</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.payer_contact_name}
+                                onChange={(e) => setCurrentItem({ ...currentItem, payer_contact_name: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 联系人手机 */}
+                        <Form.Group controlId="payerContactPhoneNum">
+                            <Form.Label>联系人手机</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.payer_contact_phone_num}
+                                onChange={(e) => setCurrentItem({ ...currentItem, payer_contact_phone_num: e.target.value })}
+                            />
+                        </Form.Group>
+                        {/* 联系人邮箱 */}
+                        <Form.Group controlId="payerContactEmail">
+                            <Form.Label>联系人邮箱</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.payer_contact_email}
+                                onChange={(e) => setCurrentItem({ ...currentItem, payer_contact_email: e.target.value })}
+                            />
+                        </Form.Group>
+
+                        <Form.Group controlId="area">
+                            <Form.Label>所在区域</Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={currentItem.area}
+                                onChange={(e) => setCurrentItem({ ...currentItem, area: e.target.value })}
+                            >
+                                {areas.map((area, idx) => (
+                                    <option key={idx} value={area}>{area}</option>
+                                ))}
+                            </Form.Control>
+                        </Form.Group>
+
+                        <Form.Group controlId="organization">
+                            <Form.Label>组织性质</Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={currentItem.organization}
+                                onChange={(e) => setCurrentItem({ ...currentItem, organization: e.target.value })}
+                            >
+                                {organizations.map((organization, idx) => (
+                                    <option key={idx} value={organization}>{organization}</option>
+                                ))}
+                            </Form.Control>
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowPayerModal(false)}>关闭</Button>
+                    <Button variant="primary" onClick={updatePayer}>保存更改</Button>
+                </Modal.Footer>
+            </Modal>
+
 
 
             <Modal show={showAlert} onHide={() => setShowAlert(false)}>

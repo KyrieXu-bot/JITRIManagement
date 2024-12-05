@@ -16,7 +16,6 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
         try {
             const response = await axios.get(`${config.API_BASE_URL}/api/files/${testItemId}`);
             setUploadedFiles(response.data.files);
-            console.log("uploadedFiles", response.data.files)
         } catch (error) {
             console.error('Error fetching uploaded files', error);
         }

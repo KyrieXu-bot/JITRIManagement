@@ -7,7 +7,10 @@ const db = require('../models/database'); // 这是一个示例路径，你需�
 // 获取所有客户
 router.get('/', async (req, res) => {
     try {
-        const transactions = await db.getTransactions();
+        let filterPayerName = req.query.filterPayerName;
+        let filterPayerContactName = req.query.filterPayerContactName;
+        let transactionType = req.query. transactionType;
+        const transactions = await db.getTransactions(filterPayerContactName, filterPayerName, transactionType);
         res.json(transactions);
     } catch (error) {
         res.status(500).send({ message: "交易流水获取失败", error: error.message });
