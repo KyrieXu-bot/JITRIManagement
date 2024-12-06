@@ -1,18 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { getAllOrders, 
-    updateOrder, 
-    deleteOrder, 
-    handleCheckout, 
-    getInvoiceDetails,
-    setFinalPrice
- } = require('../models/database'); // 确保数据库模块正确导入
+const db = require('../models/database'); // 确保数据库模块正确导入
 
 router.get('/', async (req, res) => {
     try {
         const orderNum = req.query.orderNum;
         const departmentId = req.query.departmentId;
-        const results = await getAllOrders(orderNum, departmentId);
+        const results = await db.getAllOrders(orderNum, departmentId);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch commission:', error);
@@ -23,7 +17,7 @@ router.get('/', async (req, res) => {
 router.patch('/:orderNum', async (req, res) => {
     const { orderNum } = req.params;
     try {
-        await updateOrder(orderNum, req.body);
+        await db.updateOrder(orderNum, req.body);
         res.send({ message: 'Order updated successfully' });
     } catch (error) {
         console.error('Failed to update order:', error);
@@ -33,7 +27,7 @@ router.patch('/:orderNum', async (req, res) => {
 router.delete('/:orderNum', async (req, res) => {
     try {
         const { orderNum } = req.params;
-        await deleteOrder(orderNum);
+        await db.deleteOrder(orderNum);
         res.send({ message: 'Order deleted successfully' });
     } catch (error) {
         console.error('Failed to delete order:', error);
@@ -46,7 +40,7 @@ router.post('/checkout', async (req, res) => {
     const { orderNums } = req.body; // 接收前端传过来的订单号数组
     try {
         // 调用handleCheckout函数，检查是否有订单的discounted_price为空
-        const result = await handleCheckout(orderNums);
+        const result = await db.handleCheckout(orderNums);
 
         if (result.success) {
             res.status(200).json({ success: true, message: '结算成功' });
@@ -65,7 +59,7 @@ router.get('/invoices', async (req, res) => {
     try {
         let filterData = req.query.filterData;
         // 获取所有发票详细信息
-        const invoiceDetails = await getInvoiceDetails(filterData);
+        const invoiceDetails = await db.getInvoiceDetails(filterData);
         // 用来存储按发票分组的数据
         const invoiceData = [];
         let currentInvoiceId = null;
@@ -162,7 +156,7 @@ router.post('/finalPrice', async (req, res) => {
 
     try {
         // 调用数据库函数设置开票价
-        const result = await setFinalPrice(invoiceId, finalPrice);
+        const result = await db.setFinalPrice(invoiceId, finalPrice);
 
         if (result.affectedRows > 0) {
             // 如果更新成功，返回成功响应
@@ -180,30 +174,58 @@ router.post('/finalPrice', async (req, res) => {
 
 // 入账的路由
 router.post('/account', async (req, res) => {
-    const { invoiceId, invoiceNumber, orderStatus, amount, accountTime} = req.body;
-
-    console.log(invoiceId);
-    console.log(invoiceNumber);
-    console.log(orderStatus);
-    console.log(amount);
-    console.log(accountTime);
-
-    return;
-
+    const { invoiceId, invoiceNumber, orderStatus, amount, description, accountTime} = req.body;
     try {
-        // 调用数据库函数设置开票价
-        const result = await account(invoiceId, finalPrice);
+        // 1. 更新发票表的发票号和更新时间
+        await db.updateInvoice(invoiceId, invoiceNumber, accountTime);
 
-        if (result.affectedRows > 0) {
-            // 如果更新成功，返回成功响应
-            return res.status(200).json({ message: '入账成功' });
+        // 2. 获取与发票关联的所有订单
+        const invoiceOrders = await db.getInvoiceOrders(invoiceId);
+
+        if (invoiceOrders.length > 0) {
+
+            // 更新订单表的状态为 '2'（已入账）
+            await db.updateOrderStatus(invoiceOrders, orderStatus);
+
+
+            // 3. 扣款逻辑
+            // 假设 orders[0] 是与支付方相关的第一条订单
+            const paymentIdResult = await db.getPaymentIdByOrderNum(invoiceOrders[0]);
+
+
+            const paymentId = paymentIdResult[0]?.payment_id;
+
+            if (!paymentId) {
+                return res.status(400).json({ message: '未找到支付方信息' });
+            }
+
+            // 获取付款方账户余额
+            const paymentResult = await db.getPaymentBalance(paymentId);
+
+            const balance = paymentResult[0]?.balance;
+
+
+            if (parseFloat(balance) < parseFloat(amount)) {
+                console.log("能不？",balance - amount)
+                return res.status(400).json({ message: `余额不足，无法入账。\n当前余额:${balance}` });
+            }
+
+            // 扣款，更新付款方余额
+            const newBalance = balance - amount;
+            await db.updatePaymentBalance(paymentId, newBalance);
+
+            // 4. 在交易表中插入一条交易记录
+            await db.insertTransaction(paymentId, amount, newBalance, description);
+
+            // 返回成功响应
+            res.status(200).json({ message: '入账成功' });
         } else {
-            // 如果没有找到该订单或其他问题，返回失败响应
-            return res.status(404).json({ message: '入账失败失败' });
+            return res.status(400).json({ message: '未找到关联的订单' });
         }
+
     } catch (error) {
-        console.error('入账时发生错误:', error);
-        return res.status(500).json({ message: '服务器错误，未能成功入账' });
+        console.error('入账失败:', error);
+        res.status(500).json({ message: '服务器错误，未能成功入账' });
     }
 });
 

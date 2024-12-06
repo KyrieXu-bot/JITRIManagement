@@ -150,7 +150,7 @@ router.patch('/add', async (req, res) => {
     const addedFields = req.body;
     try {
         // 调用 db 方法进行数据库更新
-        const [result] = await db.addTestItem(addedFields);
+        const result = await db.addTestItem(addedFields);
         if (result.affectedRows > 0) {
             res.json({ success: true, message: '检测项目新增成功' });
         } else {

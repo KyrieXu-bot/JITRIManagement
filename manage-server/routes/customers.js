@@ -52,9 +52,6 @@ router.patch('/:customer_id', async (req, res) => {
       contact_name,
       contact_phone_num,
       contact_email,
-      category,
-      area,
-      organization
     };
   
     try {
@@ -74,8 +71,9 @@ router.patch('/:customer_id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         const result = await db.deleteCustomer(req.params.id);
+
         if (result) {
-            res.send({ message: "Customer deleted successfully" });
+            res.send(result);
         } else {
             res.status(404).send({ message: "Customer not found" });
         }

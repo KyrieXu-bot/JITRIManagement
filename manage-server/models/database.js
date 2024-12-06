@@ -27,17 +27,20 @@ async function getAllOrders(orderNum, departmentId) {
             o.service_type,
             o.order_status,
             SUM(t.discounted_price) AS total_discounted_price,
+            a.account,
             u.name
         FROM orders o
         JOIN customers c ON o.customer_id = c.customer_id
+        AND o.customer_id IS NOT NULL
         JOIN payments p ON o.payment_id = p.payment_id
+        AND o.payment_id IS NOT NULL
         JOIN test_items t ON o.order_num = t.order_num
         JOIN samples s ON o.order_num = s.order_num
         LEFT JOIN assignments a ON t.test_item_id = a.test_item_id
         LEFT JOIN users u ON a.account = u.account
     `;
     const params = [];
-    query += `WHERE c.category = '1' AND p.category = '1' `;
+    query += `WHERE c.category = '1' AND p.category = '1'`;
     if (orderNum !== undefined && orderNum !== '') {
         query += ' AND o.order_num LIKE ?';
         params.push(`%${orderNum}%`);
@@ -49,7 +52,8 @@ async function getAllOrders(orderNum, departmentId) {
     
     query += ` GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
-                p.payer_address, o.service_type, o.order_status, u.name`;
+                p.payer_address, o.service_type, o.order_status, a.account, u.name`;
+
     const [results] = await db.query(query, params);
     return results;
 }
@@ -842,6 +846,48 @@ async function deleteFilesByProjectId(projectId) {
     }
 };
 
+// 删除委托方信息
+async function deleteCustomer(customerId) {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const updateQuery = `UPDATE orders SET customer_id = NULL WHERE customer_id = ?`;
+        await connection.query(updateQuery, [customerId]);
+        const query = `DELETE FROM customers WHERE customer_id = ?`;
+        await connection.query(query, [customerId]);
+        // 提交事务
+        await connection.commit();
+        return { success: true, message: '委托方信息已成功删除并处理关联订单' };
+    } catch (error) {
+        await connection.rollback(); // 如果有错误，回滚事务
+        throw error; // 将错误抛出以便捕获和处理
+    } finally {
+        connection.release();
+    }
+};
+
+// 删除委托方信息
+async function deletePayer(paymentId) {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const updateQuery = `UPDATE orders SET payment_id = NULL WHERE payment_id = ?`;
+        await connection.query(updateQuery, [paymentId]);
+        const query = `DELETE FROM payments WHERE payment_id = ?`;
+        await connection.query(query, [paymentId]);
+        // 提交事务
+        await connection.commit();
+        return { success: true, message: '委托方信息已成功删除并处理关联订单' };
+
+    } catch (error) {
+        await connection.rollback(); // 如果有错误，回滚事务
+        throw error; // 将错误抛出以便捕获和处理
+    } finally {
+        connection.release();
+    }
+};
+
+
 // 更新样品信息
 async function updateSamples(orderNum, updatedFields) {
     try {
@@ -872,13 +918,22 @@ async function updateSamples(orderNum, updatedFields) {
     }
 }
 
-// 更新样品信息
+// 添加检测信息
 async function addTestItem(addedFields) {
+    const connection = await db.getConnection(); // 假设你使用的是连接池
     try {
-
+        await connection.beginTransaction(); // 开始事务
+        // 过滤掉不在 test_items 表中的字段
+        const testItemFields = ['order_num', 'original_no', 'test_item', 'test_method', 'size', 'quantity', 'deadline', 'note', 'department_id', 'status']; // test_items 表中的字段
+        const filteredFields = {};
+        for (let field of testItemFields) {
+            if (addedFields[field] !== undefined) {
+                filteredFields[field] = addedFields[field];
+            }
+        }
         // 构造动态 SQL 查询
-        const fields = Object.keys(addedFields);
-        const values = Object.values(addedFields);
+        const fields = Object.keys(filteredFields);
+        const values = Object.values(filteredFields);
         fields.push('create_time');  // 创建时间字段
         values.push(new Date());  // 获取当前时间并添加到值列表中
 
@@ -891,12 +946,24 @@ async function addTestItem(addedFields) {
         `;
 
         // 执行查询
-        const result = await db.query(query, values);
-
+        const [result] = await db.query(query, values);
+        const testItemId = result.insertId;
+        // 将 test_item_id 和 account 插入到 assignments 表中
+        const insertAssignmentQuery = `
+            INSERT INTO assignments (test_item_id, account)
+            VALUES (?, ?);
+        `;
+        const account = addedFields.account; // 假设 `account` 存在于 addedFields 中
+        await connection.query(insertAssignmentQuery, [testItemId, account]);
+        await connection.commit();
+        console.log(result)
         return result; // 返回执行结果
     } catch (error) {
-        console.error('Error updating test item:', error);
+        await connection.rollback(); // 出错时回滚事务
+        console.error('Error updating test item and assignment:', error);
         throw error;
+    } finally {
+        connection.release(); // 释放连接
     }
 }
 
@@ -1194,6 +1261,9 @@ async function getInvoiceDetails(filterData) {
     // 如果 filterData 为空，只筛选 sales 角色
     let whereSql = `
         WHERE u.role = 'sales'
+        AND o.customer_id IS NOT NULL
+        AND p.payment_id IS NOT NULL
+        AND o.order_status = '1'
     `;
     let queryParams = [];
 
@@ -1284,8 +1354,9 @@ async function setFinalPrice(invoiceId, finalPrice) {
 
 // 执行更新操作的函数
 const updateCustomer = (customerData) => {
-    const { customer_id, customer_name, customer_address, contact_name, contact_phone_num, contact_email, category, area, organization } = customerData;
+    const { customer_id, customer_name, customer_address, contact_name, contact_phone_num, contact_email} = customerData;
   
+    console.log(customerData)
     const sql = `
       UPDATE customers
       SET 
@@ -1293,10 +1364,7 @@ const updateCustomer = (customerData) => {
         customer_address = ?, 
         contact_name = ?, 
         contact_phone_num = ?, 
-        contact_email = ?, 
-        category = ?, 
-        area = ?, 
-        organization = ?
+        contact_email = ?
       WHERE customer_id = ?
     `;
   
@@ -1305,9 +1373,6 @@ const updateCustomer = (customerData) => {
                     contact_name || null, 
                     contact_phone_num || null, 
                     contact_email || null, 
-                    category || null, 
-                    area || null, 
-                    organization || null, 
                     customer_id];
     return db.execute(sql, values);
   };
@@ -1349,6 +1414,73 @@ const updateCustomer = (customerData) => {
   };
 
 
+
+  // 更新发票表
+const updateInvoice = async (invoiceId, invoiceNumber, accountTime) => {
+    return db.query(`
+        UPDATE invoices 
+        SET invoice_number = ?, updated_at = ?
+        WHERE invoice_id = ?
+    `, [invoiceNumber, accountTime, invoiceId]);
+};
+
+// 获取与发票关联的订单
+const getInvoiceOrders = async (invoiceId) => {
+    // 查询数据库
+    const result = await db.query(`
+        SELECT order_num FROM invoice_orders WHERE invoice_id = ?
+    `, [invoiceId]);
+
+    // result[0]是包含数据的部分，移除无效的元数据部分
+    const validInvoiceOrders = result[0] || [];  // 获取实际数据（第一个元素）
+
+    // 返回所有有效的订单号
+    return validInvoiceOrders.map(row => row.order_num);  // 提取出所有的 order_num
+};
+
+// 更新订单状态
+const updateOrderStatus = async (orderNums, orderStatus) => {
+    return db.query(`
+        UPDATE orders 
+        SET order_status = ?
+        WHERE order_num IN (?)
+    `, [orderStatus, orderNums]);
+};
+
+// 获取付款方的余额
+const getPaymentBalance = async (paymentId) => {
+    const [result] = await db.query(`
+        SELECT balance FROM payments WHERE payment_id = ?
+    `, [paymentId]);
+    return result;
+};
+
+// 更新付款方余额
+const updatePaymentBalance = async (paymentId, newBalance) => {
+    return db.query(`
+        UPDATE payments 
+        SET balance = ? 
+        WHERE payment_id = ?
+    `, [newBalance, paymentId]);
+};
+
+// 插入交易记录
+const insertTransaction = async (paymentId, amount, newBalance, description) => {
+    return db.query(`
+        INSERT INTO transactions (payment_id, transaction_type, amount, balance_after_transaction, transaction_time, description) 
+        VALUES (?, 'WITHDRAWAL', ?, ?, NOW(), ?)
+    `, [paymentId, amount, newBalance, description]);
+};
+
+// 获取订单的支付方ID
+const getPaymentIdByOrderNum = async (orderNum) => {
+    const [result] = await db.query(`
+        SELECT payment_id FROM orders WHERE order_num = ? LIMIT 1
+    `, [orderNum]);
+    console.log(result);
+    return result;
+};
+
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -1376,6 +1508,8 @@ module.exports = {
     updateDiscountedPrice,
     updateTestItem,
     deleteTestItem,
+    deleteCustomer,
+    deletePayer,
     saveFilesToDatabase,
     getFilesByProjectId,
     getFilesByTestItemId,
@@ -1390,5 +1524,12 @@ module.exports = {
     setFinalPrice,
     getPayers,
     updateCustomer,
-    updatePayer
+    updatePayer,
+    updateInvoice,
+    getInvoiceOrders,
+    updateOrderStatus,
+    getPaymentBalance,
+    updatePaymentBalance,
+    insertTransaction,
+    getPaymentIdByOrderNum
 };

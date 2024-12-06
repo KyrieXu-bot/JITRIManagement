@@ -36,6 +36,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [filterEmployee, setFilterEmployee] = useState('');
     const [filterOrderNum, setFilterOrderNum] = useState('');
     const [invoiceNumber, setInvoiceNumber] = useState('');
+    const [description, setDescription] = useState('');
 
     const [filterData, setFilterData] = useState('');
     const [activePage, setActivePage] = useState(1);
@@ -50,6 +51,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [filterPayerContactName, setFilterPayerContactName] = useState('');
     const [filterPayerName, setFilterPayerName] = useState('');
 
+    const [showAccountSuccessToast, setShowAccountSuccessToast] = useState(false); // 控制Toast显示的状态
 
     //充值数据
     const [depositData, setDepositData] = useState({
@@ -107,7 +109,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         quantity: '',
         deadline: '',
         note: '',
-        department_id: ''
+        department_id: '',
+        name:'',
+        account:''
 
     });
 
@@ -552,6 +556,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             note: '',
             department_id: '',
             status: '0',
+            name: item.name,
+            account:item.account
         });
         setShowAddModal(true);
     };
@@ -781,6 +787,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return;  // 用户点击取消后，不执行任何操作
         }
         try {
+            console.log(addData)
             const response = await axios.patch(`${config.API_BASE_URL}/api/tests/add`, addData);
             if (response.data.success) {
                 // 成功提示
@@ -892,6 +899,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
                 setShowDeleteConfirm(false);
                 fetchData("orders");
+            } else if (selected === 'customerInfo') {
+                await axios.delete(`${config.API_BASE_URL}/api/customers/${currentItem.identifier}`);
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                setShowDeleteConfirm(false);
+                fetchCustomers();
+            } else if (selected === 'payerInfo') {
+                await axios.delete(`${config.API_BASE_URL}/api/payers/${currentItem.identifier}`);
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
+                setShowDeleteConfirm(false);
+                fetchPayers();
             }
         } catch (error) {
             console.error('Error deleting order:', error);
@@ -1042,24 +1061,44 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     //入账操作
     const submitAccount = async (invoiceId) => {
         try {
-            if (invoiceNumber) {
+            if (!invoiceNumber) {
+                setAlertMessage("请输入发票号！");
+                setShowAlert(true);
+            } else if (!currentItem.order_details[0].final_price){
+                setAlertMessage("最终开票价格未填写！");
+                setShowAlert(true);
+            } else if (accountTime.length === 0){
+                setAlertMessage("入账时间未填写！");
+                setShowAlert(true);
+            } else {
+                if (!window.confirm('请再次确认此【入账】操作！')) {
+                    return;  // 用户点击取消后，不执行任何操作
+                }
                 await axios.post(`${config.API_BASE_URL}/api/orders/account`, {
                     invoiceId: invoiceId,
                     invoiceNumber: invoiceNumber,
                     orderStatus: '2',
                     amount: currentItem.order_details[0].final_price,
+                    description: description,
                     accountTime:accountTime
                 })
                 fetchInvoices();
-                setShowSuccessToast(true); // Show success message
+                setShowAccountSuccessToast(true); // Show success message
                 setTimeout(() => setShowSuccessToast(false), 3000);
                 setShowAccountModal(false);
             }
 
         } catch (error) {
-            console.error('入账失败:', error);
-            setError('未能成功入账');
-            setTimeout(() => setError(''), 3000);
+            // 捕获错误并展示错误消息
+            if (error.response && error.response.data && error.response.data.message) {
+                setAlertMessage(error.response.data.message);  // 设置错误消息
+                setShowAlert(true);  // 显示警告框
+            } else {
+                console.error('入账失败:', error);
+                setAlertMessage('未能成功入账');
+                setShowAlert(true);
+            }
+            setTimeout(() => setAlertMessage(''), 5000);  // 5秒后清除警告消息
         }
     }
 
@@ -1533,6 +1572,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{highlightText(item.contact_email, filterData)}</td>
                             <td className='fixed-column'>
                                 <Button onClick={() => handleEditCustomer(item)}>修改</Button>
+                                <Button variant="danger" onClick={() => handleDelete(item.customer_id)}>删除</Button>
+
 
                             </td>
                         </tr>
@@ -1557,6 +1598,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td className='fixed-column'>
                                 <Button variant="success" onClick={() => handleDeposit(item)}>充值</Button>
                                 <Button onClick={() => handleEditPayer(item)}>修改</Button>
+                                <Button variant="danger" onClick={() => handleDelete(item.payment_id)}>删除</Button>
+
 
                             </td>
                         </tr>
@@ -1611,7 +1654,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             : selected === 'transactionHistory' ? '交易流水'
                                                 : selected === 'getChecked' ? '结算账单明细'
                                                     : '首页'}</h2>
-                            {selected === 'handleTests' ? (
+                            {selected === 'handleTests' || selected === 'getTests'? (
                                 <div className="searchBar">
                                     <span>筛选项目状态：</span>
                                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
@@ -1840,6 +1883,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             </Toast>
 
 
+            {/* 入账成功的Toast */}
+            <Toast onClose={() => setShowAccountSuccessToast(false)} show={showAccountSuccessToast} delay={8000} autohide position="top-end" style={{ position: 'absolute', top: 20, right: 20 }}>
+                <Toast.Header>
+                    <strong className="me-auto">入账成功</strong>
+                    <small>刚刚</small>
+                </Toast.Header>
+                <Toast.Body>
+                    <div>
+                        <h1>操作成功！ </h1>
+                    </div>
+
+                </Toast.Body>
+            </Toast>
 
             {/* Edit Modal */}
             <Modal show={showModal} onHide={() => setShowModal(false)}>
@@ -2077,7 +2133,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 onChange={(e) => setAddData({ ...addData, note: e.target.value })}
                             />
                         </Form.Group>
-
                         <Form.Group controlId="formDepartmentId">
                             <Form.Label>所属部门<span style={{ color: 'red' }}>*</span></Form.Label>
                             <Form.Control
@@ -2090,6 +2145,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     <option key={dept.department_id} value={dept.department_id}>{dept.department_name}</option>
                                 ))}
                             </Form.Control>
+                            <Form.Group controlId="formName">
+                            <Form.Label>备注</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={addData.name}
+                                disabled
+                            />
+                        </Form.Group>
                         </Form.Group>
 
                     </Form>
@@ -2191,7 +2254,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <Modal.Header closeButton>
                     <Modal.Title>确认删除</Modal.Title>
                 </Modal.Header>
-                <Modal.Body>你确定要删除这条检测项目吗？</Modal.Body>
+                <Modal.Body>你确定要删除这条数据吗？</Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>取消</Button>
                     <Button variant="danger" onClick={deleteItem}>确认删除</Button>
@@ -2721,7 +2784,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
             <Modal show={showAlert} onHide={() => setShowAlert(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>分配状态</Modal.Title>
+                    <Modal.Title>错误</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>{alertMessage}</Modal.Body>
                 <Modal.Footer>
@@ -2806,6 +2869,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             </p>
 
                         </Form.Group>
+
+                        <Form.Group>
+                            <Form.Label>请输入备注描述(选填)</Form.Label>
+                            <Form.Control
+                                type="textarea"
+                                onChange={(e) => setDescription(e.target.value)}>
+                            </Form.Control>
+                        </Form.Group>
+
                         {/* 入账时间 */}
                         <Form.Group controlId="accountTime">
                             <Form.Label>入账时间</Form.Label>
