@@ -11,7 +11,7 @@ async function findUserByAccount(account) {
     return results[0] || null;
 }
 
-async function getAllOrders(orderNum, departmentId) {
+async function getAllOrders(orderNum, departmentId, selectedOrders) {
     let query = `
         SELECT 
             o.order_num, 
@@ -40,7 +40,7 @@ async function getAllOrders(orderNum, departmentId) {
         LEFT JOIN users u ON a.account = u.account
     `;
     const params = [];
-    query += `WHERE c.category = '1' AND p.category = '1'`;
+    query += `WHERE c.category = '1' AND p.category = '1' and u.role = 'sales'`;
     if (orderNum !== undefined && orderNum !== '') {
         query += ' AND o.order_num LIKE ?';
         params.push(`%${orderNum}%`);
@@ -48,6 +48,11 @@ async function getAllOrders(orderNum, departmentId) {
     if (departmentId) {
         query += 'AND t.department_id = ?';
         params.push(departmentId);
+    }
+
+    if (selectedOrders && selectedOrders.length > 0) {
+        query += 'AND o.order_num in (?)';
+        params.push(selectedOrders);
     }
     
     query += ` GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
@@ -78,6 +83,37 @@ async function updateOrder(orderNum, updateData) {
     await db.query(sql, values);
 }
 
+/**
+ * 根据 account 查找所有委托单信息
+ * @param {string} account 账户名
+ * @returns {Promise<Array>} 返回一个包含订单信息的数组
+ */
+async function getSalesOrders(orderNum, account) {
+    try {
+        let query = `
+            SELECT DISTINCT 
+                o.order_num, o.customer_id, o.create_time, o.service_type, o.sample_shipping_address, 
+                o.payment_id, o.total_price, o.vat_type, o.order_status,
+                c.customer_name, c.customer_address, c.contact_name, c.contact_phone_num
+            FROM assignments a
+            JOIN test_items t ON a.test_item_id = t.test_item_id
+            JOIN orders o ON t.order_num = o.order_num
+            JOIN customers c ON c.customer_id = o.customer_id
+            WHERE a.account = ?
+        `
+        const params = [account];
+
+        if (orderNum !== undefined && orderNum !== '') {
+            query += ' AND o.order_num LIKE ?';
+            params.push(`%${orderNum}%`);
+        }
+        const [results] = await db.query(query, params);
+        return results; // 返回查询结果
+    } catch (error) {
+        console.error('Error fetching sales orders:', error);
+        throw new Error('Failed to fetch sales orders');
+    }
+}
 async function deleteOrder(orderNum) {
     const connection = await db.getConnection();
     try {
@@ -710,7 +746,30 @@ async function getAllMonths() {
         const [results] = await db.query(query);
         return results;
     } catch (error) {
-        console.error('Failed to fetch employee work stats:', error);
+        console.error('获取检测项目月份失败:', error);
+        throw error;
+    }
+}
+
+
+// 获取所有月份
+async function getAllTransMonths() {
+    const query = `
+        SELECT DISTINCT 
+            DATE_FORMAT(transaction_time, '%Y-%m') as month
+        FROM 
+            transactions
+        WHERE 
+            transaction_time is not null
+        ORDER BY 
+            month DESC;
+
+    `;
+    try {
+        const [results] = await db.query(query);
+        return results;
+    } catch (error) {
+        console.error('获取交易月份失败:', error);
         throw error;
     }
 }
@@ -1097,7 +1156,7 @@ async function getPayers(filterData) {
         connection.release();
     }
 }
-async function getTransactions(filterPayerContactName, filterPayerName, transactionType) {
+async function getTransactions(filterPayerContactName, filterPayerName, transactionType, month) {
     const connection = await db.getConnection();
     try {
         let query = `
@@ -1132,6 +1191,12 @@ async function getTransactions(filterPayerContactName, filterPayerName, transact
         if (transactionType) {
             query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.transaction_type = ?';
             params.push(transactionType);
+            whereClauseAdded = true;
+        }
+
+        if (month !== undefined && month !== '') {
+            query += (whereClauseAdded ? ' AND' : ' WHERE') + ` DATE_FORMAT(t.transaction_time, '%Y-%m') = ?`;
+            params.push(month);
             whereClauseAdded = true;
         }
         const [rows] = await connection.query(query, params);
@@ -1531,5 +1596,7 @@ module.exports = {
     getPaymentBalance,
     updatePaymentBalance,
     insertTransaction,
-    getPaymentIdByOrderNum
+    getPaymentIdByOrderNum,
+    getAllTransMonths,
+    getSalesOrders
 };

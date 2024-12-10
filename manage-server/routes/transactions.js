@@ -10,7 +10,8 @@ router.get('/', async (req, res) => {
         let filterPayerName = req.query.filterPayerName;
         let filterPayerContactName = req.query.filterPayerContactName;
         let transactionType = req.query. transactionType;
-        const transactions = await db.getTransactions(filterPayerContactName, filterPayerName, transactionType);
+        let month = req.query.month;
+        const transactions = await db.getTransactions(filterPayerContactName, filterPayerName, transactionType, month);
         res.json(transactions);
     } catch (error) {
         res.status(500).send({ message: "交易流水获取失败", error: error.message });

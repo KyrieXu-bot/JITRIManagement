@@ -7,6 +7,7 @@ import config from '../config/config'; // 确保路径正确
 import Pagination from 'react-js-pagination';
 import DataStatistics from '../components/DataStatistics';
 import EquipmentTimeline from '../components/EquipmentTimeline';
+import ExportExcelButton from '../components/ExportExcelButton';
 import HomePage from '../components/HomePage';
 
 import FileUpload from '../components/FileUpload'; // 确保路径正确
@@ -110,8 +111,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         deadline: '',
         note: '',
         department_id: '',
-        name:'',
-        account:''
+        name: '',
+        account: ''
 
     });
 
@@ -155,7 +156,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const transactionTypeLabels = {
         'DEPOSIT': '充值',
-        'WITHDRAW': '消费'
+        'WITHDRAWAL': '消费'
     }
     // 静态部门数据
     const departments = [
@@ -185,6 +186,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (departmentID) {
                 params.append('departmentId', departmentID);
             }
+            if (selectedOrders) {
+                params.append('selectedOrders', selectedOrders)
+            }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
             const sortedData = response.data.sort((a, b) => {
                 const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
@@ -197,7 +201,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [setError, filterStatus, selectedMonth, filterEmployee, filterOrderNum, departmentID]);
+    }, [setError, filterStatus, selectedMonth, filterEmployee, filterOrderNum, departmentID, selectedOrders]);
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
@@ -272,6 +276,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             console.error('拉取发票信息错误:', error);
         }
     }, [filterData]);
+
+
+    //拉取发票信息
+    const fetchOrdersForSales = useCallback(async () => {
+        try {
+            const params = new URLSearchParams();
+            if (filterOrderNum) params.append('orderNum', filterOrderNum);
+            params.append('account', account);
+            const response = await axios.get(`${config.API_BASE_URL}/api/orders/sales?${params}`);
+            const results = response.data;
+            setData(results);
+        } catch (error) {
+            console.error('拉取业务委托单错误:', error);
+        }
+    }, [filterOrderNum, account]);
 
 
     // 拉取可分配的用户列表
@@ -401,6 +420,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, []);
 
+    const fetchTransMonths = useCallback(async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/months/trans`);
+            setMonths(response.data);
+        } catch (error) {
+            console.error('Error fetching months:', error);
+        }
+    }, []);
 
     const fetchCustomers = useCallback(async () => {
         try {
@@ -436,18 +463,27 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (transactionType) {
                 params.append('transactionType', transactionType); // 添加员工名称到请求参数
             }
+            if (selectedMonth) {
+                params.append('month', selectedMonth); // 添加员工名称到请求参数
+            }
             const response = await axios.get(`${config.API_BASE_URL}/api/transactions?${params}`);
             setData(response.data);
         } catch (error) {
             console.error('Error fetching transaction:', error);
         }
-    }, [filterPayerName, filterPayerContactName, transactionType]);
+    }, [filterPayerName, filterPayerContactName, transactionType, selectedMonth]);
 
 
     useEffect(() => {
-        if ((role === 'employee' || role === 'sales')) {
-            fetchDataForEmployee(account);
+        if ((role === 'employee')) {
+            fetchMonths();
+            if(selected === 'handleTests'){
+                fetchDataForEmployee(account);
+            }else if(selected === 'getCommission'){
+                fetchData('orders');
+            }
         } else if (role === 'supervisor' || role === 'leader') {
+            fetchMonths();
             if (selected === 'dataStatistics') {
                 fetchStatistics()
             } else if (selected === 'timeline') {
@@ -457,6 +493,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             } else {
                 fetchDataForSupervisor(departmentID);
             }
+        } else if (role === 'sales'){
+            fetchMonths();
+            if(selected === 'handleTests'){
+                fetchDataForEmployee(account);
+            }else if(selected === 'getCommission'){
+                fetchOrdersForSales();
+            }
         } else {
             // 管理员情况
             if (selected === 'getCommission') {
@@ -465,12 +508,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchData('samples');
             } else if (selected === 'getTests') {
                 fetchData('tests');
+                fetchMonths();
             } else if (selected === 'customerInfo') {
                 fetchCustomers();
             } else if (selected === 'payerInfo') {
                 fetchPayers();
             } else if (selected === 'transactionHistory') {
                 fetchTransactions();
+                fetchTransMonths();
             } else if (selected === 'getChecked') {
                 fetchInvoices();
             }
@@ -479,7 +524,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             fetchAssignableUsers();
         }
         fetchEquipments();
-        fetchMonths();
         const savedPage = localStorage.getItem('currentPage');
         if (savedPage) {
             setActivePage(parseInt(savedPage, 10)); // 从localStorage中读取页码，并确保转换为整数
@@ -499,10 +543,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchStatistics,
         fetchTimeline,
         fetchMonths,
+        fetchTransMonths,
         fetchCustomers,
         fetchTransactions,
         fetchInvoices,
-        fetchPayers
+        fetchPayers,
+        fetchOrdersForSales
     ]);
 
 
@@ -557,7 +603,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             department_id: '',
             status: '0',
             name: item.name,
-            account:item.account
+            account: item.account
         });
         setShowAddModal(true);
     };
@@ -787,7 +833,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return;  // 用户点击取消后，不执行任何操作
         }
         try {
-            console.log(addData)
             const response = await axios.patch(`${config.API_BASE_URL}/api/tests/add`, addData);
             if (response.data.success) {
                 // 成功提示
@@ -1064,10 +1109,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (!invoiceNumber) {
                 setAlertMessage("请输入发票号！");
                 setShowAlert(true);
-            } else if (!currentItem.order_details[0].final_price){
+            } else if (!currentItem.order_details[0].final_price) {
                 setAlertMessage("最终开票价格未填写！");
                 setShowAlert(true);
-            } else if (accountTime.length === 0){
+            } else if (accountTime.length === 0) {
                 setAlertMessage("入账时间未填写！");
                 setShowAlert(true);
             } else {
@@ -1080,7 +1125,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     orderStatus: '2',
                     amount: currentItem.order_details[0].final_price,
                     description: description,
-                    accountTime:accountTime
+                    accountTime: accountTime
                 })
                 fetchInvoices();
                 setShowAccountSuccessToast(true); // Show success message
@@ -1188,11 +1233,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 高亮匹配部分
     const highlightText = (text, searchText) => {
+        console.log("text", text)
         if (!searchText) return text;  // 如果没有输入查询条件，直接返回原始文本
 
         if (text) {
             const regex = new RegExp(`(${searchText})`, 'gi'); // 使用正则表达式进行不区分大小写的匹配
-            const parts = text.split(regex);  // 根据匹配结果拆分字符串
+            const parts = text.toString().split(regex);  // 根据匹配结果拆分字符串
 
             // 将匹配的部分包裹在 <span> 标签中，添加高亮样式
             return parts.map((part, index) =>
@@ -1253,10 +1299,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.test_items}</td>
                             <td>{item.material}</td>
                             <td>{serviceTypeLabels[item.service_type]}</td>
-                            <td className='fixed-column'>
-                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-
-                            </td>
                         </tr>
                     ));
                     break;
@@ -1374,34 +1416,58 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </tr>
             ));
             return { headers, rows };
-        } else if (role === 'sales' && selected === 'handleTests') {
-            // 为员工定制的视图逻辑
-            headers = ["委托单号", "样品原号", "检测项目", "数量", "机时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见"];
-            rows = currentItems.map((item, index) => (
-                <tr key={index}>
-                    <td>{item.order_num}</td>
-                    <td>{item.original_no}</td>
-                    <td>{item.test_item}</td>
-                    <td>{item.quantity}</td>
-                    <td>{item.machine_hours}</td>
-                    <td>{item.listed_price}</td>
-                    <td>{item.discounted_price}</td>
-                    <td>{statusLabels[item.status]}</td>
-                    <td>
-                        {item.team_names ? `${item.team_names}` : '暂未分配'}
-                    </td>
-                    <td>
-                        {item.sales_names ? `${item.sales_names}` : '暂未分配'}
-                    </td>
-                    <td>{item.check_note}</td>
-                    <td className='fixed-column'>
-                        <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                        {item.status !== '3' && (
-                            <Button onClick={() => handleDiscount(item.test_item_id)}>设置优惠价</Button>
-                        )}
-                    </td>
-                </tr>
-            ));
+        } else if (role === 'sales') {
+            switch (selected) {
+                case 'handleTests':
+                    headers = ["委托单号", "样品原号", "检测项目", "数量", "机时", "标准价格", "优惠价格", "状态", "检测人员", "业务人员", "审批意见"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.order_num}</td>
+                            <td>{item.original_no}</td>
+                            <td>{item.test_item}</td>
+                            <td>{item.quantity}</td>
+                            <td>{item.machine_hours}</td>
+                            <td>{item.listed_price}</td>
+                            <td>{item.discounted_price}</td>
+                            <td>{statusLabels[item.status]}</td>
+                            <td>
+                                {item.team_names ? `${item.team_names}` : '暂未分配'}
+                            </td>
+                            <td>
+                                {item.sales_names ? `${item.sales_names}` : '暂未分配'}
+                            </td>
+                            <td>{item.check_note}</td>
+                            <td className='fixed-column'>
+                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+                                {item.status !== '3' && (
+                                    <Button onClick={() => handleDiscount(item.test_item_id)}>设置优惠价</Button>
+                                )}
+                            </td>
+                        </tr>
+                    ));
+                    break;
+                case 'getCommission':
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "交易总价", "服务加急","寄送地址", "创建时间"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.order_num}</td>
+                            <td>{item.customer_name}</td>
+                            <td>{item.contact_name}</td>
+                            <td>{item.contact_phone_num}</td>
+                            <td>{orderStatusLabels[item.order_status]}</td>
+                            <td>{item.total_discounted_price}</td>
+                            <td>{serviceTypeLabels[item.service_type]}</td>
+                            <td>{item.sample_shipping_address}</td>
+                            <td>{new Date(item.create_time).toLocaleString()}</td>
+                        </tr>
+                    ));
+                    break;
+                default:
+                    headers = ["暂无数据"];
+                    rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
+                    break;
+            }
+
             return { headers, rows };
         }
         else {
@@ -1500,7 +1566,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             <td rowSpan={invoice.order_details.length} className='fixed-column'>
                                                 <div className="action-btns">
                                                     <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button>
-                                                    <Button>导出</Button>
+                                                    <ExportExcelButton data={data} />
                                                     <Button onClick={() => handleAccount(invoice)}>入账</Button>
 
                                                 </div>
@@ -1562,9 +1628,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'customerInfo':
-                    headers = ["客户/单位名称", "地址", "联系人名称", "联系人手机号", "邮箱"];
+                    headers = ["ID", "客户/单位名称", "地址", "联系人名称", "联系人手机号", "邮箱"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
+                            <td>{highlightText(item.customer_id, filterData)}</td>
                             <td>{highlightText(item.customer_name, filterData)}</td>
                             <td>{highlightText(item.customer_address, filterData)}</td>
                             <td>{highlightText(item.contact_name, filterData)}</td>
@@ -1581,9 +1648,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     break;
 
                 case 'payerInfo':
-                    headers = ["付款方", "地址", "联系人/导师名称", "联系人手机号", "邮箱", "银行名称", "税号", "银行账号", "区域", "单位性质", "当前余额"];
+                    headers = ["ID", "付款方", "地址", "联系人/导师名称", "联系人手机号", "邮箱", "银行名称", "税号", "银行账号", "区域", "单位性质", "当前余额"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
+                            <td>{highlightText(item.payment_id, filterData)}</td>
                             <td>{highlightText(item.payer_name, filterData)}</td>
                             <td>{highlightText(item.payer_address, filterData)}</td>
                             <td>{highlightText(item.payer_contact_name, filterData)}</td>
@@ -1647,14 +1715,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 ) : (
                     <>
                         <div className='content-head'>
-                            <h2>{selected === 'getCommission' ? '详细信息'
+                            <h2>{selected === 'getCommission' ? '委托单信息'
                                 : selected === 'getSamples' ? '样品管理'
                                     : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
                                         : selected === 'customerInfo' ? '客户信息'
                                             : selected === 'transactionHistory' ? '交易流水'
                                                 : selected === 'getChecked' ? '结算账单明细'
                                                     : '首页'}</h2>
-                            {selected === 'handleTests' || selected === 'getTests'? (
+                            {selected === 'handleTests' || selected === 'getTests' ? (
                                 <div className="searchBar">
                                     <span>筛选项目状态：</span>
                                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
@@ -1710,10 +1778,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     </div>
                                     {role === 'admin' && (
                                         <div>
+                                            多选操作&nbsp;&nbsp;|&nbsp;&nbsp;
                                             <span>开票入账请点：</span>
                                             <button onClick={() => setShowCheckoutModal(true)} disabled={selectedOrders.length === 0}>
                                                 一键结算
                                             </button>
+                                            <span>导出表格请点：</span>
+                                            <ExportExcelButton data={data.filter(item => selectedOrders.includes(item.order_num))} />
+
                                         </div>
                                     )}
 
@@ -1786,7 +1858,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         <span>交易类型: </span>
                                         <select value={transactionType} onChange={e => setTransactionType(e.target.value)}>
                                             <option value="DEPOSIT">充值</option>
-                                            <option value="WITHDRAW">消费</option>
+                                            <option value="WITHDRAWAL">消费</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <span>筛选月份：</span>
+                                        <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                                            <option value="">选择月份</option>
+                                            {months.map(({ month }) => (
+                                                <option key={month} value={month}>{month}</option>
+                                            ))}
                                         </select>
                                     </div>
                                 </div>
@@ -1833,9 +1915,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             {headers.map(header =>
                                                 <th key={header}>{header}</th>
                                             )}
-                                            {selected !== 'transactionHistory' && (
-                                                <th className="fixed-column">操作</th>
-                                            )}
+                                            {!(
+                                                selected === 'transactionHistory' ||
+                                                (role === 'sales' && selected === 'getCommission') ||
+                                                (role === 'employee' && selected === 'getCommission')
+                                            )
+                                                && (
+                                                    <th className="fixed-column">操作</th>
+                                                )}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -2146,13 +2233,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 ))}
                             </Form.Control>
                             <Form.Group controlId="formName">
-                            <Form.Label>备注</Form.Label>
-                            <Form.Control
-                                type="text"
-                                value={addData.name}
-                                disabled
-                            />
-                        </Form.Group>
+                                <Form.Label>备注</Form.Label>
+                                <Form.Control
+                                    type="text"
+                                    value={addData.name}
+                                    disabled
+                                />
+                            </Form.Group>
                         </Form.Group>
 
                     </Form>
@@ -2847,24 +2934,24 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </Form.Group>
                         <hr style={{ borderWidth: '3px' }}></hr>
                         <Form.Group>
-                            <Form.Label style={{color:'red'}}>请再次确认扣款信息！</Form.Label>
+                            <Form.Label style={{ color: 'red' }}>请再次确认扣款信息！</Form.Label>
                             <p>客户名称：
                                 <strong>
                                     {currentItem.order_details ? currentItem.order_details[0].customer_name : '未提供'}
                                 </strong>
                             </p>
                             <p>付款方/导师: <strong>
-                                {currentItem.order_details ? 
-                                `${currentItem.order_details[0].payer_name} | ${currentItem.order_details[0].payer_contact_name}
-                                (Tel: ${currentItem.order_details[0].payer_contact_phone_num})` 
-                                : '未提供'}
+                                {currentItem.order_details ?
+                                    `${currentItem.order_details[0].payer_name} | ${currentItem.order_details[0].payer_contact_name}
+                                (Tel: ${currentItem.order_details[0].payer_contact_phone_num})`
+                                    : '未提供'}
                             </strong>
                             </p>
-                            <p>最终开票价格: 
+                            <p>最终开票价格:
                                 <strong>
-                                    {currentItem.order_details ?  
-                                `${currentItem.order_details[0].final_price}` 
-                                : '未提供'}
+                                    {currentItem.order_details ?
+                                        `${currentItem.order_details[0].final_price}`
+                                        : '未提供'}
                                 </strong>
                             </p>
 

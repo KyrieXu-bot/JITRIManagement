@@ -6,7 +6,21 @@ router.get('/', async (req, res) => {
     try {
         const orderNum = req.query.orderNum;
         const departmentId = req.query.departmentId;
-        const results = await db.getAllOrders(orderNum, departmentId);
+        const selectedOrders = req.query.selectedOrders;
+        const results = await db.getAllOrders(orderNum, departmentId, selectedOrders);
+        res.json(results);
+    } catch (error) {
+        console.error('Failed to fetch commission:', error);
+        res.status(500).send({ message: 'Failed to fetch data', error: error.message });
+    }
+});
+
+router.get('/sales', async (req, res) => {
+    try {
+        const orderNum = req.query.orderNum;
+        const account = req.query.account;
+
+        const results = await db.getSalesOrders(orderNum, account);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch commission:', error);
