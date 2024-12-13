@@ -6,8 +6,7 @@ router.get('/', async (req, res) => {
     try {
         const orderNum = req.query.orderNum;
         const departmentId = req.query.departmentId;
-        const selectedOrders = req.query.selectedOrders;
-        const results = await db.getAllOrders(orderNum, departmentId, selectedOrders);
+        const results = await db.getAllOrders(orderNum, departmentId);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch commission:', error);
@@ -81,6 +80,7 @@ router.get('/invoices', async (req, res) => {
         let currentInvoiceNum = null;
         let currentOrderNum = null;
         let orderDetails = [];
+
         // 按照 invoice_id 和 order_num 分组数据
         invoiceDetails.forEach(item => {
             // 按 invoice_id 分组
@@ -123,18 +123,18 @@ router.get('/invoices', async (req, res) => {
             lastOrder.items.push({
                 test_item: item.test_item,
                 discounted_price: item.discounted_price,
-                size:item.size,
-                quantity:item.quantity,
-                check_note:item.check_note,
-                listed_price:item.listed_price,
-                work_hours:item.work_hours,
-                machine_hours:item.machine_hours,
-                note:item.note,
-                status:item.status,
-                test_method:item.test_method,
-                original_no:item.original_no,
+                size: item.size,
+                quantity: item.quantity,
+                check_note: item.check_note,
+                listed_price: item.listed_price,
+                work_hours: item.work_hours,
+                machine_hours: item.machine_hours,
+                note: item.note,
+                status: item.status,
+                test_method: item.test_method,
+                original_no: item.original_no,
                 order_num: item.order_num,
-                create_time:item.create_time
+                create_time: item.create_time
             });
         });
 
@@ -185,10 +185,48 @@ router.post('/finalPrice', async (req, res) => {
     }
 });
 
+// 导出发票excel的路由
+router.post('/exportCheckedData', async (req, res) => {
+    try {
+        const { invoiceIds } = req.body;
+        if (!invoiceIds || invoiceIds.length === 0) {
+            return res.status(400).send('No invoice IDs provided');
+        }
+        // 获取数据库中的发票数据
+        const invoices = await db.getInvoicesForExcel(invoiceIds);  // 你可以根据实际情况调用数据库查询
+        // 返回查询结果
+        res.json(invoices);
+
+        return invoices;
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Error exporting data');
+    }
+});
+
+// 导出委托单excel的路由
+router.post('/exportCommissionData', async (req, res) => {
+    try {
+        const { selectedOrders } = req.body;
+        if (!selectedOrders || selectedOrders.length === 0) {
+            return res.status(400).send('No orders provided');
+        }
+        // 获取数据库中的发票数据
+        const commissions = await db.getCommissionForExcel(selectedOrders);  // 你可以根据实际情况调用数据库查询
+        // 返回查询结果
+        res.json(commissions);
+
+        return commissions;
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Error exporting data');
+    }
+});
+
 
 // 入账的路由
 router.post('/account', async (req, res) => {
-    const { invoiceId, invoiceNumber, orderStatus, amount, description, accountTime} = req.body;
+    const { invoiceId, invoiceNumber, orderStatus, amount, description, accountTime } = req.body;
     try {
         // 1. 更新发票表的发票号和更新时间
         await db.updateInvoice(invoiceId, invoiceNumber, accountTime);
@@ -220,7 +258,7 @@ router.post('/account', async (req, res) => {
 
 
             if (parseFloat(balance) < parseFloat(amount)) {
-                console.log("能不？",balance - amount)
+                console.log("能不？", balance - amount)
                 return res.status(400).json({ message: `余额不足，无法入账。\n当前余额:${balance}` });
             }
 

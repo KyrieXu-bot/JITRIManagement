@@ -11,7 +11,7 @@ async function findUserByAccount(account) {
     return results[0] || null;
 }
 
-async function getAllOrders(orderNum, departmentId, selectedOrders) {
+async function getAllOrders(orderNum, departmentId) {
     let query = `
         SELECT 
             o.order_num, 
@@ -49,12 +49,6 @@ async function getAllOrders(orderNum, departmentId, selectedOrders) {
         query += 'AND t.department_id = ?';
         params.push(departmentId);
     }
-
-    if (selectedOrders && selectedOrders.length > 0) {
-        query += 'AND o.order_num in (?)';
-        params.push(selectedOrders);
-    }
-    
     query += ` GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
                 p.payer_address, o.service_type, o.order_status, a.account, u.name`;
@@ -63,6 +57,91 @@ async function getAllOrders(orderNum, departmentId, selectedOrders) {
     return results;
 }
 
+
+async function getInvoicesForExcel(invoiceIds) {
+    // 将传入的 invoiceIds 转为数组形式，以防止 SQL 注入
+    const placeholders = invoiceIds.map(() => '?').join(', ');
+
+    const query = `
+        SELECT 
+            i.invoice_number, 
+            io.order_num,
+            c.customer_name, 
+            c.contact_name, 
+            c.contact_phone_num, 
+            p.payer_name, 
+            p.payer_contact_name, 
+            u.name AS sales_name, 
+            GROUP_CONCAT(t.test_item SEPARATOR ', ') AS test_items, 
+            i.final_price, 
+            i.created_at
+        FROM invoices i
+        JOIN invoice_orders io ON i.invoice_id = io.invoice_id
+        JOIN orders o ON io.order_num = o.order_num
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN payments p ON o.payment_id = p.payment_id
+        LEFT JOIN test_items t ON o.order_num = t.order_num
+        LEFT JOIN assignments a ON a.test_item_id = t.test_item_id
+        LEFT JOIN users u ON u.account = a.account
+        WHERE i.invoice_id IN (${placeholders}) AND u.role = 'sales'
+        GROUP BY i.invoice_id, io.order_num, c.customer_name, c.contact_name, 
+                 c.contact_phone_num, c.contact_email, p.payer_name, 
+                 p.payer_contact_name, u.name, i.final_price, i.created_at
+    `;
+
+    try {
+        const [results] = await db.query(query, invoiceIds);
+        return results;
+    } catch (error) {
+        console.error("Error fetching invoices:", error);
+        throw error;  // 错误捕获并抛出
+    }
+}
+
+async function getCommissionForExcel(selectedOrders) {
+    // 将传入的 orderNum 转为数组形式，以防止 SQL 注入
+    const placeholders = selectedOrders.map(() => '?').join(', ');
+
+    const query = `
+    SELECT 
+        o.order_num, 
+        c.customer_name, 
+        c.contact_name, 
+        c.contact_phone_num, 
+        c.contact_email, 
+        p.payer_contact_name, 
+        p.payer_contact_phone_num,
+        p.payer_address,
+        GROUP_CONCAT(t.test_item SEPARATOR ', ') AS test_items,
+        s.material,
+        o.service_type,
+        o.order_status,
+        SUM(t.discounted_price) AS total_discounted_price,
+        u.name
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    AND o.customer_id IS NOT NULL
+    JOIN payments p ON o.payment_id = p.payment_id
+    AND o.payment_id IS NOT NULL
+    JOIN test_items t ON o.order_num = t.order_num
+    JOIN samples s ON o.order_num = s.order_num
+    LEFT JOIN assignments a ON t.test_item_id = a.test_item_id
+    LEFT JOIN users u ON a.account = u.account
+    WHERE c.category = '1' AND p.category = '1' and u.role = 'sales'
+    AND o.order_num IN (${placeholders})
+    GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
+            c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
+            p.payer_address, o.service_type, o.order_status, a.account, u.name
+    `;
+
+    try {
+        const [results] = await db.query(query, selectedOrders);
+        return results;
+    } catch (error) {
+        console.error("Error fetching invoices:", error);
+        throw error;  // 错误捕获并抛出
+    }
+}
 async function updateOrder(orderNum, updateData) {
     let updates = [];
     let values = [];
@@ -1566,6 +1645,8 @@ module.exports = {
     getMachineWorkStats,
     getAllMonths,
     getEquipmentTimeline,
+    getInvoicesForExcel,
+    getCommissionForExcel,
     updateOrder,
     updateTestItemPrice,
     updateTestItemStatus,

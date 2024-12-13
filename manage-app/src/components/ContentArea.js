@@ -46,12 +46,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [finalPrice, setFinalPrice] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedOrders, setSelectedOrders] = useState([]);
+    const [selectedInvoices, setSelectedInvoices] = useState(new Set());
+    const [isAllSelected, setIsAllSelected] = useState(false);
+    const [isAllSelectedInvoices, setIsAllSelectedInvoices] = useState(false);
     const [selectedLabel, setSelectedLabel] = useState(''); // 当前选择的设备分类标签
     const [filteredEquipments, setFilteredEquipments] = useState([]); // 二级菜单：根据分类标签筛选设备
     const [transactionType, setTransactionType] = useState('');
     const [filterPayerContactName, setFilterPayerContactName] = useState('');
     const [filterPayerName, setFilterPayerName] = useState('');
+    const [checkedData, setCheckedData] = useState(null);  // 用来存储导出的数据
+    const [commissionData, setCommissionData] = useState(null);  // 存储导出的数据
 
+    const [loading, setLoading] = useState(false);
     const [showAccountSuccessToast, setShowAccountSuccessToast] = useState(false); // 控制Toast显示的状态
 
     //充值数据
@@ -73,11 +79,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showPayerModal, setShowPayerModal] = useState(false);
     const [showFinalPriceModal, setShowFinalPriceModal] = useState(false);
     const [showAccountModal, setShowAccountModal] = useState(false);
+    const [showExcelExportModal, setShowExcelExportModal] = useState(false);
 
     const [assignmentInfo, setAssignmentInfo] = useState('');
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedDetails, setSelectedDetails] = useState({});
-    const itemsCountPerPage = 10;
+    const itemsCountPerPage = 20;
     const totalItemsCount = data.length;
 
     //分页
@@ -186,9 +193,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (departmentID) {
                 params.append('departmentId', departmentID);
             }
-            if (selectedOrders) {
-                params.append('selectedOrders', selectedOrders)
-            }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
             const sortedData = response.data.sort((a, b) => {
                 const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
@@ -201,7 +205,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [setError, filterStatus, selectedMonth, filterEmployee, filterOrderNum, departmentID, selectedOrders]);
+    }, [setError, filterStatus, selectedMonth, filterEmployee, filterOrderNum, departmentID]);
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
@@ -314,7 +318,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             console.error('Failed to fetch assignable users:', error);
         }
     }, [role, departmentID]);
-
 
     const fetchGroupUsers = useCallback(async (groupId) => {
         try {
@@ -477,9 +480,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     useEffect(() => {
         if ((role === 'employee')) {
             fetchMonths();
-            if(selected === 'handleTests'){
+            if (selected === 'handleTests') {
                 fetchDataForEmployee(account);
-            }else if(selected === 'getCommission'){
+            } else if (selected === 'getCommission') {
                 fetchData('orders');
             }
         } else if (role === 'supervisor' || role === 'leader') {
@@ -493,11 +496,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             } else {
                 fetchDataForSupervisor(departmentID);
             }
-        } else if (role === 'sales'){
+        } else if (role === 'sales') {
             fetchMonths();
-            if(selected === 'handleTests'){
+            if (selected === 'handleTests') {
                 fetchDataForEmployee(account);
-            }else if(selected === 'getCommission'){
+            } else if (selected === 'getCommission') {
                 fetchOrdersForSales();
             }
         } else {
@@ -652,6 +655,115 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 return [...prev, orderNum];
             }
         });
+    };
+
+    // 处理单个复选框选中/取消选中
+    const handleInvoiceCheckboxchange = (invoiceId) => {
+        setSelectedInvoices(prev => {
+            const updatedSelectedInvoices = new Set(prev);
+            if (updatedSelectedInvoices.has(invoiceId)) {
+                updatedSelectedInvoices.delete(invoiceId);  // 如果已经选中，取消选中
+            } else {
+                updatedSelectedInvoices.add(invoiceId);  // 如果没有选中，添加到选中的列表
+            }
+            return updatedSelectedInvoices;
+        });
+    };
+
+    // 获取导出数据
+    const handleExportCheckedData = async () => {
+        setLoading(true);
+        try {
+            const invoiceIds = [...selectedInvoices];
+            const response = await axios.post(`${config.API_BASE_URL}/api/orders/exportCheckedData`, { invoiceIds });
+            const data = response.data;
+            // 定义字段名映射，将英文字段名转换为中文
+            const fieldMapping = {
+                "invoice_number": "发票号",
+                "order_num": "委托单号",
+                "customer_name": "客户名称",
+                "contact_name": "联系人",
+                "contact_phone_num": "联系电话",
+                "payer_name": "付款方",
+                "payer_contact_name": "付款联系人",
+                "sales_name": "业务员",
+                "test_items": "检测项目",
+                "final_price": "开票价",
+                "created_at": "创建时间"
+            };
+             // 使用映射表调整 data 中的字段名
+            const mappedData = data.map(item => {
+                const mappedItem = {};
+                Object.keys(item).forEach(key => {
+                    const mappedKey = fieldMapping[key] || key;  // 如果有映射字段名就使用映射值，否则保持原字段名
+                    mappedItem[mappedKey] = item[key];
+                });
+                return mappedItem;
+            });
+            const headers = ["发票号", "委托单号", "客户名称", "联系人", "联系电话", "付款方", "付款联系人", "业务员", "检测项目", "开票价", "创建时间"];
+            setCheckedData({ data: mappedData, headers, filename: "getCheckedData" });
+            setShowExcelExportModal(true);
+        } catch (error) {
+            console.error("导出数据失败:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExportCommissionData = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post(`${config.API_BASE_URL}/api/orders/exportCommissionData`, { selectedOrders });
+            const data = response.data;
+            // 定义字段名映射，将英文字段名转换为中文
+            const fieldMapping = {
+                "order_num": "委托单号",
+                "customer_name": "委托单位",
+                "contact_name": "联系人",
+                "contact_phone_num": "联系电话",
+                "contact_email": "联系邮箱",
+                "payer_contact_name": "付款联系人",
+                "payer_contact_phone_num": "付款联系人电话",
+                "payer_address": "付款人地址",
+                "test_items": "检测项目",
+                "material": "材料",
+                "service_type": "服务类型",
+                "order_status": "订单状态",
+                "total_discounted_price": "业务总价",
+                "name": "业务员"
+            };
+             // 使用映射表调整 data 中的字段名
+            const mappedData = data.map(item => {
+                const mappedItem = {};
+                Object.keys(item).forEach(key => {
+                    const mappedKey = fieldMapping[key] || key;  // 如果有映射字段名就使用映射值，否则保持原字段名
+                    mappedItem[mappedKey] = item[key];
+                });
+                return mappedItem;
+            });
+            const headers = [
+                "委托单号", 
+                "委托单位", 
+                "联系人", 
+                "联系电话", 
+                "联系邮箱", 
+                "付款联系人", 
+                "付款联系人电话", 
+                "付款人地址", 
+                "检测项目", 
+                "材料", 
+                "服务类型",
+                "订单状态", 
+                "业务总价", 
+                "业务员"];            
+            setCommissionData({ data: mappedData, headers, filename: "getCommissionData" });
+            setShowExcelExportModal(true);
+
+        } catch (error) {
+            console.error("导出数据失败:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     // 执行结算操作
@@ -817,6 +929,33 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } else {
             setErrorMessage(''); // 清除错误信息
         }
+    };
+
+    //处理委托单全选按钮
+    const handleSelectAll = () => {
+        if (isAllSelected) {
+            setSelectedOrders([]);  // 如果已经全选，则取消全选
+        } else {
+            setSelectedOrders(currentItems.map(item => item.order_num));  // 全选所有委托单号
+        }
+        setIsAllSelected(!isAllSelected);  // 切换全选状态
+    };
+
+    //处理发票全选按钮
+    const handleSelectAllInvoices = () => {
+        if (isAllSelectedInvoices) {
+            setSelectedInvoices(new Set());  // 如果已经全选，则取消全选
+        } else {
+            // 获取所有的 invoice_id 并全选
+            const allSelectedInvoices = new Set();
+            currentItems.forEach((invoice) => {
+                if (invoice.invoice_id) {
+                    allSelectedInvoices.add(invoice.invoice_id);  // 只添加 invoice_id
+                }
+            });
+            setSelectedInvoices(allSelectedInvoices);
+        }
+        setIsAllSelectedInvoices(!isAllSelectedInvoices);  // 切换全选状态
     };
 
     const addItem = async () => {
@@ -1157,7 +1296,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setTimeout(() => setShowSuccessToast(false), 3000);
         } catch (error) {
             console.error('Error updating test status:', error);
-            setError('Failed to update test status');
+            setError('Failed to update test                    status');
             setTimeout(() => setError(''), 3000);
         }
     };
@@ -1233,9 +1372,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 高亮匹配部分
     const highlightText = (text, searchText) => {
-        console.log("text", text)
         if (!searchText) return text;  // 如果没有输入查询条件，直接返回原始文本
-
         if (text) {
             const regex = new RegExp(`(${searchText})`, 'gi'); // 使用正则表达式进行不区分大小写的匹配
             const parts = text.toString().split(regex);  // 根据匹配结果拆分字符串
@@ -1447,7 +1584,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getCommission':
-                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "交易总价", "服务加急","寄送地址", "创建时间"];
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "交易总价", "服务加急", "寄送地址", "创建时间"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td>{item.order_num}</td>
@@ -1474,16 +1611,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             // 默认视图
             switch (selected) {
                 case 'getCommission':
-                    headers = ["选择", "委托单号", "委托单位", "联系人", "联系电话", "结算状态", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
-                            <td>
+                            {/* 选择框 */}
+                            {role === 'admin' && (
+                                <td>
                                 <input
                                     type="checkbox"
                                     checked={selectedOrders.includes(item.order_num)}
                                     onChange={() => handleCheckboxChange(item.order_num)}
                                 />
-                            </td>
+                                </td>
+                            )}
                             <td>{item.order_num}</td>
                             <td>{item.customer_name}</td>
                             <td>{item.contact_name}</td>
@@ -1513,6 +1653,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             invoice.order_details.forEach((order, orderIndex) => {
                                 rows.push(
                                     <tr key={order.order_num}>
+                                        {/* 选择框 */}
+                                        {orderIndex === 0 && (
+                                            <td rowSpan={invoice.order_details.length}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedInvoices.has(Number(invoice.invoice_id))}
+                                                    onChange={() => handleInvoiceCheckboxchange(invoice.invoice_id)}
+                                                />
+                                            </td>
+                                        )}
                                         {/* 合并 Invoice ID 和 操作列 */}
                                         {orderIndex === 0 && (
                                             <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
@@ -1566,7 +1716,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             <td rowSpan={invoice.order_details.length} className='fixed-column'>
                                                 <div className="action-btns">
                                                     <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button>
-                                                    <ExportExcelButton data={data} />
                                                     <Button onClick={() => handleAccount(invoice)}>入账</Button>
 
                                                 </div>
@@ -1784,8 +1933,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                                 一键结算
                                             </button>
                                             <span>导出表格请点：</span>
-                                            <ExportExcelButton data={data.filter(item => selectedOrders.includes(item.order_num))} />
-
+                                            <button onClick={handleExportCommissionData} disabled={loading}>
+                                                {loading ? '正在准备...' : '一键导出'}
+                                            </button>
                                         </div>
                                     )}
 
@@ -1802,6 +1952,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                                 placeholder="搜索"
                                             />
                                             <button onClick={() => fetchInvoices()}>查询</button>
+                                            <button onClick={handleExportCheckedData} disabled={loading}>
+                                                {loading ? '正在准备...' : '一键导出'}
+                                            </button>
+
                                         </div>
 
                                     </div>
@@ -1898,7 +2052,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <table className='invoice-table'>
                                     <thead>
                                         <tr>
+                                            <th>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isAllSelectedInvoices}
+                                                    onChange={handleSelectAllInvoices}
+                                                />
+                                                &nbsp;全选
+                                            </th>
                                             {headers.map(header =>
+
                                                 <th key={header}>{header}</th>
                                             )}
                                             <th className="fixed-column">操作</th>
@@ -1912,6 +2075,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <table>
                                     <thead>
                                         <tr>
+                                            {role === 'admin' && selected === 'getCommission' && (
+                                                <th>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isAllSelected}
+                                                        onChange={handleSelectAll}
+                                                    />
+                                                    &nbsp;全选
+                                                </th>
+                                            )}
                                             {headers.map(header =>
                                                 <th key={header}>{header}</th>
                                             )}
@@ -2983,6 +3156,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
+
+            <Modal show={showExcelExportModal} onHide={() => setShowExcelExportModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>导出</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    请选择导出格式为：
+                    <br></br>
+                    {checkedData && <ExportExcelButton data={checkedData.data} headers={checkedData.headers} filename={checkedData.filename} />}
+                    {commissionData && <ExportExcelButton data={commissionData.data} headers={commissionData.headers} filename={commissionData.filename} />}
+
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowExcelExportModal(false)}>关闭</Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };
