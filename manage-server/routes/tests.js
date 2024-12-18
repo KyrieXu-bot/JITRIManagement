@@ -79,6 +79,18 @@ router.post('/reassign', async (req, res) => {
     }
 });
 
+router.post('/rollback', async (req, res) => {
+    const { testItemId, account } = req.body;
+
+    try {
+        await db.rollbackTest(account, testItemId);
+        res.status(200).json({ message: 'Assignment successfully rollback' });
+    } catch (error) {
+        console.error('Failed to rollback assignment:', error);
+        res.status(500).send({ message: 'Failed to rollback', error: error.message });
+    }
+});
+
 
 //更新状态
 router.post('/update-status', async (req, res) => {
@@ -238,6 +250,42 @@ router.delete('/:testItemId', async (req, res) => {
     } catch (error) {
         console.error('Failed to delete test item:', error);
         res.status(500).send({ message: '删除失败', error: error.message });
+    }
+});
+
+
+// 路由处理：检查时间冲突
+router.get('/checkTimeConflict', async (req, res) => {
+    const { equipment_id, start_time, end_time } = req.query;
+
+    // 转换时间格式
+    const start = new Date(start_time);
+    const end = new Date(end_time);
+
+    try {
+        // 调用数据库方法检查时间冲突
+        const conflictInfo = await db.checkTimeConflict(equipment_id, start, end);
+        if (conflictInfo.conflict) {
+            console.log(conflictInfo)
+            // 如果有冲突，返回详细的冲突时间段
+            return res.status(200).json({
+                success: false,
+                message: '设备时间冲突，请查看以下预约信息：',
+                conflict: true,
+                conflictDetails: conflictInfo.conflictDetails,
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: '设备分配成功',
+        });
+    } catch (error) {
+        console.error('Error checking time conflict:', error);
+        res.status(500).json({
+            success: false,
+            message: '服务器错误',
+        });
     }
 });
 

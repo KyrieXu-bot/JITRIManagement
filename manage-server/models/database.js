@@ -330,6 +330,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
             t.test_method,
             t.order_num,
             t.status,
+            t.note,
             t.machine_hours,
             t.work_hours,
             t.listed_price,
@@ -338,6 +339,8 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
             t.check_note,
             t.create_time,
             t.deadline,
+            t.size,
+            t.quantity,
             IFNULL(e.equipment_name, '') AS equipment_name,
             t.appoint_time,
             e.model,
@@ -545,21 +548,36 @@ async function reassignTestToUser(newAccount, account, testItemId) {
     await db.query(query, [newAccount, testItemId, account]);
 }
 
+async function rollbackTest(account, testItemId) {
+    const query = `DELETE FROM assignments WHERE account = ? AND test_item_id = ? `;
+    await db.query(query, [account, testItemId]);
+}
+
 
 async function updateTestItemStatus(finishData) {
+    const connection = await db.getConnection();
+
+
     const query = `UPDATE 
                     test_items 
                         SET 
                             status =  ? ,
                             machine_hours = ?,
                             work_hours = ?,
-                            equipment_id = ?
+                            equipment_id = ?,
+                            quantity = ?
                             WHERE test_item_id = ?`;
     try {
-        await db.query(query, [finishData.status, finishData.machine_hours, finishData.work_hours, finishData.equipment_id, finishData.testId]);
+        await connection.beginTransaction();
+        await connection.query(query, [finishData.status, finishData.machine_hours, finishData.work_hours, finishData.equipment_id, finishData.quantity, finishData.testId]);
+        await connection.commit();
+
     } catch (error) {
-        console.error('Failed to update test item status:', error);
-        throw error; // Rethrowing the error is important if you want to handle it further up, e.g., in an Express route.
+        await connection.rollback();
+        console.error('Failed to update test item', error);
+        throw error; 
+    } finally {
+        connection.release();
     }
 }
 
@@ -1621,10 +1639,46 @@ const getPaymentIdByOrderNum = async (orderNum) => {
     const [result] = await db.query(`
         SELECT payment_id FROM orders WHERE order_num = ? LIMIT 1
     `, [orderNum]);
-    console.log(result);
     return result;
 };
 
+
+// 检查预约时间是否被冲突
+async function checkTimeConflict(equipment_id, start_time, end_time) {
+    try {
+        const query = `
+            SELECT equipment_id, start_time, end_time, test_item, order_num
+            FROM test_items
+            WHERE equipment_id = ?
+            AND start_time >= NOW() 
+            AND start_time <= DATE_ADD(NOW(), INTERVAL 1 MONTH)
+            AND ((start_time BETWEEN ? AND ?) OR (end_time BETWEEN ? AND ?))
+        `;
+
+        // 执行查询并返回结果
+        const [result] = await db.query(query, [equipment_id, start_time, end_time, start_time, end_time]);
+        // 返回冲突状态
+        if (result.length > 0) {
+            // 如果存在时间冲突，返回详细的冲突时间段
+            return {
+                conflict: true,
+                conflictDetails: result.map(item => ({
+                    start_time: item.start_time,
+                    end_time: item.end_time,
+                    test_item: item.test_item,
+                    order_num: item.order_num
+                })),
+            };
+        }
+
+        // 如果没有冲突
+        return { conflict: false };
+    } catch (error) {
+        console.error('Error checking time conflict in database:', error);
+        throw error;  // 将错误抛出给调用者处理
+    }
+    
+}
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -1679,5 +1733,7 @@ module.exports = {
     insertTransaction,
     getPaymentIdByOrderNum,
     getAllTransMonths,
-    getSalesOrders
+    getSalesOrders,
+    rollbackTest,
+    checkTimeConflict
 };

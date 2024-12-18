@@ -1,31 +1,44 @@
 /* ContentArea.css */
 
-.content-area{
-    display: flex; /* 使用 Flex 布局 */
+.content-area {
+    display: flex;
+    /* 使用 Flex 布局 */
     flex-direction: column;
-    flex-grow: 1; /* 让 content-area 占据剩余的空间 */
-    height: 100%; /* 确保内容区域的高度占满整个视口 */
+    flex-grow: 1;
+    /* 让 content-area 占据剩余的空间 */
+    height: 100%;
+    /* 确保内容区域的高度占满整个视口 */
     width: 82%;
     box-sizing: border-box;
 
 }
- .content-area>nav{
-    flex-shrink: 0; /* 防止 nav 被压缩 */
-    height: 60px; /* 设置固定高度 (可以根据需要调整) */
 
- }
-.content-head{
-    flex-shrink: 0; /* 防止 .content-head 被压缩 */
+.content-area>nav {
+    flex-shrink: 0;
+    /* 防止 nav 被压缩 */
+    height: 60px;
+    /* 设置固定高度 (可以根据需要调整) */
+
+}
+
+.content-head {
+    flex-shrink: 0;
+    /* 防止 .content-head 被压缩 */
     height: auto;
 }
+
 /* 主内容区域的基础样式 */
 .content {
     margin-top: 10px;
-    width: 100%; /* 占据除侧边栏外的剩余宽度 */
-    padding: 0px; /* 内边距 */
-    background-color: #fff; /* 背景颜色 */
+    width: 100%;
+    /* 占据除侧边栏外的剩余宽度 */
+    padding: 0px;
+    /* 内边距 */
+    background-color: #fff;
+    /* 背景颜色 */
     box-sizing: border-box;
-    overflow: auto; /* 隐藏内容溢出 */
+    overflow: auto;
+    /* 隐藏内容溢出 */
     position: relative;
     flex-basis: 600px;
     flex-shrink: 0;
@@ -34,40 +47,85 @@
 /* 表格样式 */
 table {
     width: 100%;
-    border-collapse: collapse; /* 用于支持圆角边框 */
+    border-collapse: collapse;
+    /* 用于支持圆角边框 */
     border-spacing: 0;
-    margin: 0px auto; /* 增加上下外边距并居中显示 */
+    margin: 0px auto;
+    /* 增加上下外边距并居中显示 */
 
 }
 
-th, td{
+th,
+td {
     min-width: 250px;
-    border-bottom: 1px solid #ddd; /* 修改为只有底部边框 */
-    padding: 9px 15px; /* 增加填充以改善视觉效果 */
-    text-align: center; /* 文本居中 */
+    border-bottom: 1px solid #ddd;
+    /* 修改为只有底部边框 */
+    padding: 9px 15px;
+    /* 增加填充以改善视觉效果 */
+    text-align: center;
+    /* 文本居中 */
 }
 
 th {
-    background-color: #5f87a0; /* 更深的天蓝色为表头 */
-    color: white; /* 表头文字颜色 */
+    background-color: #5f87a0;
+    /* 更深的天蓝色为表头 */
+    color: white;
+    /* 表头文字颜色 */
 }
 
-tr:last-child th, tr:last-child td {
-    border-bottom: none; /* 移除最后一行的底部边框 */
+
+.order-num-fixed {
+
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: #f2f2f2;
+}
+
+.test-item-fixed {
+    position: sticky;
+    left: 250px;
+    /* 第二列的固定位置,可以调整 */
+    z-index: 1;
+    background-color: #f2f2f2;
+}
+
+.order-num-header-fixed {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+
+.test-item-header-fixed {
+    position: sticky;
+    left: 250px;
+    /* 第二列的固定位置,可以调整 */
+    z-index: 1;
+}
+
+tr:last-child th,
+tr:last-child td {
+    border-bottom: none;
+    /* 移除最后一行的底部边框 */
 }
 
 tr:nth-child(even) {
-    background-color: #f4f7f9; /* 更轻的条纹颜色提高对比度 */
+    background-color: #f4f7f9;
+    /* 更轻的条纹颜色提高对比度 */
 }
 
 /* 固定操作列 */
 .fixed-column {
     position: sticky;
-    right: 0; /* 固定在表格的最右侧 */
-    backdrop-filter: blur(10px); /* 添加模糊效果 */
-    -webkit-backdrop-filter: blur(6px); /* Safari 支持 */
+    right: 0;
+    /* 固定在表格的最右侧 */
+    backdrop-filter: blur(10px);
+    /* 添加模糊效果 */
+    -webkit-backdrop-filter: blur(6px);
+    /* Safari 支持 */
     z-index: 1;
-    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1); /* 添加阴影效果 */
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+    /* 添加阴影效果 */
 }
 
 
@@ -78,18 +136,21 @@ button {
     margin: 4px;
     border-radius: 5px;
     cursor: pointer;
-    background-color: #5f87a0; /* 深天蓝色背景与表头一致 */
+    background-color: #5f87a0;
+    /* 深天蓝色背景与表头一致 */
     color: white;
 }
 
 button:hover {
-    background-color: #87CEFA; /* 鼠标悬浮时颜色 */
+    background-color: #87CEFA;
+    /* 鼠标悬浮时颜色 */
 }
 
 /* 模态框和表单的样式 */
 .modal-header {
     color: white;
-    background-color: #5f87a0; /* 与表头背景色一致 */
+    background-color: #5f87a0;
+    /* 与表头背景色一致 */
 }
 
 .modal-body {
@@ -102,15 +163,17 @@ button:hover {
 }
 
 
-nav{
+nav {
     text-align: right;
-    padding:10px 20px 10px 10px;
+    padding: 10px 20px 10px 10px;
 }
 
-.detailModal span{
+.detailModal span {
     font-weight: bold;
-    color: #5f87a0;;
+    color: #5f87a0;
+    
 }
+
 
 
 
@@ -122,22 +185,28 @@ nav{
     align-items: center;
     gap: 15px;
     padding: 10px;
-    background-color: #f7f9fc; /* 柔和的浅色背景，让输入框和按钮更加显眼 */
-    border-radius: 8px; /* 圆角让样式更加柔和 */
-    box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1); /* 轻微阴影，增加视觉层次感 */
+    background-color: #f7f9fc;
+    /* 柔和的浅色背景，让输入框和按钮更加显眼 */
+    border-radius: 8px;
+    /* 圆角让样式更加柔和 */
+    box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+    /* 轻微阴影，增加视觉层次感 */
 }
 
 .searchBar span {
     font-weight: bold;
-    color: #333; /* 使用深灰色，使文字更加清晰 */
+    color: #333;
+    /* 使用深灰色，使文字更加清晰 */
     margin-right: 5px;
 }
 
 .searchBar input[type="text"],
 .searchBar select {
     padding: 6px 10px;
-    border: 1px solid #ccc; /* 边框为浅灰色 */
-    border-radius: 4px; /* 适度的圆角 */
+    border: 1px solid #ccc;
+    /* 边框为浅灰色 */
+    border-radius: 4px;
+    /* 适度的圆角 */
     outline: none;
     font-size: 14px;
     transition: all 0.3s ease;
@@ -145,13 +214,17 @@ nav{
 
 .searchBar input[type="text"]:focus,
 .searchBar select:focus {
-    border-color: #007bff; /* 聚焦时边框颜色变为蓝色 */
-    box-shadow: 0px 0px 5px rgba(0, 123, 255, 0.5); /* 聚焦时的阴影 */
+    border-color: #007bff;
+    /* 聚焦时边框颜色变为蓝色 */
+    box-shadow: 0px 0px 5px rgba(0, 123, 255, 0.5);
+    /* 聚焦时的阴影 */
 }
 
 .searchBar button {
-    background-color: #007bff; /* 蓝色背景 */
-    color: #fff; /* 白色文字 */
+    background-color: #007bff;
+    /* 蓝色背景 */
+    color: #fff;
+    /* 白色文字 */
     border: none;
     border-radius: 4px;
     padding: 8px 12px;
@@ -160,8 +233,10 @@ nav{
 }
 
 .searchBar button:hover {
-    background-color: #0056b3; /* 鼠标悬停时按钮颜色稍微加深 */
-    box-shadow: 0px 0px 8px rgba(0, 87, 179, 0.4); /* 悬停时增加阴影效果 */
+    background-color: #0056b3;
+    /* 鼠标悬停时按钮颜色稍微加深 */
+    box-shadow: 0px 0px 8px rgba(0, 87, 179, 0.4);
+    /* 悬停时增加阴影效果 */
 }
 
 .searchBar button:focus {
@@ -169,7 +244,7 @@ nav{
 }
 
 /* 审核页面数据div */
-.check-box{
+.check-box {
     display: flex;
     justify-content: space-between;
     width: 80%;
@@ -177,7 +252,7 @@ nav{
 }
 
 /* 审核页面批注 */
-.check-note{
+.check-note {
     font-size: 13px;
     margin: 10px 0px;
     color: red;
@@ -186,50 +261,63 @@ nav{
 /* 表格容器 */
 .invoice-table {
     width: 100%;
-    border-collapse: collapse; /* 合并表格边框 */
+    border-collapse: collapse;
+    /* 合并表格边框 */
     margin-top: 20px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.1); /* 为表格增加较强的阴影 */
-    border-radius: 8px; /* 圆角效果 */
-    background: linear-gradient(145deg, #f7f9fc, #e1e7f3); /* 渐变背景色 */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.1);
+    /* 为表格增加较强的阴影 */
+    border-radius: 8px;
+    /* 圆角效果 */
+    background: linear-gradient(145deg, #f7f9fc, #e1e7f3);
+    /* 渐变背景色 */
 }
 
 /* 表头样式 */
 .invoice-table th {
     padding: 15px;
-    background: linear-gradient(145deg, #5f87a0, #406d8e); /* 渐变色背景 */
+    background: linear-gradient(145deg, #5f87a0, #406d8e);
+    /* 渐变色背景 */
     color: white;
     text-transform: uppercase;
     font-weight: bold;
-    border-top-left-radius: 8px; /* 左上圆角 */
-    border-top-right-radius: 8px; /* 右上圆角 */
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* 为表头添加轻微阴影 */
+    border-top-left-radius: 8px;
+    /* 左上圆角 */
+    border-top-right-radius: 8px;
+    /* 右上圆角 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    /* 为表头添加轻微阴影 */
 }
 
 /* 表格单元格样式 */
-.invoice-table th, .invoice-table td{
+.invoice-table th,
+.invoice-table td {
     min-width: 250px;
     padding: 12px 20px;
     border: 1px solid #ddd;
     text-align: center;
     font-size: 14px;
-    border-radius: 5px; /* 细圆角 */
+    border-radius: 5px;
+    /* 细圆角 */
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
 
 }
 
-.invoice-table th:first-child, .invoice-table td:first-child{
+.invoice-table th:first-child,
+.invoice-table td:first-child {
     min-width: 100px;
     max-width: 150px;
 }
 
 /* 条纹效果 */
 .invoice-table tr:nth-child(even) {
-    background-color: #f1f5f9; /* 淡蓝色背景 */
+    background-color: #f1f5f9;
+    /* 淡蓝色背景 */
 }
 
 /* 细致的阴影效果 */
 .invoice-table td {
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05); /* 内部阴影效果 */
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+    /* 内部阴影效果 */
 }
 
 /* 操作列和按钮 */
@@ -251,46 +339,53 @@ nav{
     transition: background-color 0.3s ease;
 }
 
-.action-btns button:last-of-type{
-    background-color: #3e8e41; /* 绿色按钮 */
+.action-btns button:last-of-type {
+    background-color: #3e8e41;
+    /* 绿色按钮 */
     height: 60px;
 }
 
 .invoice-table .action-btns button:last-of-type:hover {
-    background-color: #2c6d2f; /* 按钮悬停时的颜色 */
+    background-color: #2c6d2f;
+    /* 按钮悬停时的颜色 */
 }
 
 .test-item-list {
-    list-style-type: none; /* Remove default bullets */
-    padding-left: 0; /* Remove left padding */
-  }
-  
-  .test-item {
+    list-style-type: none;
+    /* Remove default bullets */
+    padding-left: 0;
+    /* Remove left padding */
+}
+
+.test-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px; /* Add spacing between items */
+    margin-bottom: 10px;
+    /* Add spacing between items */
     padding: 5px 0;
-    border-bottom: 1px solid #ddd; /* Optional: Add a light border between items */
-  }
-  
-  .test-item-details {
+    border-bottom: 1px solid #ddd;
+    /* Optional: Add a light border between items */
+}
+
+.test-item-details {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-    width: 70%; /* Take most of the space */
-  }
-  
-  .test-item-name {
+    width: 70%;
+    /* Take most of the space */
+}
+
+.test-item-name {
     font-weight: bold;
-  }
-  
-  .test-item-price {
+}
+
+.test-item-price {
     color: #007bff;
     font-size: 14px;
-  }
-  
-  .details-btn {
+}
+
+.details-btn {
     margin-left: 10px;
     padding: 4px 10px;
     font-size: 12px;
@@ -299,78 +394,103 @@ nav{
     border: none;
     border-radius: 5px;
     cursor: pointer;
-  }
-  
-  .details-btn:hover {
-    background-color: #0056b3;
-  }
+}
 
-  /* 高亮部分 */
-  .highlight {
+.details-btn:hover {
+    background-color: #0056b3;
+}
+
+/* 高亮部分 */
+.highlight {
     background-color: yellow;
     color: black;
     font-weight: bold;
-  }
+}
 
 /* 基础样式调整，以适应移动设备 */
 @media (max-width: 768px) {
     .content {
-        width: 100%; /* 在小屏幕上占满整个可视区域 */
-        float: none; /* 取消浮动 */
-        padding: 5px; /* 减少内边距 */
-        max-height: none; /* 移除最大高度限制 */
-        overflow-x: auto; /* 添加水平滚动条 */
+        width: 100%;
+        /* 在小屏幕上占满整个可视区域 */
+        float: none;
+        /* 取消浮动 */
+        padding: 5px;
+        /* 减少内边距 */
+        max-height: none;
+        /* 移除最大高度限制 */
+        overflow-x: auto;
+        /* 添加水平滚动条 */
     }
 
     table {
-        width: auto; /* 允许表格宽度超过屏幕宽度 */
+        width: auto;
+        /* 允许表格宽度超过屏幕宽度 */
     }
 
-    th, td {
-        padding: 8px; /* 减小单元格内边距 */
-        white-space: nowrap; /* 防止内容换行 */
+    th,
+    td {
+        padding: 8px;
+        /* 减小单元格内边距 */
+        white-space: nowrap;
+        /* 防止内容换行 */
     }
 
     button {
-        padding: 6px 12px; /* 调整按钮大小 */
-        font-size: 14px; /* 调整字体大小 */
-        margin: 5px 0; /* 增加上下间距 */
+        padding: 6px 12px;
+        /* 调整按钮大小 */
+        font-size: 14px;
+        /* 调整字体大小 */
+        margin: 5px 0;
+        /* 增加上下间距 */
     }
 
-    .form-control, select {
-        font-size: 14px; /* 调整表单控件的字体大小 */
-        padding: 6px; /* 减小填充 */
+    .form-control,
+    select {
+        font-size: 14px;
+        /* 调整表单控件的字体大小 */
+        padding: 6px;
+        /* 减小填充 */
     }
 
-    .modal-body, .modal-footer, .modal-header {
-        padding: 10px; /* 减少模态框内边距 */
+    .modal-body,
+    .modal-footer,
+    .modal-header {
+        padding: 10px;
+        /* 减少模态框内边距 */
     }
 
     nav {
-        padding: 5px 10px; /* 调整导航栏的内边距 */
+        padding: 5px 10px;
+        /* 调整导航栏的内边距 */
         display: flex;
-        justify-content: space-between; /* 改进导航项的布局 */
+        justify-content: space-between;
+        /* 改进导航项的布局 */
     }
 
-    
+
 
     .searchBar {
         flex-direction: column;
-        align-items: flex-start; /* 在较小屏幕上调整为竖向排列，适应移动端 */
+        align-items: flex-start;
+        /* 在较小屏幕上调整为竖向排列，适应移动端 */
     }
 
     .searchBar button {
-        width: 100%; /* 按钮在小屏幕上充满容器宽度 */
+        width: 100%;
+        /* 按钮在小屏幕上充满容器宽度 */
     }
 
     /* 开单css */
     .invoice-table {
-        font-size: 12px; /* 更小的字体 */
-        overflow-x: auto; /* 添加水平滚动条 */
+        font-size: 12px;
+        /* 更小的字体 */
+        overflow-x: auto;
+        /* 添加水平滚动条 */
         border: 1px solid black;
     }
 
-    .invoice-table th, .invoice-table td {
+    .invoice-table th,
+    .invoice-table td {
         padding: 8px 10px;
     }
 
@@ -381,36 +501,46 @@ nav{
     }
 
     .invoice-table .action-btns button {
-        width: 100%; /* 让按钮充满整个行 */
-        margin-bottom: 10px; /* 增加按钮之间的间距 */
+        width: 100%;
+        /* 让按钮充满整个行 */
+        margin-bottom: 10px;
+        /* 增加按钮之间的间距 */
     }
 
     .invoice-table .details-btn {
-        width: 100%; /* 详情按钮在小屏幕上也充满宽度 */
+        width: 100%;
+        /* 详情按钮在小屏幕上也充满宽度 */
     }
 
     .test-items {
-        padding: 8px; /* 调整内边距以适应小屏幕 */
+        padding: 8px;
+        /* 调整内边距以适应小屏幕 */
     }
 
     .test-items ul {
-        padding-left: 15px; /* 减少左侧间距 */
+        padding-left: 15px;
+        /* 减少左侧间距 */
     }
 
     .test-items li {
-        font-size: 12px; /* 在小屏幕上减小字体大小 */
+        font-size: 12px;
+        /* 在小屏幕上减小字体大小 */
     }
 }
 
 
 /* 设定特定的颜色、边框等美观元素 */
-.button, .form-control, select, input {
+.button,
+.form-control,
+select,
+input {
     border-radius: 5px;
     border: 1px solid #ccc;
 }
 
 /* 调整导航和页脚 */
-footer, header {
+footer,
+header {
     text-align: center;
     padding: 10px;
     background-color: #f1f1f1;
