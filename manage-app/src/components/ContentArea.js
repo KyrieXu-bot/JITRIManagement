@@ -97,7 +97,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         work_hours: '',
         operator: account, // 默认为当前登录的账户
         equipment_id: '',
-        quantity: ''
+        quantity: '',
+        test_note:''
 
     });
 
@@ -491,6 +492,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             fetchMonths();
             if (selected === 'handleTests') {
                 fetchDataForEmployee(account);
+            } else if (selected === 'timeline') {
+                fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchData('orders');
             }
@@ -509,6 +512,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             fetchMonths();
             if (selected === 'handleTests') {
                 fetchDataForEmployee(account);
+            } else if (selected === 'timeline') {
+                fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchOrdersForSales();
             }
@@ -822,7 +827,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             equipment_id: item.equipment_id,
             equipment_name: item.equipment_name,
             model: item.model,
-            quantity: item.quantity
+            quantity: item.quantity,
+            test_note: item.test_note
         });
         setShowFinishModal(true);
     };
@@ -833,7 +839,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     //完成按钮
     const handleFinishTest = async () => {
-        const { test_item_id, machine_hours, work_hours, operator, equipment_id, quantity } = finishData;
+        const { test_item_id, machine_hours, work_hours, operator, equipment_id, quantity, test_note } = finishData;
         if (!machine_hours) {
             alert("请填写机时！")
             return;
@@ -854,7 +860,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 work_hours,
                 operator,
                 equipment_id,
-                quantity
+                quantity,
+                test_note
             });
             setShowFinishModal(false); // 成功后关闭 Modal
             setShowSuccessToast(true); // 显示成功提示
@@ -1914,7 +1921,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 selected === 'dataStatistics' ? (
                     <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} sumPrice={sumPrice} />
                 ) : selected === 'timeline' ? (
-                    <EquipmentTimeline tasks={equipmentTimeline} /> // 显示设备时间线
+                    <EquipmentTimeline tasks={equipmentTimeline} equipments={equipments} /> // 显示设备时间线
                 ) : (
                     <>
                         <div className='content-head'>
@@ -2801,6 +2808,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </Form.Group>
 
                         <Form.Group>
+                            <Form.Label>实验备注</Form.Label>
+                            <Form.Control
+                                type="textarea"
+                                value={finishData.test_note}
+                                onChange={e => setFinishData({ ...finishData, test_note: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group>
                             <Form.Label>操作员</Form.Label>
                             <Form.Control
                                 type="text"
@@ -2869,7 +2884,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <p>检测项目：<span>{selectedDetails.test_item}</span></p>
                     <p>尺寸：<span>{selectedDetails.size}</span></p>
                     <p>数量：<span>{selectedDetails.quantity}</span></p>
-                    <p>备注：<span>{selectedDetails.note}</span></p>
+                    <p>客户备注：<span>{selectedDetails.note}</span></p>
+                    <p>实验备注：<span>{selectedDetails.test_note}</span></p>
+
                     <p>机时：<span>{selectedDetails.machine_hours}</span>
                         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                         工时：<span>{selectedDetails.work_hours}</span></p>
@@ -2878,9 +2895,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <p>设备名称：<span>{selectedDetails.equipment_name}({selectedDetails.model})</span></p>
                     <p>状态：<span>{statusLabels[selectedDetails.status]}</span></p>
                     <p>审批意见：<span>{selectedDetails.check_note}</span></p>
-                    <p>创建时间：<span>{selectedDetails.create_time}</span></p>
-                    <p>设备开始时间：<span>{selectedDetails.start_time}</span></p>
-                    <p>设备结束时间：<span>{selectedDetails.end_time}</span></p>
+                    <p>创建时间：
+                        <span>
+                            {selectedDetails.create_time ? new Date(selectedDetails.create_time).toLocaleString() : ''}
+                        </span>
+                    </p>
+                    <p>设备开始时间：
+                        <span>
+                            {selectedDetails.start_time ? new Date(selectedDetails.start_time).toLocaleString() : ''}
+                        </span>
+                    </p>
+                    <p>设备结束时间：
+                        <span>
+                            {selectedDetails.end_time ? new Date(selectedDetails.end_time).toLocaleString() : ''}
+                        </span>
+                    </p>
 
                     <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.appoint_time)}</p>
                     <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh} />

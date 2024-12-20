@@ -33,6 +33,7 @@
     display: flex;
     align-items: center;
     margin-bottom: 20px;
+    justify-content: space-evenly;
 }
 
 .select-view-mode label {

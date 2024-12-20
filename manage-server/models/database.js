@@ -339,6 +339,9 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
             t.check_note,
             t.create_time,
             t.deadline,
+            t.start_time,
+            t.end_time,
+            t.test_note,
             t.size,
             t.quantity,
             IFNULL(e.equipment_name, '') AS equipment_name,
@@ -423,6 +426,7 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
             t.discounted_price,
             t.equipment_id,
             t.check_note,
+            t.test_note,
             t.create_time,
             t.deadline,
             t.department_id,
@@ -565,11 +569,12 @@ async function updateTestItemStatus(finishData) {
                             machine_hours = ?,
                             work_hours = ?,
                             equipment_id = ?,
-                            quantity = ?
+                            quantity = ?,
+                            test_note = ? 
                             WHERE test_item_id = ?`;
     try {
         await connection.beginTransaction();
-        await connection.query(query, [finishData.status, finishData.machine_hours, finishData.work_hours, finishData.equipment_id, finishData.quantity, finishData.testId]);
+        await connection.query(query, [finishData.status, finishData.machine_hours, finishData.work_hours, finishData.equipment_id, finishData.quantity, finishData.test_note, finishData.testId]);
         await connection.commit();
 
     } catch (error) {
@@ -1652,11 +1657,14 @@ async function checkTimeConflict(equipment_id, start_time, end_time) {
             WHERE equipment_id = ?
             AND start_time >= NOW() 
             AND start_time <= DATE_ADD(NOW(), INTERVAL 1 MONTH)
-            AND ((start_time BETWEEN ? AND ?) OR (end_time BETWEEN ? AND ?))
+            AND (
+                ? <= end_time AND ? >= start_time
+            )
         `;
 
         // 执行查询并返回结果
-        const [result] = await db.query(query, [equipment_id, start_time, end_time, start_time, end_time]);
+        const [result] = await db.query(query, [equipment_id, start_time, end_time]);
+        console.log("冲突的时间段:", result)
         // 返回冲突状态
         if (result.length > 0) {
             // 如果存在时间冲突，返回详细的冲突时间段

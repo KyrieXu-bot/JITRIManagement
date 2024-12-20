@@ -265,8 +265,8 @@ router.get('/checkTimeConflict', async (req, res) => {
     try {
         // 调用数据库方法检查时间冲突
         const conflictInfo = await db.checkTimeConflict(equipment_id, start, end);
+        console.log(conflictInfo)
         if (conflictInfo.conflict) {
-            console.log(conflictInfo)
             // 如果有冲突，返回详细的冲突时间段
             return res.status(200).json({
                 success: false,
