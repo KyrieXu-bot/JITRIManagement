@@ -98,7 +98,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         operator: account, // 默认为当前登录的账户
         equipment_id: '',
         quantity: '',
-        test_note:''
+        test_note:'',
+        listed_price: ''
 
     });
 
@@ -828,7 +829,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             equipment_name: item.equipment_name,
             model: item.model,
             quantity: item.quantity,
-            test_note: item.test_note
+            test_note: item.test_note,
+            listed_price: item.listed_price
         });
         setShowFinishModal(true);
     };
@@ -839,7 +841,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     //完成按钮
     const handleFinishTest = async () => {
-        const { test_item_id, machine_hours, work_hours, operator, equipment_id, quantity, test_note } = finishData;
+        const { test_item_id, machine_hours, work_hours, operator, equipment_id, quantity, test_note, listed_price } = finishData;
         if (!machine_hours) {
             alert("请填写机时！")
             return;
@@ -861,7 +863,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 operator,
                 equipment_id,
                 quantity,
-                test_note
+                test_note,
+                listed_price: listed_price * quantity
             });
             setShowFinishModal(false); // 成功后关闭 Modal
             setShowSuccessToast(true); // 显示成功提示
@@ -1476,9 +1479,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 )}
                                 <Button variant="secondary" onClick={() => handleRollBack(item.test_item_id)}>回退</Button>
 
-                                {item.status !== '3' && (
+                                {/* {item.status !== '3' && (
                                     <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
-                                )}
+                                )} */}
                             </td>
                         </tr>
                     ));
@@ -1543,9 +1546,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 {item.status === '1' && role === 'supervisor' && (
                                     <Button onClick={() => handleAssignment(item.test_item_id)}>指派</Button>
                                 )}
-                                {item.status !== '3' && (
+                                {/* {item.status !== '3' && (
                                     <Button onClick={() => handleQuote(item.test_item_id)}>确定报价</Button>
-                                )}
+                                )} */}
                                 {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
                                 {(item.status === '2' || item.status === '4') && item.discounted_price && (
                                     <Button variant="warning" onClick={() => handleCheck(item)}>审核</Button>
@@ -1569,6 +1572,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.test_items}</td>
                             <td>{item.material}</td>
                             <td>{serviceTypeLabels[item.service_type]}</td>
+                            <td className='fixed-column'>
+                                <Button onClick={() => handleAdd(item)}>添加检测</Button>
+                            </td>
                         </tr>
                     ));
                     break;
@@ -2430,7 +2436,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         <Form.Group controlId="formSize">
                             <Form.Label>尺寸</Form.Label>
                             <Form.Control
-                                type="number"
+                                type="text"
                                 value={addData.size}
                                 onChange={(e) => setAddData({ ...addData, size: e.target.value })}
                             />
@@ -2472,7 +2478,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 ))}
                             </Form.Control>
                             <Form.Group controlId="formName">
-                                <Form.Label>备注</Form.Label>
+                                <Form.Label>业务员</Form.Label>
                                 <Form.Control
                                     type="text"
                                     value={addData.name}
@@ -2796,6 +2802,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 type="number"
                                 value={finishData.work_hours}
                                 onChange={e => setFinishData({ ...finishData, work_hours: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group>
+                            <Form.Label>单价 (标准价格=单价×数量)</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={finishData.listed_price}
+                                onChange={e => setFinishData({ ...finishData, listed_price: e.target.value })}
                             />
                         </Form.Group>
                         <Form.Group>

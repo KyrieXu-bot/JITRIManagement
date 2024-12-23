@@ -561,7 +561,6 @@ async function rollbackTest(account, testItemId) {
 async function updateTestItemStatus(finishData) {
     const connection = await db.getConnection();
 
-
     const query = `UPDATE 
                     test_items 
                         SET 
@@ -570,11 +569,12 @@ async function updateTestItemStatus(finishData) {
                             work_hours = ?,
                             equipment_id = ?,
                             quantity = ?,
+                            listed_price = ?,
                             test_note = ? 
                             WHERE test_item_id = ?`;
     try {
         await connection.beginTransaction();
-        await connection.query(query, [finishData.status, finishData.machine_hours, finishData.work_hours, finishData.equipment_id, finishData.quantity, finishData.test_note, finishData.testId]);
+        await connection.query(query, [finishData.status, finishData.machine_hours, finishData.work_hours, finishData.equipment_id, finishData.quantity, finishData.listed_price, finishData.test_note, finishData.testId]);
         await connection.commit();
 
     } catch (error) {

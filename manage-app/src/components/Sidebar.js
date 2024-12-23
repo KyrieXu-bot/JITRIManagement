@@ -95,7 +95,6 @@ const Sidebar = ({ onSelect, selected, role }) => {
                         <li className={selected === 'getCommission' ? 'active' : ''} onClick={() => onSelect('getCommission')}>委托单</li>
                         <li className={selected === 'timeline' ? 'active' : ''} onClick={() => onSelect('timeline')}>设备预约</li>
 
-
                     </>
                 )}
             </ul>
