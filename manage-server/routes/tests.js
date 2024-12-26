@@ -41,25 +41,46 @@ router.post('/assign', async (req, res) => {
             return res.status(409).json({ success: false, message: `提交错误：请选择分配人员！` });
 
         }
-        const results = await db.getAssignmentsInfo(testItemId, assignmentInfo)
-        if(!results || results.length === 0){
-            const employeeCount = await db.checkAssign(testItemId);
-            if (employeeCount >= 2) {
-                // More than 3 employees already assigned, return an error
-                return res.status(409).json({ success: false, message: "错误：只能分配一个员工做实验!" });
-            }
-            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role);
-            res.status(200).json({ success: true, message: "检测项目分配成功!" });
-        }else{
-            const userResult = await db.findUserByAccount(assignmentInfo);
-            if(userResult.role != 'supervisor' || userResult.role != 'sales'){
-                // 如果数据库查询结果表明该项目已被分配并且不是组长指派的
-                res.status(409).json({ success: false, message: `错误：项目已经分配给${userResult.name}(${userResult.account})了！` });
-            }else{
-                res.status(200).json({ success: true, message: "检测项目分配成功!" });
-            }
+        // const results = await db.getAssignmentsInfo(testItemId, assignmentInfo)
+        // if(!results || results.length === 0){
+        //     const employeeCount = await db.checkAssign(testItemId);
+        //     if (employeeCount >= 2) {
+        //         // More than 3 employees already assigned, return an error
+        //         return res.status(409).json({ success: false, message: "错误：只能分配一个员工做实验!" });
+        //     }
+        //     await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role);
+        //     res.status(200).json({ success: true, message: "检测项目分配成功!" });
+        // }else{
+        //     const userResult = await db.findUserByAccount(assignmentInfo);
+        //     console.log(userResult)
+        //     if(userResult.role != 'supervisor' && userResult.role != 'sales'){
+        //         // 如果数据库查询结果表明该项目已被分配并且不是组长指派的
+        //         res.status(409).json({ success: false, message: `错误：项目已经分配给${userResult.name}(${userResult.account})了！` });
+        //     }else{
+        //         res.status(200).json({ success: true, message: "检测项目分配成功!" });
+        //     }
 
+        // }
+
+        // 获取该检测项目的所有分配记录
+        const existingAssignments = await db.getAssignmentsByTestItemId(testItemId);
+
+        // 检查当前用户是否已经分配过
+        const alreadyAssigned = existingAssignments.find(a => a.account === assignmentInfo);
+        if (alreadyAssigned) {
+            // 如果已分配但不是执行人，允许修改为执行人
+            if (role === 'supervisor' && assignmentInfo === alreadyAssigned.account) {
+                await db.updateIsAssigned(testItemId, assignmentInfo, 1); // 更新为执行人
+                return res.status(200).json({ success: true, message: `组长 ${assignmentInfo} 已选择自行完成检测项目` });
+            } else {
+                return res.status(409).json({ success: false, message: `项目已分配给 ${assignmentInfo}` });
+            }
         }
+
+
+        // 如果未分配，添加新记录
+        await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role);
+        res.status(200).json({ success: true, message: "检测项目分配成功!" });
 
     } catch (error) {
         console.error('Failed to assign test:', error);
@@ -153,6 +174,20 @@ router.patch('/:testItemId/discount', async (req, res) => {
     } catch (error) {
         console.error('Failed to update test item price:', error);
         res.status(500).send({ message: '优惠价格更新失败', error: error.message });
+    }
+});
+
+
+// 交付检测项目
+router.patch('/:testItemId/deliver', async (req, res) => {
+    const { testItemId } = req.params;
+    const { status } = req.body;
+    try {
+        await db.deliverTest(testItemId, status);
+        res.json({ success: true, message: '交付状态设置成功' });
+    } catch (error) {
+        console.error('Failed to deliver test item:', error);
+        res.status(500).send({ message: '交付状态更新失败', error: error.message });
     }
 });
 

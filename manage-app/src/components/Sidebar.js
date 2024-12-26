@@ -85,7 +85,7 @@ const Sidebar = ({ onSelect, selected, role }) => {
                         <li className={selected === 'handleTests' ? 'active' : ''} onClick={() => onSelect('handleTests')}>检测项目处理</li>
                         <li className={selected === 'getCommission' ? 'active' : ''} onClick={() => onSelect('getCommission')}>委托单</li>
                         <li className={selected === 'dataStatistics' ? 'active' : ''} onClick={() => onSelect('dataStatistics')}>数据统计</li>
-                        <li className={selected === 'timeline' ? 'active' : ''} onClick={() => onSelect('timeline')}>设备统计</li>
+                        <li className={selected === 'timeline' ? 'active' : ''} onClick={() => onSelect('timeline')}>设备统计(维护中)</li>
 
                     </>
                 )}
@@ -93,7 +93,7 @@ const Sidebar = ({ onSelect, selected, role }) => {
                     <>
                         <li className={selected === 'handleTests' ? 'active' : ''} onClick={() => onSelect('handleTests')}>检测项目处理</li>
                         <li className={selected === 'getCommission' ? 'active' : ''} onClick={() => onSelect('getCommission')}>委托单</li>
-                        <li className={selected === 'timeline' ? 'active' : ''} onClick={() => onSelect('timeline')}>设备预约</li>
+                        <li className={selected === 'timeline' ? 'active' : ''} onClick={() => onSelect('timeline')}>设备预约(维护中)</li>
 
                     </>
                 )}

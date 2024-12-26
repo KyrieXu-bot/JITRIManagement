@@ -57,13 +57,14 @@ table {
 
 th,
 td {
-    min-width: 250px;
+    min-width: 160px;
     border-bottom: 1px solid #ddd;
     /* 修改为只有底部边框 */
     padding: 9px 15px;
     /* 增加填充以改善视觉效果 */
     text-align: center;
     /* 文本居中 */
+    line-height: 30px;
 }
 
 th {
@@ -73,6 +74,9 @@ th {
     /* 表头文字颜色 */
 }
 
+th:last-of-type, td:last-of-type{
+    min-width: 250px;
+}
 
 .order-num-fixed {
 
@@ -84,7 +88,7 @@ th {
 
 .test-item-fixed {
     position: sticky;
-    left: 250px;
+    left: 160px;
     /* 第二列的固定位置,可以调整 */
     z-index: 1;
     background-color: #f2f2f2;
@@ -98,7 +102,7 @@ th {
 
 .test-item-header-fixed {
     position: sticky;
-    left: 250px;
+    left: 160px;
     /* 第二列的固定位置,可以调整 */
     z-index: 1;
 }

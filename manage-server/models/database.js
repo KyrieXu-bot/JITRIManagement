@@ -351,11 +351,26 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
              FROM assignments aa 
              JOIN users ua ON ua.account = aa.account
              WHERE aa.test_item_id = t.test_item_id 
-               AND ua.role IN ('supervisor', 'employee')) AS team_names,
+               AND ua.role = 'supervisor') AS manager_names,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id
+               AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
+               ) AS team_names,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
              FROM assignments aa 
              JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id) AS sales_names
+             WHERE aa.test_item_id = t.test_item_id
+             ) AS sales_names,
+             CASE 
+                WHEN EXISTS (
+                    SELECT 1 
+                    FROM project_files f 
+                    WHERE f.test_item_id = t.test_item_id
+                ) THEN 1
+                ELSE 0
+            END AS hasAttachments
         FROM 
             test_items t
         LEFT JOIN 
@@ -439,11 +454,27 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
              FROM assignments aa 
              JOIN users ua ON ua.account = aa.account
              WHERE aa.test_item_id = t.test_item_id 
-               AND ua.role IN ('supervisor', 'employee')) AS team_names,
+               AND ua.role = 'supervisor'
+               ) AS manager_names,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id 
+                AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
+               ) AS team_names,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
              FROM assignments aa 
              JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id) AS sales_names
+             WHERE aa.test_item_id = t.test_item_id
+             ) AS sales_names,
+             CASE 
+                WHEN EXISTS (
+                    SELECT 1 
+                    FROM project_files f 
+                    WHERE f.test_item_id = t.test_item_id
+                ) THEN 1
+                ELSE 0
+            END AS hasAttachments
         FROM
             test_items t
         LEFT JOIN
@@ -494,7 +525,7 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
 async function assignTestToUser(testId, userId, equipment_id, start_time, end_time, role) {
     const connection = await db.getConnection();
 
-    const query = 'INSERT INTO assignments (test_item_id, account) VALUES (?, ?)';
+    const query = 'INSERT INTO assignments (test_item_id, account, is_assigned) VALUES (?, ?, ?)';
     let updateQuery =
         `UPDATE test_items 
             SET status = ?
@@ -503,8 +534,11 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
     try {
         await connection.beginTransaction();
 
+        // 判断是否为组长，设置 is_assigned 值
+        const isAssigned = role === 'supervisor' ? 1 : 0;
+
         // 执行插入分配的用户信息
-        await connection.query(query, [testId, userId]);
+        await connection.query(query, [testId, userId, isAssigned]);
 
 
         // 执行更新 test_items 的状态、设备ID、设备开始和结束时间
@@ -608,6 +642,10 @@ async function getAssignedTestsByUser(userId, status, month, employeeName, order
         t.work_hours,
         t.listed_price,
         t.discounted_price,
+        t.size,
+        t.quantity,
+        t.note,
+        t.test_note,
         t.equipment_id,
         t.check_note,
         t.create_time,
@@ -616,14 +654,23 @@ async function getAssignedTestsByUser(userId, status, month, employeeName, order
         e.model,
         t.appoint_time,
         (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-        FROM assignments aa 
-        JOIN users ua ON ua.account = aa.account
-        WHERE aa.test_item_id = t.test_item_id 
-        AND ua.role IN ('supervisor', 'employee')) AS team_names,
+            FROM assignments aa 
+            JOIN users ua ON ua.account = aa.account
+            WHERE aa.test_item_id = t.test_item_id 
+            AND ua.role = 'supervisor'
+            ) AS manager_names,
+        (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+            FROM assignments aa 
+            JOIN users ua ON ua.account = aa.account
+            WHERE aa.test_item_id = t.test_item_id 
+            AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
+
+            ) AS team_names,
         (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
         FROM assignments aa 
         JOIN users ua ON ua.account = aa.account
-        WHERE aa.test_item_id = t.test_item_id) AS sales_names
+        WHERE aa.test_item_id = t.test_item_id
+        ) AS sales_names
     FROM 
         test_items t
     LEFT JOIN 
@@ -697,7 +744,7 @@ async function getAllEmployees(departmentId) {
             u.name,
             u.account
         FROM users u
-        WHERE u.role = 'employee' AND u.department_id = ?
+        WHERE (u.role = 'employee' OR u.role = 'supervisor') AND u.department_id = ?
 
     `;
     const [results] = await db.query(query, [departmentId]);
@@ -719,17 +766,45 @@ async function getUsersByGroupId(groupId) {
 }
 
 
-async function getAssignmentsInfo(testItemId, account) {
-    const query = `
-        SELECT 
-            test_item_id,
-            account
-        FROM assignments
-        WHERE test_item_id = ? AND account = ?
-    `;
-    const [results] = await db.query(query, [testItemId, account]);
-    return results;
+// async function getAssignmentsInfo(testItemId, account) {
+//     const query = `
+//         SELECT 
+//             test_item_id,
+//             account
+//         FROM assignments
+//         WHERE test_item_id = ? AND account = ?
+//     `;
+//     const [results] = await db.query(query, [testItemId, account]);
+//     return results;
+// }
+
+
+// 查询某检测项目的所有分配记录
+async function getAssignmentsByTestItemId(testItemId) {
+    const connection = await db.getConnection();
+    try {
+        const query = `SELECT * FROM assignments WHERE test_item_id = ?`;
+        const [results] = await connection.query(query, [testItemId]);
+        return results;
+    } finally {
+        connection.release();
+    }
 }
+
+// 更新是否执行
+async function updateIsAssigned(testItemId, account, isAssigned) {
+    console.log(testItemId);
+    console.log(account);
+    console.log(isAssigned)
+    const connection = await db.getConnection();
+    try {
+        const query = `UPDATE assignments SET is_assigned = ? WHERE test_item_id = ? AND account = ?`;
+        await connection.query(query, [isAssigned, testItemId, account]);
+    } finally {
+        connection.release();
+    }
+}
+
 
 async function getEquipmentsByDepartment(departmentId) {
     const query = `
@@ -1111,8 +1186,8 @@ async function addTestItem(addedFields) {
         const testItemId = result.insertId;
         // 将 test_item_id 和 account 插入到 assignments 表中
         const insertAssignmentQuery = `
-            INSERT INTO assignments (test_item_id, account)
-            VALUES (?, ?);
+            INSERT INTO assignments (test_item_id, account, is_assigned)
+            VALUES (?, ?, 1);
         `;
         const account = addedFields.account; // 假设 `account` 存在于 addedFields 中
         await connection.query(insertAssignmentQuery, [testItemId, account]);
@@ -1128,28 +1203,28 @@ async function addTestItem(addedFields) {
     }
 }
 
-async function checkAssign(testItemId) {
-    const connection = await db.getConnection();
-    try {
-        await connection.beginTransaction();
+// async function checkAssign(testItemId) {
+//     const connection = await db.getConnection();
+//     try {
+//         await connection.beginTransaction();
 
-        // Check the number of employees assigned to this test item
-        const employeeCountQuery = `
-            SELECT COUNT(*) AS employeeCount
-            FROM assignments
-            WHERE test_item_id = ? AND account NOT LIKE '%YW%'
-        `;
-        const [employeeCountResult] = await connection.query(employeeCountQuery, [testItemId]);
-        const employeeCount = employeeCountResult[0].employeeCount;
-        return employeeCount;
-    } catch (error) {
-        await connection.rollback(); // 如果有错误，回滚事务
-        throw error; // 将错误抛出以便捕获和处理
-    } finally {
-        connection.release();
-    }
+//         // Check the number of employees assigned to this test item
+//         const employeeCountQuery = `
+//             SELECT COUNT(*) AS employeeCount
+//             FROM assignments
+//             WHERE test_item_id = ? AND account NOT LIKE '%YW%'
+//         `;
+//         const [employeeCountResult] = await connection.query(employeeCountQuery, [testItemId]);
+//         const employeeCount = employeeCountResult[0].employeeCount;
+//         return employeeCount;
+//     } catch (error) {
+//         await connection.rollback(); // 如果有错误，回滚事务
+//         throw error; // 将错误抛出以便捕获和处理
+//     } finally {
+//         connection.release();
+//     }
 
-}
+// }
 
 
 async function getCustomers(filterData) {
@@ -1687,6 +1762,14 @@ async function checkTimeConflict(equipment_id, start_time, end_time) {
     }
     
 }
+
+async function deliverTest(testItemId, status) {
+    return db.query(`
+        UPDATE test_items 
+        SET status = ?
+        WHERE test_item_id = ?
+    `, [status, testItemId]);
+}
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -1701,7 +1784,7 @@ module.exports = {
     getAllSupervisors,
     getAllEmployees,
     getUsersByGroupId,
-    getAssignmentsInfo,
+    //getAssignmentsInfo,
     getEquipmentsByDepartment,
     getEmployeeWorkStats,
     getMachineWorkStats,
@@ -1723,7 +1806,7 @@ module.exports = {
     getFilesByTestItemId,
     deleteFilesByProjectId,
     addTestItem,
-    checkAssign,
+    //checkAssign,
     getCustomers,
     getTransactions,
     makeDeposit,
@@ -1743,5 +1826,8 @@ module.exports = {
     getAllTransMonths,
     getSalesOrders,
     rollbackTest,
-    checkTimeConflict
+    checkTimeConflict,
+    deliverTest,
+    getAssignmentsByTestItemId,
+    updateIsAssigned
 };
