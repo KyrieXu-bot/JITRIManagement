@@ -13,7 +13,7 @@ h2 {
 
 .dashboard {
     background-color: #f9f9f9;
-    padding: 20px;
+    padding:5px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -33,6 +33,15 @@ h2 {
     border-radius: 4px;
     font-size: 1.1em;
     display: flex;
+    text-align: left;
+    line-height: 40px;
+    font-size: 17px;
+}
+
+.home-check{
+    height: 45px;
+    width: 60px;
+    
 }
 
 .order-item:hover {
@@ -46,15 +55,20 @@ h2 {
     text-align: center;
 }
 
-
+.block-group{
+    display: flex;
+    margin: 0;
+    padding: 0;
+}
 .block{
     display: flex;
     justify-content: space-around;
     flex-wrap: wrap;
-    margin: 10px;
+    margin: 0px;
+    width: 50%;
 }
 .block div {
-    width: 78%;
+    width: 100%;
     max-height: 450px;
     min-height: 300px;
     overflow: auto;

@@ -75,7 +75,7 @@ th {
 }
 
 th:last-of-type, td:last-of-type{
-    min-width: 250px;
+    min-width: 300px;
 }
 
 .order-num-fixed {

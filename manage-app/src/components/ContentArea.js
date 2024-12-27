@@ -1512,7 +1512,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
 
                                 )}
-                                <Button variant="secondary" onClick={() => handleRollBack(item.test_item_id)}>回退</Button>
+
+                                {item.status === '2' && (
+                                    <Button variant="secondary" onClick={() => handleRollBack(item.test_item_id)}>回退</Button>
+                                )}
 
                                 {item.status !== '3' && (
                                     <Button onClick={() => handleQuote(item.test_item_id)}>确定报价(可选)</Button>
@@ -1578,17 +1581,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td className='fixed-column'>
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                                 {item.team_names === item.manager_names && (
-                                    <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
+                                    <>
+                                        <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
+                                        <Button onClick={() => handleQuote(item.test_item_id)}>确定报价(可选)</Button>
+                                    </>
+
                                 )}
-                                {item.status === '1' && !item.team_names && (
+
+                                {item.status !== '3' && item.status !== '5' && (
                                     <Button onClick={() => handleAssignment(item.test_item_id)}>指派</Button>
-                                )}
-                                {item.status !== '3' && (
-                                    <Button onClick={() => handleQuote(item.test_item_id)}>确定报价(可选)</Button>
                                 )}
                                 {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
                                 {(item.status === '2' || item.status === '4') && item.listed_price && (
                                     <Button variant="warning" onClick={() => handleCheck(item)}>审核</Button>
+                                )}
+                                {(item.status === '2' || item.status === '1' )&& (
+                                    <Button variant="secondary" onClick={() => handleRollBack(item.test_item_id)}>回退</Button>
                                 )}
                             </td>
 
@@ -2235,6 +2243,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         role={role}
                         assignedNotTestedOrders={data}
                         onShowAssignment={showAssignmentModalHandler}
+                        onShowCheck={handleCheck}
                         renderDeadlineStatus={renderDeadlineStatus}
                     />
                 </div>
@@ -2775,8 +2784,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
-                        <h1>确定要回退至组长吗？</h1>
-                        <p>执行回退操作前请与组长进行沟通。</p>
+                        <h1>确定要回退至上级吗？</h1>
+                        <p>回退操作会导致指派后的人员和任务清空。因此执行回退操作前请与组长/室主任进行沟通。</p>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
@@ -2803,7 +2812,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             </div>
                         </div>
                         <div>
-                            <strong>优惠价格：</strong> ¥ {currentItem.discounted_price}
+                            <strong>标准价格：</strong> ¥ {currentItem.listed_price}
+                        </div>
+                        <div>
+                            <strong>使用设备：</strong> {currentItem.equipment_name}({currentItem.model})
                         </div>
                         {/* <p className='check-note'>
                             注：审批以后将以交易价"{currentItem.discounted_price}"对该检测客户的余额进行扣款

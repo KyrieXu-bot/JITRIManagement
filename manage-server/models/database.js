@@ -222,22 +222,6 @@ async function deleteOrder(orderNum) {
         sql = `DELETE FROM orders WHERE order_num = ?`;
         await connection.query(sql, [orderNum]);
 
-        // 6. 删除 payments 表中的记录
-        sql = `
-            DELETE FROM payments 
-            WHERE payment_id IN (
-                SELECT payment_id FROM orders WHERE order_num = ?
-            )`;
-        await connection.query(sql, [orderNum]);
-
-        // 7. 删除 customers 表中的记录
-        sql = `
-            DELETE FROM customers 
-            WHERE customer_id IN (
-                SELECT customer_id FROM orders WHERE order_num = ?
-            )`;
-        await connection.query(sql, [orderNum]);
-
         // 提交事务
         await connection.commit();
     } catch (error) {
@@ -266,60 +250,6 @@ async function getAllSamples() {
     return results;
 }
 
-// async function getEmployeeTestItems(status, departmentId, account, month) {
-//     let query = `
-//         SELECT 
-//             t.test_item_id,
-//             t.original_no,
-//             t.test_item,
-//             t.test_method,
-//             t.order_num,
-//             t.status,
-//             t.machine_hours,
-//             t.work_hours,
-//             t.listed_price,
-//             t.discounted_price,
-//             t.equipment_id,
-//             t.check_note,
-//             t.create_time,
-//             t.deadline,
-//             e.equipment_name,
-//             e.model,
-//             GROUP_CONCAT(DISTINCT u.name ORDER BY u.name) AS assigned_accounts
-//         FROM 
-//             test_items t
-//         JOIN 
-//             assignments a ON t.test_item_id = a.test_item_id
-//         JOIN 
-//             equipment e ON e.equipment_id = t.equipment_id
-//         JOIN 
-// 	        users u on u.account = a.account
-//         WHERE 
-//             EXISTS (
-//                 SELECT 1
-//                 FROM assignments suba
-//                 WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
-//             )
-
-//     `;
-//     const params = [];
-//     params.push(account);
-//     if (departmentId !== undefined && departmentId !== '') {
-//         query += ' AND t.department_id = ?';
-//         params.push(departmentId);
-//         if (status !== undefined && status !== '') {
-//             query += ' AND t.status = ?';
-//             params.push(status);
-//         }
-//     }
-//     if(month !== undefined && month !== ''){
-//         query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
-//             params.push(month);
-//     }
-//     query += `GROUP BY t.test_item_id;`;
-//     const [results] = await db.query(query, params);
-//     return results;
-// }
 
 async function getEmployeeTestItems(status, departmentId, account, month, employeeName, orderNum) {
     let query = `
@@ -526,6 +456,7 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
     const connection = await db.getConnection();
 
     const query = 'INSERT INTO assignments (test_item_id, account, is_assigned) VALUES (?, ?, ?)';
+    const employeeQuery = 'select u.role from assignments a join users u on a.account = u.account where a.account = ?'
     let updateQuery =
         `UPDATE test_items 
             SET status = ?
@@ -534,9 +465,14 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
     try {
         await connection.beginTransaction();
 
+        const [result] = await connection.query(employeeQuery, [userId]);
+        console.log("jieguo", result)
         // 判断是否为组长，设置 is_assigned 值
         const isAssigned = role === 'supervisor' ? 1 : 0;
 
+        console.log("名称",testId);
+        console.log(userId);
+        console.log(isAssigned);
         // 执行插入分配的用户信息
         await connection.query(query, [testId, userId, isAssigned]);
 
@@ -586,10 +522,79 @@ async function reassignTestToUser(newAccount, account, testItemId) {
     await db.query(query, [newAccount, testItemId, account]);
 }
 
+
+// 回退操作
 async function rollbackTest(account, testItemId) {
-    const query = `DELETE FROM assignments WHERE account = ? AND test_item_id = ? `;
-    await db.query(query, [account, testItemId]);
+    const connection = await db.getConnection();
+
+    // 查询用户角色
+    const accountQuery = `
+        SELECT role 
+        FROM users 
+        WHERE account = ?
+    `;
+
+    // 删除 `assignments` 表中指定 account 和 test_item_id 的记录
+    const deleteEmployeeQuery = `
+        DELETE FROM assignments 
+        WHERE account = ? AND test_item_id = ?
+    `;
+
+    // 删除 `assignments` 表中 test_item_id 相关的所有非业务员（sales）记录
+    const deleteNonSalesAssignmentsQuery = `
+        DELETE FROM assignments 
+        WHERE test_item_id = ? 
+          AND account NOT IN (
+            SELECT account 
+            FROM users 
+            WHERE role = 'sales'
+          )
+    `;
+
+    // 更新 `test_items` 表中的状态
+    const updateTestItemsStatusQuery = `
+        UPDATE test_items 
+        SET status = '0' 
+        WHERE test_item_id = ?
+    `;
+
+    try {
+        // 开启事务
+        await connection.beginTransaction();
+
+        // 查询角色
+        const [roleResult] = await connection.query(accountQuery, [account]);
+        const userRole = roleResult[0]?.role;
+
+        if (!userRole) {
+            throw new Error("用户角色未找到");
+        }
+
+        if (userRole === "employee") {
+            // 员工回退：仅删除自己的记录
+            await connection.query(deleteEmployeeQuery, [account, testItemId]);
+        } else if (userRole === "supervisor") {
+            // 组长回退：删除所有非业务员（sales）的记录，并更新状态
+            await connection.query(deleteNonSalesAssignmentsQuery, [testItemId]);
+            await connection.query(updateTestItemsStatusQuery, [testItemId]);
+        } else {
+            throw new Error("不支持的用户角色执行回退操作");
+        }
+
+        // 提交事务
+        await connection.commit();
+
+    } catch (error) {
+        // 回滚事务
+        await connection.rollback();
+        console.error("Fail to roll back", error);
+        throw error;
+    } finally {
+        // 释放数据库连接
+        connection.release();
+    }
 }
+
 
 
 async function updateTestItemStatus(finishData) {
@@ -729,7 +734,8 @@ async function getAllSupervisors(departmentId) {
     const query = `
         SELECT 
             u.name,
-            u.account
+            u.account,
+            u.role
         FROM users u
         WHERE u.role = 'supervisor' AND u.department_id = ?
 
@@ -744,7 +750,7 @@ async function getAllEmployees(departmentId) {
             u.name,
             u.account
         FROM users u
-        WHERE (u.role = 'employee' OR u.role = 'supervisor') AND u.department_id = ?
+        WHERE u.role = 'employee' AND u.department_id = ?
 
     `;
     const [results] = await db.query(query, [departmentId]);
@@ -756,8 +762,7 @@ async function getUsersByGroupId(groupId) {
     const query = `
         SELECT 
             u.name,
-            u.account,
-            u.role
+            u.account
         FROM users u
         WHERE u.group_id = ?
     `;
@@ -783,7 +788,16 @@ async function getUsersByGroupId(groupId) {
 async function getAssignmentsByTestItemId(testItemId) {
     const connection = await db.getConnection();
     try {
-        const query = `SELECT * FROM assignments WHERE test_item_id = ?`;
+        const query = `SELECT 
+             a.assignment_id,
+             a.test_item_id,
+             a.account,
+             a.is_assigned,
+             u.role
+             FROM assignments a 
+             JOIN
+                users u ON u.account = a.account
+            WHERE a.test_item_id = ?`;
         const [results] = await connection.query(query, [testItemId]);
         return results;
     } finally {
@@ -987,7 +1001,6 @@ async function updateTestItem(testItemId, updatedFields) {
 async function deleteTestItem(testItemId) {
     const connection = await db.getConnection(); // 获取数据库连接
     try {
-        // 开启事务
         await connection.beginTransaction();
 
         // 删除与 test_item_id 相关的其他数据
@@ -996,18 +1009,15 @@ async function deleteTestItem(testItemId) {
 
         // 最后删除 test_items 表中的记录
         const result = await connection.query('DELETE FROM test_items WHERE test_item_id = ?', [testItemId]);
-
-        // 提交事务
         await connection.commit();
 
         return result[0]; // 返回删除结果
     } catch (error) {
-        // 如果出现错误，回滚事务
         await connection.rollback();
         console.error('Error deleting test item:', error);
         throw error;
     } finally {
-        connection.release(); // 释放数据库连接
+        connection.release();
     }
 }
 
@@ -1428,7 +1438,9 @@ async function makeDeposit(paymentId, amount, description) {
 }
 
 async function handleCheckout( orderNums ) {
+    const connection = await db.getConnection(); 
     try {
+        await connection.beginTransaction();
         // 查询指定订单的discounted_price是否存在
         let query = `
             SELECT 
@@ -1456,6 +1468,7 @@ async function handleCheckout( orderNums ) {
                 errorMessage += `"${item.test_item}"项目未填写交易价格;\n`;
             });
 
+            await connection.rollback();
             return {
                 success: false,
                 message: errorMessage
@@ -1490,12 +1503,16 @@ async function handleCheckout( orderNums ) {
         await db.query(query, [invoiceOrders]);
 
 
-
+        await connection.commit();
         return { success: true };
     } catch (error) {
         console.error('结算操作失败:', error);
+        // 回滚事务
+        await connection.rollback();
         throw new Error('结算失败，请稍后重试');
-    } 
+    } finally {
+        connection.release();
+    }
 }
 
 
@@ -1770,6 +1787,53 @@ async function deliverTest(testItemId, status) {
         WHERE test_item_id = ?
     `, [status, testItemId]);
 }
+
+// 获取检测项目的详细信息
+async function getTestItemById(testItemId) {
+    const query = `SELECT original_no, test_item, test_method, size, quantity, note, status, department_id, deadline,order_num
+                   FROM test_items WHERE test_item_id = ?`;
+    const [results] = await db.query(query, [testItemId]);
+    return results[0];
+}
+// 复制检测项目并生成新的 ID
+
+async function duplicateTestItem(testItemData) {
+    // 如果 start_time 或 end_time 为空字符串，将它们设为 NULL
+    if (testItemData.start_time === '') {
+        testItemData.start_time = null;
+    }
+    if (testItemData.end_time === '') {
+        testItemData.end_time = null;
+    }
+    if (testItemData.equipment_id === '') {
+        testItemData.equipment_id = null;
+    }
+
+    const query = `INSERT INTO test_items (
+        order_num, original_no, test_item, test_method, size, quantity, note, status, department_id, deadline, create_time, equipment_id, start_time, end_time
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`;
+
+    const params = [
+        testItemData.order_num,
+        testItemData.original_no,
+        testItemData.test_item,
+        testItemData.test_method,
+        testItemData.size,
+        testItemData.quantity,
+        testItemData.note,
+        testItemData.status,
+        testItemData.department_id,
+        testItemData.deadline,
+        testItemData.equipment_id,
+        testItemData.start_time,
+        testItemData.end_time
+    ];
+
+    const [result] = await db.query(query, params);
+    return result.insertId; // 返回新生成的 test_item_id
+}
+
+
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -1829,5 +1893,7 @@ module.exports = {
     checkTimeConflict,
     deliverTest,
     getAssignmentsByTestItemId,
-    updateIsAssigned
+    updateIsAssigned,
+    getTestItemById,
+    duplicateTestItem
 };

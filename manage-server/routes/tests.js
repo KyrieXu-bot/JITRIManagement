@@ -35,45 +35,60 @@ router.post('/assign', async (req, res) => {
         start_time, 
         end_time 
     } = req.body;
-
     try {
         if(!assignmentInfo || assignmentInfo === ''){
             return res.status(409).json({ success: false, message: `提交错误：请选择分配人员！` });
 
         }
-        // const results = await db.getAssignmentsInfo(testItemId, assignmentInfo)
-        // if(!results || results.length === 0){
-        //     const employeeCount = await db.checkAssign(testItemId);
-        //     if (employeeCount >= 2) {
-        //         // More than 3 employees already assigned, return an error
-        //         return res.status(409).json({ success: false, message: "错误：只能分配一个员工做实验!" });
-        //     }
-        //     await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role);
-        //     res.status(200).json({ success: true, message: "检测项目分配成功!" });
-        // }else{
-        //     const userResult = await db.findUserByAccount(assignmentInfo);
-        //     console.log(userResult)
-        //     if(userResult.role != 'supervisor' && userResult.role != 'sales'){
-        //         // 如果数据库查询结果表明该项目已被分配并且不是组长指派的
-        //         res.status(409).json({ success: false, message: `错误：项目已经分配给${userResult.name}(${userResult.account})了！` });
-        //     }else{
-        //         res.status(200).json({ success: true, message: "检测项目分配成功!" });
-        //     }
-
-        // }
-
         // 获取该检测项目的所有分配记录
         const existingAssignments = await db.getAssignmentsByTestItemId(testItemId);
 
         // 检查当前用户是否已经分配过
         const alreadyAssigned = existingAssignments.find(a => a.account === assignmentInfo);
         if (alreadyAssigned) {
-            // 如果已分配但不是执行人，允许修改为执行人
+            // 如果是组长并选择了自己为执行人，更新 is_assigned 为 1
             if (role === 'supervisor' && assignmentInfo === alreadyAssigned.account) {
                 await db.updateIsAssigned(testItemId, assignmentInfo, 1); // 更新为执行人
                 return res.status(200).json({ success: true, message: `组长 ${assignmentInfo} 已选择自行完成检测项目` });
             } else {
                 return res.status(409).json({ success: false, message: `项目已分配给 ${assignmentInfo}` });
+            }
+        }
+
+
+        // 如果是组长分配给别人（非自己），则复制检测项目
+        if (role === 'supervisor') {
+            const hasSupervisor = existingAssignments.some(a => a.is_assigned === 1);  // 是否已经有组长
+            const hasEmployee = existingAssignments.some(a => a.is_assigned === 0);    // 是否已经有员工
+
+
+            if (hasSupervisor && hasEmployee) {
+                // 如果已有组长和员工，复制检测项目
+                const originalTestItem = await db.getTestItemById(testItemId);
+                if (!originalTestItem) {
+                    return res.status(404).json({ success: false, message: '未找到原始检测项目' });
+                }
+
+                // 创建新的检测项目
+                const newTestItemId = await db.duplicateTestItem({
+                    ...originalTestItem,
+                    equipment_id,
+                    start_time,
+                    end_time,
+                    status: '1', // 新项目为未分配状态
+                });
+
+                
+                // 复制检测项目时，将原组长和实验员也分配到新项目
+                const supervisorAssignment = existingAssignments.find(a => a.role === 'supervisor'); // 通过角色找到组长
+                if (supervisorAssignment) {
+                    await db.assignTestToUser(newTestItemId, supervisorAssignment.account, equipment_id, start_time, end_time, 'supervisor'); // 绑定组长到新项目
+                }
+
+                // 分配新检测项目给新用户
+                await db.assignTestToUser(newTestItemId, assignmentInfo, equipment_id, start_time, end_time, role);
+
+                return res.status(200).json({ success: true, message: "检测项目复制并分配成功!", newTestItemId });
             }
         }
 
@@ -84,7 +99,7 @@ router.post('/assign', async (req, res) => {
 
     } catch (error) {
         console.error('Failed to assign test:', error);
-        res.status(500).json({ success: false, message: "Failed to assign test", error: error.message });
+        res.status(500).json({ success: false, message: "分配项目失败！请联系开发者", error: error.message });
     }
 });
 

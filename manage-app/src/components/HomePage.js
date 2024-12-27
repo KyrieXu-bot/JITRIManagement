@@ -1,14 +1,16 @@
 import React from 'react';
 import '../css/HomePage.css'
-const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, renderDeadlineStatus}) => {
+const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, onShowCheck, renderDeadlineStatus }) => {
     const notAssigned = assignedNotTestedOrders.filter(order => order.status === '0');
     const notTested = assignedNotTestedOrders.filter(order => order.status === '1');
+    const notChecked = assignedNotTestedOrders.filter(order => order.status === '2');
+
     const checked = assignedNotTestedOrders.filter(order => order.status === '3');
     let totalMachineHours = 0;
     let totalWorkHours = 0;
     let totalListedPrice = 0;
     let totalDiscountedPrice = 0;
-    for(let order of assignedNotTestedOrders){
+    for (let order of assignedNotTestedOrders) {
         // 使用 Number() 将所有数值转换为数字，并检查是否为有效数值
         totalMachineHours += Number(order.machine_hours) || 0;   // 如果不是有效数值，就加0
         totalWorkHours += Number(order.work_hours) || 0;
@@ -117,22 +119,22 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, renderDeadl
                 </nav>
             ) : (
                 <nav className='navGroup'>
-                <div className='countGroup'>
-                    检测项目总数量：
-                    <br />
-                    <p>{assignedNotTestedOrders.length}个</p>
-                </div>
-                <div className='countGroup'>
-                    检测项目总委托额：
-                    <br />
-                    <p>{formattedListed}元</p>
-                </div>
-                <div className='countGroup'>
-                    总优惠委托额：
-                    <br />
-                    <p>{formattedDiscount}元</p>
-                </div>
-            </nav>
+                    <div className='countGroup'>
+                        检测项目总数量：
+                        <br />
+                        <p>{assignedNotTestedOrders.length}个</p>
+                    </div>
+                    <div className='countGroup'>
+                        检测项目总委托额：
+                        <br />
+                        <p>{formattedListed}元</p>
+                    </div>
+                    <div className='countGroup'>
+                        总优惠委托额：
+                        <br />
+                        <p>{formattedDiscount}元</p>
+                    </div>
+                </nav>
             )}
             <div className="dashboard">
 
@@ -151,45 +153,87 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, renderDeadl
                                             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                                             开单时间：{new Date(order.create_time).toLocaleString()}
                                             <button onClick={() => onShowAssignment(order)}>立即分配</button>
-                                        
+
                                         </li>
 
                                     ))}
                                 </ul>
-                                
+
                             </div>
-                            
+
                         </div>
                     ) : (
                         <p>没有找到任何待检测的委托单号。</p>
                     )
                 ) : role === 'supervisor' || role === 'employee' ? (
-                    notTested.length > 0 ? (
+                    <div className='block-group'>
                         <div className='block'>
                             <h3>待完成项目：<span className='projTitle'>{notTested.length}个</span></h3>
+                            {notTested.length > 0 ? (
 
-                            <div>
-                                <ul>
-                                    {notTested.map((order) => (
-                                        <li key={order.order_num} className="order-item">
-                                            委托单号: {order.order_num}
-                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                            检测项目：{order.test_item}
-                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                            开单时间：{new Date(order.create_time).toLocaleString()}
-                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                            剩余时间：{renderDeadlineStatus(order.deadline, order.appoint_time)}
 
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
+                                <div>
+                                    <ul>
+                                        {notTested.map((order) => (
+                                            <li key={order.order_num} className="order-item">
+                                                委托单号: {order.order_num}
+                                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                                检测项目：{order.test_item}
+                                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                                <br></br>
+                                                检测人员：{order.team_names}
+                                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 
+                                                开单时间：{order.create_time ? new Date(order.create_time).toLocaleString() : ''}
+                                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                                <br></br>
+                                                {renderDeadlineStatus(order.deadline, order.appoint_time)}
+
+                                            </li>
+                                        ))}
+                                    </ul>
+
+                                </div>
+                            ) : (
+                                <p>没有找到任何待检测的委托单号。</p>
+                            )}
                         </div>
 
-                    ) : (
-                        <p>没有找到任何待检测的委托单号。</p>
-                    )
+                        <div className='block'>
+                            <h3>待审批项目：<span className='projTitle'>{notChecked.length}个</span></h3>
+                            {notChecked.length > 0 ? (
+
+
+                                <div>
+                                    <ul>
+                                        {notChecked.map((order) => (
+                                            <li key={order.order_num} className="order-item">
+                                                委托单号: {order.order_num}
+                                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                                检测项目：{order.test_item}
+                                                <br></br>
+                                                检测人员：{order.team_names}
+                                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+                                                开单时间：{order.create_time ? new Date(order.create_time).toLocaleString() : ''}
+                                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                                <br></br>
+                                                {renderDeadlineStatus(order.deadline, order.appoint_time)}
+                                                <button className='home-check' onClick={() => onShowCheck(order)}>审批</button>
+
+                                            </li>
+                                            
+                                        ))}
+                                    </ul>
+
+                                </div>
+                            ) : (
+                                <p>当前暂无审批任务</p>
+                            )}
+                        </div>
+                    </div>
+
+
                 ) : (
                     <div></div>
                 )}
