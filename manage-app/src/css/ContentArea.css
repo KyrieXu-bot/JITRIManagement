@@ -37,7 +37,7 @@
     background-color: #fff;
     /* 背景颜色 */
     box-sizing: border-box;
-    overflow: auto;
+    overflow-y: auto;
     /* 隐藏内容溢出 */
     position: relative;
     flex-basis: 600px;
@@ -175,7 +175,18 @@ nav {
 .detailModal span {
     font-weight: bold;
     color: #5f87a0;
-    
+}
+
+/* 设置容器为flex布局 */
+.detail-container {
+    display: flex;
+    flex-wrap: wrap; /* 允许换行 */
+    gap: 20px; /* 设置每个项之间的间距 */
+}
+
+/* 设置每个项的宽度为50% */
+.detail-item {
+    flex: 1 1 calc(50% - 20px); /* 50% 宽度，减去间距 */
 }
 
 
@@ -411,6 +422,16 @@ nav {
     font-weight: bold;
 }
 
+.rct-sidebar {
+    background-color: #f8f9fa; /* 设置背景颜色 */
+    font-size: 14px;          /* 设置字体大小 */
+    font-weight: bold;        /* 设置字体加粗 */
+    text-align: center;       /* 居中对齐 */
+}
+
+
+
+
 /* 基础样式调整，以适应移动设备 */
 @media (max-width: 768px) {
     .content {
@@ -529,6 +550,10 @@ nav {
     .test-items li {
         font-size: 12px;
         /* 在小屏幕上减小字体大小 */
+    }
+
+    .detail-item {
+        flex: 1 1 100%; /* 100% 宽度 */
     }
 }
 

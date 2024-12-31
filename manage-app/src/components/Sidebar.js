@@ -97,7 +97,10 @@ const Sidebar = ({ onSelect, selected, role }) => {
 
                     </>
                 )}
+                <li className={selected === 'getReservation' ? 'active' : ''} onClick={() => onSelect('getReservation')}>设备预约时间表</li>
+
             </ul>
+            
         </div>
     );
 };

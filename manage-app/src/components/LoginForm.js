@@ -12,7 +12,6 @@ function LoginForm({ onLoginSuccess }) {
   const handleLogin = async () => {
     try {
       const response = await axios.post(`${config.API_BASE_URL}/api/login`, { account, password });
-      console.log('登录成功:', response.data);
       // 处理登录后逻辑
       // // 存储用户信息和角色
       localStorage.setItem('userRole', response.data.user.role); // 存储角色

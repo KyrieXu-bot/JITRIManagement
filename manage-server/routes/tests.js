@@ -11,11 +11,11 @@ router.get('/', async (req, res) => {
     let orderNum = req.query.orderNum
     try {
         //查询组长数据
-        if(account != undefined && account != ''){
-            const results = await db.getEmployeeTestItems(status, departmentId, account,month, employeeName, orderNum);
+        if (account != undefined && account != '') {
+            const results = await db.getEmployeeTestItems(status, departmentId, account, month, employeeName, orderNum);
             res.json(results);
 
-        } else{
+        } else {
             const results = await db.getAllTestItems(status, departmentId, month, employeeName, orderNum);
             res.json(results);
         }
@@ -27,16 +27,16 @@ router.get('/', async (req, res) => {
 
 // Assign a test to a user
 router.post('/assign', async (req, res) => {
-    const { 
-        testItemId, 
+    const {
+        testItemId,
         role,
-        assignmentInfo, 
-        equipment_id, 
-        start_time, 
-        end_time 
+        assignmentInfo,
+        equipment_id,
+        start_time,
+        end_time
     } = req.body;
     try {
-        if(!assignmentInfo || assignmentInfo === ''){
+        if (!assignmentInfo || assignmentInfo === '') {
             return res.status(409).json({ success: false, message: `提交错误：请选择分配人员！` });
 
         }
@@ -58,11 +58,13 @@ router.post('/assign', async (req, res) => {
 
         // 如果是组长分配给别人（非自己），则复制检测项目
         if (role === 'supervisor') {
-            const hasSupervisor = existingAssignments.some(a => a.is_assigned === 1);  // 是否已经有组长
-            const hasEmployee = existingAssignments.some(a => a.is_assigned === 0);    // 是否已经有员工
+            const hasSupervisor = existingAssignments.some(a => a.is_assigned === 0);  // 是否已经有组长
+            const hasEmployee = existingAssignments.some(a => a.is_assigned === 1);    // 是否已经有员工
+            const hasAssignedSupervisor = existingAssignments.some(a => a.is_assigned === 1);  // 是否已经有组长自己做的
 
-
-            if (hasSupervisor && hasEmployee) {
+            //两种情况：这个项目有不执行的组长+执行的组员；有自己执行的组长。
+            //这些情况下都需要复制项目
+            if ((hasSupervisor && hasEmployee) || hasAssignedSupervisor) {
                 // 如果已有组长和员工，复制检测项目
                 const originalTestItem = await db.getTestItemById(testItemId);
                 if (!originalTestItem) {
@@ -78,23 +80,29 @@ router.post('/assign', async (req, res) => {
                     status: '1', // 新项目为未分配状态
                 });
 
-                
+
                 // 复制检测项目时，将原组长和实验员也分配到新项目
                 const supervisorAssignment = existingAssignments.find(a => a.role === 'supervisor'); // 通过角色找到组长
                 if (supervisorAssignment) {
-                    await db.assignTestToUser(newTestItemId, supervisorAssignment.account, equipment_id, start_time, end_time, 'supervisor'); // 绑定组长到新项目
+                    await db.assignTestToUser(newTestItemId, supervisorAssignment.account, equipment_id, start_time, end_time, 'supervisor', 0); // 绑定组长到新项目
                 }
 
                 // 分配新检测项目给新用户
-                await db.assignTestToUser(newTestItemId, assignmentInfo, equipment_id, start_time, end_time, role);
+                await db.assignTestToUser(newTestItemId, assignmentInfo, equipment_id, start_time, end_time, role, 1);
 
                 return res.status(200).json({ success: true, message: "检测项目复制并分配成功!", newTestItemId });
             }
         }
 
+        //如果组长分配给组长。设置组长初始为不执行
+        if (role === 'leader') {
+            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role, 0);
 
-        // 如果未分配，添加新记录
-        await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role);
+        } else {
+            // 否则，按照正常组长逻辑。给分配的组员添加新记录
+            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role, 1);
+        }
+
         res.status(200).json({ success: true, message: "检测项目分配成功!" });
 
     } catch (error) {
@@ -150,6 +158,7 @@ router.post('/update-check', async (req, res) => {
         res.status(500).send({ message: 'Failed to update test status', error: error.message });
     }
 });
+
 // Get all test items assigned to a specific user
 router.get('/assignments/:userId', async (req, res) => {
     let status = req.query.status; // 获取请求中的状态参数
@@ -272,7 +281,7 @@ const formatDateForMySQL = (isoDate) => {
 };
 
 
-// 获取同一组的用户
+// 获取同一组的设备
 router.get('/equipments', async (req, res) => {
     try {
         const { departmentId } = req.query;
@@ -281,6 +290,52 @@ router.get('/equipments', async (req, res) => {
     } catch (error) {
         console.error('Failed to fetch equipments:', error);
         res.status(500).send({ message: 'Failed to fetch equipments', error: error.message });
+    }
+});
+
+// 获取设备的预约情况
+router.get('/equipments/schedule', async (req, res) => {
+    try {
+        const { departmentId } = req.query;
+
+        // 1. 获取所有设备的基本信息
+        const equipments = await db.getEquipmentsByDepartment(departmentId);
+
+        // 2. 获取设备的预约情况
+        const testItems = await db.getEquipmentReservations();
+
+        // 3. 创建一个设备ID到预约记录的映射
+        const equipmentSchedule = {};
+
+        // 将预约记录按设备ID分组
+        testItems.forEach(item => {
+            if (!equipmentSchedule[item.equipment_id]) {
+                equipmentSchedule[item.equipment_id] = [];
+            }
+            equipmentSchedule[item.equipment_id].push({
+                order_num: item.order_num,
+                test_item: item.test_item,
+                start_time: item.start_time,
+                end_time: item.end_time
+            });
+        });
+
+        // 4. 合并设备信息和预约记录
+        const result = equipments.map(equipment => {
+            return {
+                equipment_id: equipment.equipment_id,
+                equipment_name: equipment.equipment_name,
+                model: equipment.model,
+                equipment_label: equipment.equipment_label,
+                reservations: equipmentSchedule[equipment.equipment_id] || [] // 如果没有预约，返回空数组
+            };
+        });
+
+        // 返回合并后的设备预约信息
+        res.json(result);
+    } catch (error) {
+        console.error('Failed to fetch equipment schedule:', error);
+        res.status(500).send({ message: 'Failed to fetch equipment schedule', error: error.message });
     }
 });
 
@@ -315,7 +370,6 @@ router.get('/checkTimeConflict', async (req, res) => {
     try {
         // 调用数据库方法检查时间冲突
         const conflictInfo = await db.checkTimeConflict(equipment_id, start, end);
-        console.log(conflictInfo)
         if (conflictInfo.conflict) {
             // 如果有冲突，返回详细的冲突时间段
             return res.status(200).json({

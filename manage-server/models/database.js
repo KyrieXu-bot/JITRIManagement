@@ -452,11 +452,10 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
     return results;
 }
 
-async function assignTestToUser(testId, userId, equipment_id, start_time, end_time, role) {
+async function assignTestToUser(testId, userId, equipment_id, start_time, end_time, role, isAssigned) {
     const connection = await db.getConnection();
 
     const query = 'INSERT INTO assignments (test_item_id, account, is_assigned) VALUES (?, ?, ?)';
-    const employeeQuery = 'select u.role from assignments a join users u on a.account = u.account where a.account = ?'
     let updateQuery =
         `UPDATE test_items 
             SET status = ?
@@ -465,14 +464,7 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
     try {
         await connection.beginTransaction();
 
-        const [result] = await connection.query(employeeQuery, [userId]);
-        console.log("jieguo", result)
-        // 判断是否为组长，设置 is_assigned 值
-        const isAssigned = role === 'supervisor' ? 1 : 0;
 
-        console.log("名称",testId);
-        console.log(userId);
-        console.log(isAssigned);
         // 执行插入分配的用户信息
         await connection.query(query, [testId, userId, isAssigned]);
 
@@ -807,9 +799,7 @@ async function getAssignmentsByTestItemId(testItemId) {
 
 // 更新是否执行
 async function updateIsAssigned(testItemId, account, isAssigned) {
-    console.log(testItemId);
-    console.log(account);
-    console.log(isAssigned)
+
     const connection = await db.getConnection();
     try {
         const query = `UPDATE assignments SET is_assigned = ? WHERE test_item_id = ? AND account = ?`;
@@ -829,6 +819,7 @@ async function getEquipmentsByDepartment(departmentId) {
             e.equipment_label
         FROM equipment e
         WHERE e.department_id = ?
+        ORDER BY e.equipment_label
     `;
 
     const [results] = await db.query(query, [departmentId]);
@@ -1756,7 +1747,6 @@ async function checkTimeConflict(equipment_id, start_time, end_time) {
 
         // 执行查询并返回结果
         const [result] = await db.query(query, [equipment_id, start_time, end_time]);
-        console.log("冲突的时间段:", result)
         // 返回冲突状态
         if (result.length > 0) {
             // 如果存在时间冲突，返回详细的冲突时间段
@@ -1834,6 +1824,22 @@ async function duplicateTestItem(testItemData) {
 }
 
 
+// 获取设备的预约情况
+async function getEquipmentReservations() {
+    const query = `
+        SELECT 
+            t.equipment_id,
+            t.order_num,
+            t.test_item,
+            t.start_time,
+            t.end_time
+        FROM test_items t
+        WHERE t.equipment_id IS NOT NULL;
+    `;
+    const [testItems] = await db.query(query);
+    return testItems;
+}
+
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -1895,5 +1901,6 @@ module.exports = {
     getAssignmentsByTestItemId,
     updateIsAssigned,
     getTestItemById,
-    duplicateTestItem
+    duplicateTestItem,
+    getEquipmentReservations
 };

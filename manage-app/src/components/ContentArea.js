@@ -9,9 +9,9 @@ import DataStatistics from '../components/DataStatistics';
 import EquipmentTimeline from '../components/EquipmentTimeline';
 import ExportExcelButton from '../components/ExportExcelButton';
 import HomePage from '../components/HomePage';
-
+import Timeline from 'react-calendar-timeline';
+import "react-calendar-timeline/styles.css";
 import FileUpload from '../components/FileUpload'; // 确保路径正确
-
 
 const ContentArea = ({ departmentID, account, selected, role, groupId, name, onLogout }) => {
     const isAssignedToMeRef = useRef(false); // Use useRef to persist state across renders
@@ -58,8 +58,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [selectedDetails, setSelectedDetails] = useState({});
     const [errorMessage, setErrorMessage] = useState('');
     const [deliverTest, setDeliverTest] = useState({});
-
-
+    const [showEquipmentSchedule, setShowEquipmentSchedule] = useState(false); // 控制设备预约视图的显示
+    const [equipmentReservations, setEquipmentReservations] = useState([]); // 设备预约数据
+    const [selectedItem, setSelectedItem] = useState(null); // 存储当前选中的条目信息
+    const [reservationDeptId, setReservationDeptId] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showFinishModal, setShowFinishModal] = useState(false);
@@ -77,6 +79,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showExcelExportModal, setShowExcelExportModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [handleDeliverModal, setHandleDeliverModal] = useState(false);
+    const [showSingleReservationModal, setShowSingleReservationModal] = useState(false);
+
 
     const [showAccountSuccessToast, setShowAccountSuccessToast] = useState(false); // 控制Toast显示的状态
 
@@ -184,6 +188,41 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const areas = ['上海', '省内', '省外', '苏州', '相城'];
     const organizations = ['高校', '集萃体系', '企业', '研究所']
+
+
+
+    const headerLabelFormats = {
+        yearShort: "YY年",
+        yearLong: "YYYY年",
+        monthShort: "MM月",
+        monthMedium: "YYYY年MM月",
+        monthMediumLong: "YYYY年MMM",
+        monthLong: "YYYY年MMMM",
+        dayShort: "MM/DD",
+        dayLong: "YYYY年MM月DD日",
+        hourShort: "HH点",
+        hourMedium: "HH点",
+        hourMediumLong: "YYYY年MM月DD日 HH点",
+        hourLong: "YYYY年MM月DD日 HH点",
+        time: "YYYY年MM月DD日 HH点mm分"
+    };
+
+    const subHeaderLabelFormats = {
+        yearShort: "YY",
+        yearLong: "YYYY",
+        monthShort: "MM",
+        monthMedium: "MMM",
+        monthLong: "MMMM",
+        dayShort: "D日",
+        dayMedium: "MM月D日",
+        dayMediumLong: "MM月DD日",
+        dayLong: "YYYY年MM月DD日",
+        hourShort: "HH时",
+        hourLong: "HH点mm分",
+        minuteShort: "mm分",
+        minuteLong: "HH点mm分"
+    };
+
 
     // 获取委托单数据
     const fetchData = useCallback(async (endpoint) => {
@@ -319,6 +358,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
             const response = await axios.get(`${config.API_BASE_URL}${endpoint}`);
             const users = response.data;
+            if (role === 'supervisor') {
+                users.push({ name, account });
+            }
             setAssignableUsers(users);
             if (users && users.length > 0) {
                 setAssignmentInfo(users[0].account); // 设置默认选项为列表的第一个账号
@@ -328,7 +370,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } catch (error) {
             console.error('Failed to fetch assignable users:', error);
         }
-    }, [role, departmentID]);
+    }, [role, departmentID, account, name]);
 
     //拉取小组成员（暂时停用）
     const fetchGroupUsers = useCallback(async (groupId) => {
@@ -445,6 +487,41 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, []);
 
+    //拉取预约时间
+    const fetchEquipmentSchedule = useCallback(async () => {
+        try {
+
+            const deptId = departmentID === 4 ? reservationDeptId : departmentID;
+
+            if (deptId) {
+            const response = await axios.get(`${config.API_BASE_URL}/api/tests/equipments/schedule?departmentId=${deptId}`);
+            setEquipmentReservations(response.data);
+            
+        }
+        } catch (error) {
+            console.error('Failed to fetch equipment schedule:', error);
+        }
+    }, [departmentID, reservationDeptId]);
+
+    // 将预约记录转换为 Timeline items 格式
+    const equipmentTimelineItems = equipmentReservations.flatMap((reservation, index) =>
+        reservation.reservations.map((item, itemIndex) => ({
+            id: `${reservation.equipment_id}-${itemIndex}`, // 唯一ID，组合设备ID和预约的索引
+            group: reservation.equipment_id, // 设备ID
+            title: `${reservation.equipment_name}(${reservation.equipment_label})`, // 设备名称作为标题
+            start_time: new Date(item.start_time).getTime(), // 预约的开始时间
+            end_time: new Date(item.end_time).getTime(), // 预约的结束时间
+        }))
+    );
+
+    console.log("equip",equipmentTimelineItems)
+    // 设备分组
+    const groups = equipmentReservations.map(reservation => ({
+        id: reservation.equipment_id,
+        title: `${reservation.equipment_name}(${reservation.equipment_label})` // 使用设备名称作为标题
+    }));
+
+    console.log("groups",groups)
     //获取委托方信息
     const fetchCustomers = useCallback(async () => {
         try {
@@ -547,6 +624,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             fetchAssignableUsers();
         }
         fetchEquipments();
+
+        fetchEquipmentSchedule(); // 拉取新的预约数据
+
         const savedPage = localStorage.getItem('currentPage');
         if (savedPage) {
             setActivePage(parseInt(savedPage, 10)); // 从localStorage中读取页码，并确保转换为整数
@@ -572,6 +652,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchInvoices,
         fetchPayers,
         fetchOrdersForSales,
+        fetchEquipmentSchedule,
     ]);
 
 
@@ -999,6 +1080,47 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setIsAllSelectedInvoices(!isAllSelectedInvoices);  // 切换全选状态
     };
 
+    //获取设备预约时间线
+    const toggleScheduleView = () => {
+        setShowEquipmentSchedule(!showEquipmentSchedule);
+    };
+
+    
+    // 点击条目时触发
+    const handleItemClick = (itemId) => {
+
+        // 拆分 itemId，获取 equipment_id 和预约索引
+        const [equipment_id, itemIndex] = itemId.split("-");
+
+        // 在 equipmentReservations 中找到匹配的设备
+        const reservation = equipmentReservations.find(
+            (r) => r.equipment_id === parseInt(equipment_id, 10) // 将字符串转换为数字比较
+        );
+
+        if (reservation && reservation.reservations[itemIndex]) {
+            // 获取选中的预约记录
+            const selectedReservation = reservation.reservations[itemIndex];
+
+            // 存储选中的预约信息
+            setSelectedItem({
+                equipment_name: reservation.equipment_name, // 设备名称
+                order_num: selectedReservation.order_num,
+                test_item: selectedReservation.test_item,
+                start_time: selectedReservation.start_time, // 预约开始时间
+                end_time: selectedReservation.end_time, // 预约结束时间
+            });
+            setShowSingleReservationModal(true);
+        } else {
+            console.error("未找到对应的条目");
+        }
+    };
+
+
+    // 定义点击按钮时更新部门 ID 的函数
+    const handleDepartmentClick = (deptId) => {
+        setReservationDeptId(deptId); // 更新部门 ID
+    };
+
     const addItem = async () => {
         if (!addData.test_item) {
             alert(`提交失败！"检测项目"为必填项，请重新填写`);
@@ -1144,6 +1266,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const submitAssignment = useCallback(async () => {
         try {
+            // **前端验证：检查结束时间是否晚于开始时间**
+            if (new Date(assignmentData.end_time) <= new Date(assignmentData.start_time)) {
+                setAlertMessage("结束时间必须晚于开始时间，请重新选择时间。");
+                setShowAlert(true);
+                return; // 阻止提交
+            }
             // 先检查设备是否有时间冲突
             const checkResponse = await axios.get(`${config.API_BASE_URL}/api/tests/checkTimeConflict`, {
                 params: {
@@ -1595,7 +1723,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 {(item.status === '2' || item.status === '4') && item.listed_price && (
                                     <Button variant="warning" onClick={() => handleCheck(item)}>审核</Button>
                                 )}
-                                {(item.status === '2' || item.status === '1' )&& (
+                                {(item.status === '2' || item.status === '1') && (
                                     <Button variant="secondary" onClick={() => handleRollBack(item.test_item_id)}>回退</Button>
                                 )}
                             </td>
@@ -1696,9 +1824,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                                 {item.status !== '3' && item.status !== '5' && (
                                     <Button onClick={() => handleDiscount(item.test_item_id)}>设置优惠价</Button>
-                                )}
-                                {item.status === '3' && (
-                                    <Button onClick={() => handleDeliver(item)}>交付</Button>
                                 )}
                                 {item.status === '3' && (
                                     <Button onClick={() => handleDeliver(item)}>交付</Button>
@@ -1984,6 +2109,45 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} sumPrice={sumPrice} />
                 ) : selected === 'timeline' ? (
                     <EquipmentTimeline tasks={equipmentTimeline} equipments={equipments} /> // 显示设备时间线
+                ) : selected === 'getReservation' ? (
+                    <>
+                        <h2>设备预约情况</h2>
+                        {role === 'sales' && (
+                            <div>
+                                <Button
+                                    variant='secondary'
+                                    onClick={() => handleDepartmentClick('1')} // 设置部门 ID 为 '1'
+                                >
+                                    显微组织表征
+                                </Button>
+                                <Button
+                                    variant='secondary'
+                                    onClick={() => handleDepartmentClick('2')} // 设置部门 ID 为 '2'
+                                >
+                                    物化性能测试
+                                </Button>
+                                <Button
+                                    variant='secondary'
+                                    onClick={() => handleDepartmentClick('3')} // 设置部门 ID 为 '3'
+                                >
+                                    力学性能测试
+                                </Button>
+                            </div>
+                            
+                        )}
+                        <div>
+                        <Timeline
+                            groups={groups}
+                            items={equipmentTimelineItems}
+                            defaultTimeStart={new Date()}
+                            defaultTimeEnd={new Date().setMonth(new Date().getMonth() + 1)} // 设置时间范围为当前月份
+                            onItemClick={handleItemClick} // 注册点击事件
+                            sidebarWidth={250}
+                            sidebarContent={<div>设备列表</div>} // 自定义左侧整体标题
+
+                        />
+                        </div>
+                    </>
                 ) : (
                     <>
                         <div className='content-head'>
@@ -2651,7 +2815,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             </Modal>
 
             {/* 领导分配按钮 */}
-            <Modal show={showAssignmentModal} onHide={() => setShowAssignmentModal(false)}>
+            <Modal show={showAssignmentModal} onHide={() => setShowAssignmentModal(false)} size="xl">
                 <Modal.Header closeButton>
                     <Modal.Title>检测人员分配</Modal.Title>
                 </Modal.Header>
@@ -2666,9 +2830,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             >
                                 <option value="">---选择人员---</option>
                                 {assignableUsers.map(user => (
-
                                     <option key={user.account} value={user.account}>
-                                        {user.name} ({user.account})
+                                        {user.name}
+                                        {user.account === account ? (
+                                            <p>(--自己--)</p>
+                                        ) : (
+                                            <p>({user.account})</p>
+                                        )}
                                     </option>
                                 ))}
                             </Form.Control>
@@ -2734,6 +2902,30 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 onChange={e => setAssignmentData({ ...assignmentData, end_time: e.target.value })}
                             />
                         </Form.Group>
+
+                        {/* 查看所有设备预约情况按钮 */}
+                        <Button variant="info" onClick={toggleScheduleView}>查看所有设备预约情况</Button>
+
+                        {/* 如果需要显示设备预约情况 */}
+                        {showEquipmentSchedule && (
+                            <div style={{ marginTop: '20px' }}>
+                                <h5>设备预约情况</h5>
+                                <Timeline
+                                    groups={groups}
+                                    items={equipmentTimelineItems}
+                                    defaultTimeStart={new Date()}
+                                    defaultTimeEnd={new Date().setMonth(new Date().getMonth() + 1)} // 设置时间范围为当前月份
+                                    onItemClick={handleItemClick} // 注册点击事件
+                                    headerLabelFormats={headerLabelFormats} // 设置中文的时间头部格式
+                                    subHeaderLabelFormats={subHeaderLabelFormats} // 设置中文的子时间头部格式
+                                    sidebarWidth={250}
+                                    sidebarContent={<div>设备列表</div>} // 自定义左侧整体标题
+
+                                />
+
+                            </div>
+                        )}
+
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
@@ -2954,26 +3146,50 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             </Modal>
 
             {/* 查看按钮 */}
-            <Modal show={showDetailsModal} onHide={() => setShowDetailsModal(false)}>
+            <Modal show={showDetailsModal} onHide={() => setShowDetailsModal(false)} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>详细信息</Modal.Title>
                 </Modal.Header>
                 <Modal.Body className='detailModal'>
-                    <p>委托单号：<span>{selectedDetails.order_num}</span></p>
-                    <p>样品原号：<span>{selectedDetails.original_no}</span></p>
-                    <p>检测项目：<span>{selectedDetails.test_item}</span></p>
-                    <p>尺寸：<span>{selectedDetails.size}</span></p>
-                    <p>数量：<span>{selectedDetails.quantity}</span></p>
-                    <p>客户备注：<span>{selectedDetails.note}</span></p>
+                    <div className="detail-container">
+                        <div className="detail-item">
+                            <p>委托单号：<span>{selectedDetails.order_num}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>样品原号：<span>{selectedDetails.original_no}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>检测项目：<span>{selectedDetails.test_item}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>尺寸：<span>{selectedDetails.size}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>数量：<span>{selectedDetails.quantity}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>客户备注：<span>{selectedDetails.note}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>机时：<span>{selectedDetails.machine_hours}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>工时：<span>{selectedDetails.work_hours}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>标准价格：<span>{selectedDetails.listed_price}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>优惠价格：<span>{selectedDetails.discounted_price}</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>设备名称：<span>{selectedDetails.equipment_name}({selectedDetails.model})</span></p>
+                        </div>
+                        <div className="detail-item">
+                            <p>状态：<span>{statusLabels[selectedDetails.status]}</span></p>
+                        </div>
+                    </div>
                     <p>实验备注：<span>{selectedDetails.test_note}</span></p>
-
-                    <p>机时：<span>{selectedDetails.machine_hours}</span>
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        工时：<span>{selectedDetails.work_hours}</span></p>
-                    <p>标准价格：<span>{selectedDetails.listed_price}</span></p>
-                    <p>优惠价格：<span>{selectedDetails.discounted_price}</span></p>
-                    <p>设备名称：<span>{selectedDetails.equipment_name}({selectedDetails.model})</span></p>
-                    <p>状态：<span>{statusLabels[selectedDetails.status]}</span></p>
                     <p>审批意见：<span>{selectedDetails.check_note}</span></p>
                     <p>创建时间：
                         <span>
@@ -3380,6 +3596,47 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowExcelExportModal(false)}>关闭</Button>
+                </Modal.Footer>
+            </Modal>
+
+
+            <Modal show={showSingleReservationModal} onHide={() => setShowSingleReservationModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>设备预约信息</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {/* 显示选中的时间条目详细信息 */}
+                    {selectedItem ? (
+                        <div style={{ marginTop: "20px", padding: "10px", border: "1px solid #ddd" }}>
+                            <h5>选中的预约信息</h5>
+                            <p>
+                                <strong>设备名称：</strong>
+                                {selectedItem.equipment_name}
+                            </p>
+                            <p>
+                                <strong>委托单号：</strong>
+                                {selectedItem.order_num}
+                            </p>
+                            <p>
+                                <strong>检测项目：</strong>
+                                {selectedItem.test_item}
+                            </p>
+                            <p>
+                                <strong>开始时间：</strong>
+                                {new Date(selectedItem.start_time).toLocaleString("zh-CN")}
+                            </p>
+                            <p>
+                                <strong>结束时间：</strong>
+                                {new Date(selectedItem.end_time).toLocaleString("zh-CN")}
+                            </p>
+                        </div>
+                    ) : (
+                        <div>数据拉取出错。请重试</div>
+                    )}
+
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowSingleReservationModal(false)}>关闭</Button>
                 </Modal.Footer>
             </Modal>
         </div>
