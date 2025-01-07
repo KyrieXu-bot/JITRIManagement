@@ -1,13 +1,23 @@
 /* 上传组件的整体容器样式 */
 .file-upload-container {
-    margin: 10px;
+    margin: 0px auto;
     padding: 15px;
     border: 1px solid #ccc;
     border-radius: 8px;
-    max-width: 450px;
+    max-width: 750px;
     background-color: #f9f9f9;
 }
 
+.file-upload-container>div:first-child{
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.file-upload-container>div:first-child>input:first-child{
+    flex-grow: 1;
+}
 .file-upload-container>p:first-of-type{
     text-align: center;
     font-size: large;
@@ -15,7 +25,7 @@
 }
 /* 上传按钮样式 */
 .upload-button {
-    margin-top: 10px;
+    margin-top: 5px;
     padding: 8px 16px;
     font-size: 14px;
     background-color: #007bff;
@@ -29,6 +39,7 @@
 .upload-button:hover {
     background-color: #0056b3;
 }
+
 
 /* 文件列表样式 */
 .file-list {

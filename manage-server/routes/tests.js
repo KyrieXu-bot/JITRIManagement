@@ -297,7 +297,6 @@ router.get('/equipments', async (req, res) => {
 router.get('/equipments/schedule', async (req, res) => {
     try {
         const { departmentId } = req.query;
-
         // 1. 获取所有设备的基本信息
         const equipments = await db.getEquipmentsByDepartment(departmentId);
 

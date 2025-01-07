@@ -62,6 +62,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipmentReservations, setEquipmentReservations] = useState([]); // 设备预约数据
     const [selectedItem, setSelectedItem] = useState(null); // 存储当前选中的条目信息
     const [reservationDeptId, setReservationDeptId] = useState('');
+    const [timelineKey, setTimelineKey] = useState(0);
+
     const [showModal, setShowModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showFinishModal, setShowFinishModal] = useState(false);
@@ -74,14 +76,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [showCustomerModal, setShowCustomerModal] = useState(false);
     const [showPayerModal, setShowPayerModal] = useState(false);
-    const [showFinalPriceModal, setShowFinalPriceModal] = useState(false);
+    // const [showFinalPriceModal, setShowFinalPriceModal] = useState(false);
     const [showAccountModal, setShowAccountModal] = useState(false);
     const [showExcelExportModal, setShowExcelExportModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [handleDeliverModal, setHandleDeliverModal] = useState(false);
     const [showSingleReservationModal, setShowSingleReservationModal] = useState(false);
-
-
     const [showAccountSuccessToast, setShowAccountSuccessToast] = useState(false); // 控制Toast显示的状态
 
     //分页
@@ -106,7 +106,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         equipment_id: '',
         quantity: '',
         test_note: '',
-        listed_price: ''
+        listed_price: ''  
 
     });
 
@@ -487,21 +487,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, []);
 
-    //拉取预约时间
+    //拉取预约时间           
     const fetchEquipmentSchedule = useCallback(async () => {
         try {
-
-            const deptId = departmentID === 4 ? reservationDeptId : departmentID;
+            const deptId = (departmentID === 4 || role === 'admin') ? reservationDeptId : departmentID;
 
             if (deptId) {
             const response = await axios.get(`${config.API_BASE_URL}/api/tests/equipments/schedule?departmentId=${deptId}`);
             setEquipmentReservations(response.data);
-            
         }
         } catch (error) {
             console.error('Failed to fetch equipment schedule:', error);
         }
-    }, [departmentID, reservationDeptId]);
+    }, [departmentID, reservationDeptId, role]);
 
     // 将预约记录转换为 Timeline items 格式
     const equipmentTimelineItems = equipmentReservations.flatMap((reservation, index) =>
@@ -514,14 +512,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }))
     );
 
-    console.log("equip",equipmentTimelineItems)
+
     // 设备分组
     const groups = equipmentReservations.map(reservation => ({
         id: reservation.equipment_id,
         title: `${reservation.equipment_name}(${reservation.equipment_label})` // 使用设备名称作为标题
     }));
 
-    console.log("groups",groups)
+
     //获取委托方信息
     const fetchCustomers = useCallback(async () => {
         try {
@@ -624,9 +622,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             fetchAssignableUsers();
         }
         fetchEquipments();
-
         fetchEquipmentSchedule(); // 拉取新的预约数据
-
+        setTimelineKey((prevKey) => prevKey + 1);
         const savedPage = localStorage.getItem('currentPage');
         if (savedPage) {
             setActivePage(parseInt(savedPage, 10)); // 从localStorage中读取页码，并确保转换为整数
@@ -654,7 +651,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchOrdersForSales,
         fetchEquipmentSchedule,
     ]);
-
 
     // 当用户选择标签时，直接更新筛选后的设备
     const handleLabelChange = (e) => {
@@ -978,14 +974,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     // 设置最终价
-    const handleAddFinalPrice = (invoiceId) => {
-        setCurrentItem({ invoiceId });
-        setShowFinalPriceModal(true);
-    }
+    // const handleAddFinalPrice = (invoiceId) => {
+    //     setCurrentItem({ invoiceId });
+    //     setShowFinalPriceModal(true);
+    // }
 
     const handleAccount = (item) => {
         setCurrentItem(item);
-
         setShowAccountModal(true);
     }
 
@@ -1439,25 +1434,25 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     //设置最终价操作
-    const submitFinalPrice = async (invoiceId) => {
-        try {
-            if (finalPrice) {
-                await axios.post(`${config.API_BASE_URL}/api/orders/finalPrice`, {
-                    invoiceId: invoiceId,
-                    finalPrice: finalPrice
-                })
-                fetchInvoices();
-                setShowSuccessToast(true); // Show success message
-                setTimeout(() => setShowSuccessToast(false), 3000);
-                setShowFinalPriceModal(false);
-            }
+    // const submitFinalPrice = async (invoiceId) => {
+    //     try {
+    //         if (finalPrice) {
+    //             await axios.post(`${config.API_BASE_URL}/api/orders/finalPrice`, {
+    //                 invoiceId: invoiceId,
+    //                 finalPrice: finalPrice
+    //             })
+    //             fetchInvoices();
+    //             setShowSuccessToast(true); // Show success message
+    //             setTimeout(() => setShowSuccessToast(false), 3000);
+    //             setShowFinalPriceModal(false);
+    //         }
 
-        } catch (error) {
-            console.error('开票价设置失败:', error);
-            setError('未能成功设置开票价');
-            setTimeout(() => setError(''), 3000);
-        }
-    }
+    //     } catch (error) {
+    //         console.error('开票价设置失败:', error);
+    //         setError('未能成功设置开票价');
+    //         setTimeout(() => setError(''), 3000);
+    //     }
+    // }
 
     //入账操作
     const submitAccount = async (invoiceId) => {
@@ -1465,7 +1460,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (!invoiceNumber) {
                 setAlertMessage("请输入发票号！");
                 setShowAlert(true);
-            } else if (!currentItem.order_details[0].final_price) {
+            } else if (!finalPrice) {
                 setAlertMessage("最终开票价格未填写！");
                 setShowAlert(true);
             } else if (accountTime.length === 0) {
@@ -1479,7 +1474,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     invoiceId: invoiceId,
                     invoiceNumber: invoiceNumber,
                     orderStatus: '2',
-                    amount: currentItem.order_details[0].final_price,
+                    amount: finalPrice,
                     description: description,
                     accountTime: accountTime
                 })
@@ -1860,7 +1855,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             // 默认视图
             switch (selected) {
                 case 'getCommission':
-                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "委托总金额", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "区域", "客户性质", "检测项目", "材料类型", "服务加急"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             {/* 选择框 */}
@@ -1878,12 +1873,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.contact_name}</td>
                             <td>{item.contact_phone_num}</td>
                             <td>{orderStatusLabels[item.order_status]}</td>
+                            <td>{item.total_listed_price}</td>
                             <td>{item.total_discounted_price}</td>
                             <td>{item.name}</td>
                             <td>{item.contact_email}</td>
                             <td>{item.payer_contact_name}</td>
                             <td>{item.payer_contact_phone_num}</td>
                             <td>{item.payer_address}</td>
+                            <td>{item.area}</td>
+                            <td>{item.organization}</td>
                             <td>{item.test_items}</td>
                             <td>{item.material}</td>
                             <td>{serviceTypeLabels[item.service_type]}</td>
@@ -1963,7 +1961,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         {orderIndex === 0 && (
                                             <td rowSpan={invoice.order_details.length} className='fixed-column'>
                                                 <div className="action-btns">
-                                                    <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button>
+                                                    {/* <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button> */}
                                                     <Button onClick={() => handleAccount(invoice)}>入账</Button>
 
                                                 </div>
@@ -2112,7 +2110,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 ) : selected === 'getReservation' ? (
                     <>
                         <h2>设备预约情况</h2>
-                        {role === 'sales' && (
+                        {(role === 'sales' || role === 'admin') && (
                             <div>
                                 <Button
                                     variant='secondary'
@@ -2137,6 +2135,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         )}
                         <div>
                         <Timeline
+                            key={timelineKey} // 每次 key 改变时重新挂载组件
                             groups={groups}
                             items={equipmentTimelineItems}
                             defaultTimeStart={new Date()}
@@ -3493,16 +3492,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
             {/* 设置最终价按钮 */}
-            <Modal show={showFinalPriceModal} onHide={() => setShowFinalPriceModal(false)}>
+            {/* <Modal show={showFinalPriceModal} onHide={() => setShowFinalPriceModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>开票价格填写</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-
                     <Form>
                         <Form.Group>
                             <Form.Label>请输入开票的总价格：（精确到两位小数）</Form.Label>
-
                             <Form.Control
                                 type="number"
                                 onChange={(e) => setFinalPrice(e.target.value)}>
@@ -3513,9 +3510,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowFinalPriceModal(false)}>取消</Button>
                     <Button variant="success" onClick={() => submitFinalPrice(currentItem.invoiceId)}>设置价格</Button>
-
                 </Modal.Footer>
-            </Modal>
+            </Modal> */}
 
             {/* 设置最终价按钮 */}
             <Modal show={showAccountModal} onHide={() => setShowAccountModal(false)}>
@@ -3529,6 +3525,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <Form.Control
                                 type="number"
                                 onChange={(e) => setInvoiceNumber(e.target.value)}>
+                            </Form.Control>
+                            <Form.Label>请输入最终开票价格(必填)</Form.Label>
+                            <Form.Control
+                                type="number"
+                                onChange={(e) => setFinalPrice(e.target.value)}>
                             </Form.Control>
                         </Form.Group>
                         <hr style={{ borderWidth: '3px' }}></hr>
@@ -3546,13 +3547,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     : '未提供'}
                             </strong>
                             </p>
-                            <p>最终开票价格:
-                                <strong>
-                                    {currentItem.order_details ?
-                                        `${currentItem.order_details[0].final_price}`
-                                        : '未提供'}
-                                </strong>
-                            </p>
+                            
 
                         </Form.Group>
 

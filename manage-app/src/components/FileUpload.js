@@ -107,8 +107,10 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
 
     return (
         <div className="file-upload-container">
-            <input type="file" name="files" multiple onChange={onFileChange} />
-            <button className="upload-button" onClick={onFileUpload}>上传文件</button>
+            <div>
+                <input type="file" name="files" multiple onChange={onFileChange}/>
+                <button className="upload-button" onClick={onFileUpload}>上传文件</button>
+            </div>
             {uploadStatus && <p>{uploadStatus.message}</p>}
 
             {/* 待上传文件列表 */}

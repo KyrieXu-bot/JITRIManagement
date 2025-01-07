@@ -22,11 +22,14 @@ async function getAllOrders(orderNum, departmentId) {
             p.payer_contact_name, 
             p.payer_contact_phone_num,
             p.payer_address,
+            p.area,
+            p.organization,
             GROUP_CONCAT(t.test_item SEPARATOR ', ') AS test_items,
             s.material,
             o.service_type,
             o.order_status,
             SUM(t.discounted_price) AS total_discounted_price,
+            SUM(t.listed_price) AS total_listed_price,
             a.account,
             u.name
         FROM orders o
@@ -51,7 +54,7 @@ async function getAllOrders(orderNum, departmentId) {
     }
     query += ` GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
-                p.payer_address, o.service_type, o.order_status, a.account, u.name`;
+                p.payer_address, o.service_type, o.order_status, a.account, u.name, p.area, p.organization`;
 
     const [results] = await db.query(query, params);
     return results;
@@ -1605,9 +1608,7 @@ async function setFinalPrice(invoiceId, finalPrice) {
 // 执行更新操作的函数
 const updateCustomer = (customerData) => {
     const { customer_id, customer_name, customer_address, contact_name, contact_phone_num, contact_email} = customerData;
-  
-    console.log(customerData)
-    const sql = `
+      const sql = `
       UPDATE customers
       SET 
         customer_name = ?, 
