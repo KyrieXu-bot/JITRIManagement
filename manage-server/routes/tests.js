@@ -392,5 +392,24 @@ router.get('/checkTimeConflict', async (req, res) => {
     }
 });
 
+// 导出检测项目excel的路由
+router.post('/exportTestData', async (req, res) => {
+    try {
+        const { selectedOrders } = req.body;
+        if (!selectedOrders || selectedOrders.length === 0) {
+            return res.status(400).send('No test items provided');
+        }
+        // 获取数据库中的发票数据
+        const tests = await db.getTestForExcel(selectedOrders);  // 你可以根据实际情况调用数据库查询
+        // 返回查询结果
+        res.json(tests);
+        return tests;
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Error exporting data');
+    }
+});
+
+
 
 module.exports = router;

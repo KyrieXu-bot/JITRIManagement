@@ -109,6 +109,7 @@ router.get('/invoices', async (req, res) => {
                     customer_name: item.customer_name,
                     contact_name: item.contact_name,
                     contact_phone_num: item.contact_phone_num,
+                    balance: item.balance,
                     name: item.name,
                     final_price: item.final_price,
                     payer_name: item.payer_name,
@@ -257,10 +258,9 @@ router.post('/account', async (req, res) => {
             const balance = paymentResult[0]?.balance;
 
 
-            if (parseFloat(balance) < parseFloat(amount)) {
-                console.log("能不？", balance - amount)
-                return res.status(400).json({ message: `余额不足，无法入账。\n当前余额:${balance}` });
-            }
+            // if (parseFloat(balance) < parseFloat(amount)) {
+            //     return res.status(400).json({ message: `余额不足，无法入账。\n当前余额:${balance}` });
+            // }
 
             // 扣款，更新付款方余额
             const newBalance = balance - amount;

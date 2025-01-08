@@ -141,10 +141,89 @@ async function getCommissionForExcel(selectedOrders) {
         const [results] = await db.query(query, selectedOrders);
         return results;
     } catch (error) {
-        console.error("Error fetching invoices:", error);
+        console.error("Error fetching orders:", error);
         throw error;  // 错误捕获并抛出
     }
 }
+
+async function getTestForExcel(selectedOrders) {
+    // 将传入的 test_item_id 转为数组形式，以防止 SQL 注入
+    const placeholders = selectedOrders.map(() => '?').join(', ');
+    const query = `
+    SELECT 
+            t.original_no,
+            t.test_item,
+            t.test_method,
+            t.size,
+            t.quantity,
+            t.order_num,
+            t.note,
+            t.status,
+            t.machine_hours,
+            t.work_hours,
+            t.listed_price,
+            t.discounted_price,
+            t.check_note,
+            t.test_note,
+            t.create_time,
+            t.deadline,
+            t.department_id,
+            t.start_time,
+            t.end_time,
+            t.appoint_time,
+            IFNULL(e.equipment_name, '') AS equipment_name,
+            e.model,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id 
+               AND ua.role = 'supervisor'
+               ) AS manager_names,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id 
+                AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
+               ) AS team_names,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
+             FROM assignments aa 
+             JOIN users ua ON ua.account = aa.account
+             WHERE aa.test_item_id = t.test_item_id
+             ) AS sales_names,
+             CASE 
+                WHEN EXISTS (
+                    SELECT 1 
+                    FROM project_files f 
+                    WHERE f.test_item_id = t.test_item_id
+                ) THEN 1
+                ELSE 0
+            END AS hasAttachments,
+            c.customer_name,
+            c.contact_name
+        FROM
+            test_items t
+        LEFT JOIN
+            orders o ON t.order_num = o.order_num
+        LEFT JOIN
+            customers c ON o.customer_id = c.customer_id
+        LEFT JOIN
+            assignments a ON t.test_item_id = a.test_item_id
+        LEFT JOIN 
+            equipment e ON e.equipment_id = t.equipment_id
+        LEFT JOIN 
+            users u ON u.account = a.account 
+        WHERE t.test_item_id IN (${placeholders})
+        GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;
+    `
+    try {
+        const [results] = await db.query(query, selectedOrders);
+        return results;
+    } catch (error) {
+        console.error("Error fetching test items:", error);
+        throw error;  // 错误捕获并抛出
+    }
+}
+
 async function updateOrder(orderNum, updateData) {
     let updates = [];
     let values = [];
@@ -303,9 +382,15 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
                     WHERE f.test_item_id = t.test_item_id
                 ) THEN 1
                 ELSE 0
-            END AS hasAttachments
+            END AS hasAttachments,
+            c.customer_name,
+            c.contact_name
         FROM 
             test_items t
+        LEFT JOIN
+            orders o ON t.order_num = o.order_num
+        LEFT JOIN
+            customers c ON o.customer_id = c.customer_id
         LEFT JOIN 
             assignments a ON t.test_item_id = a.test_item_id
         LEFT JOIN 
@@ -349,7 +434,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
         whereClauseAdded = true;
     }
     // 按 test_item_id 进行分组
-    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model;`;
+    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;`;
 
     const [results] = await db.query(query, params);
     return results;
@@ -407,9 +492,15 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
                     WHERE f.test_item_id = t.test_item_id
                 ) THEN 1
                 ELSE 0
-            END AS hasAttachments
+            END AS hasAttachments,
+            c.customer_name,
+            c.contact_name
         FROM
             test_items t
+        LEFT JOIN
+            orders o ON t.order_num = o.order_num
+        LEFT JOIN
+            customers c ON o.customer_id = c.customer_id
         LEFT JOIN
             assignments a ON t.test_item_id = a.test_item_id
         LEFT JOIN 
@@ -450,7 +541,7 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
         whereClauseAdded = true;
     }
     // 按照 test_item_id 和 equipment_name 分组
-    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model;`;
+    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;`;
     const [results] = await db.query(query, params);
     return results;
 }
@@ -670,9 +761,15 @@ async function getAssignedTestsByUser(userId, status, month, employeeName, order
         FROM assignments aa 
         JOIN users ua ON ua.account = aa.account
         WHERE aa.test_item_id = t.test_item_id
-        ) AS sales_names
+        ) AS sales_names,
+        c.customer_name,
+        c.contact_name
     FROM 
         test_items t
+    LEFT JOIN
+        orders o ON t.order_num = o.order_num
+    LEFT JOIN
+        customers c ON o.customer_id = c.customer_id
     LEFT JOIN 
         equipment e ON e.equipment_id = t.equipment_id
     JOIN 
@@ -706,7 +803,7 @@ async function getAssignedTestsByUser(userId, status, month, employeeName, order
         query += ' AND u.name LIKE ?';
         params.push(`%${employeeName}%`);
     }
-    query += ' GROUP BY t.test_item_id';
+    query += ' GROUP BY t.test_item_id, c.customer_name, c.contact_name';
     const [results] = await db.query(query, params);
     return results;
 }
@@ -1292,6 +1389,7 @@ async function getPayers(filterData) {
         const fields = [
             'payer_name',
             'payer_address',
+            'payer_phone_num',
             'payer_contact_name',
             'payer_contact_phone_num',
             'bank_name',
@@ -1314,6 +1412,7 @@ async function getPayers(filterData) {
                 payment_id,
                 payer_name,
                 payer_address,
+                payer_phone_num,
                 payer_contact_name,
                 payer_contact_phone_num,
                 bank_name,
@@ -1551,6 +1650,7 @@ async function getInvoiceDetails(filterData) {
             p.payer_contact_name,
             p.payer_contact_phone_num,
             p.payer_name,
+            p.balance,
             t.test_item, 
             t.discounted_price, 
             t.listed_price,
@@ -1642,7 +1742,6 @@ const updateCustomer = (customerData) => {
         payer_contact_name = ?, 
         payer_contact_phone_num = ?, 
         payer_contact_email = ?, 
-        category = ?, 
         area = ?, 
         organization = ?
       WHERE payment_id = ?
@@ -1657,7 +1756,6 @@ const updateCustomer = (customerData) => {
                     payer_contact_name || null,
                     payer_contact_phone_num || null,
                     payer_contact_email || null,
-                    category || null, 
                     area || null, 
                     organization || null, 
                     payment_id];
@@ -1902,6 +2000,7 @@ module.exports = {
     getAssignmentsByTestItemId,
     updateIsAssigned,
     getTestItemById,
+    getTestForExcel,
     duplicateTestItem,
     getEquipmentReservations
 };
