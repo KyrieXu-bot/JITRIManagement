@@ -124,10 +124,9 @@ router.post('/reassign', async (req, res) => {
 });
 
 router.post('/rollback', async (req, res) => {
-    const { testItemId, account } = req.body;
-
+    const { testItemId, note, account } = req.body;
     try {
-        await db.rollbackTest(account, testItemId);
+        await db.rollbackTest(account, testItemId, note);
         res.status(200).json({ message: 'Assignment successfully rollback' });
     } catch (error) {
         console.error('Failed to rollback assignment:', error);

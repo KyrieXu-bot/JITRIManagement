@@ -63,6 +63,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [selectedItem, setSelectedItem] = useState(null); // 存储当前选中的条目信息
     const [reservationDeptId, setReservationDeptId] = useState('');
     const [timelineKey, setTimelineKey] = useState(0);
+    const [editingRow, setEditingRow] = useState(null); // 存储当前正在编辑的行
+    const [editingValue, setEditingValue] = useState(""); // 存储当前输入框的值
+
 
     const [showModal, setShowModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -130,6 +133,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [depositData, setDepositData] = useState({
         amount: '',
         description: ''
+    });
+
+    //充值数据
+    const [rollbackData, setRollbackData] = useState({
+        note: '',
     });
 
     //检测项目状态标签
@@ -738,8 +746,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowReassignmentModal(true);
     };
 
-    const handleRollBack = (testItemId) => {
-        setCurrentItem({ testItemId }); // 假设我们需要订单号来处理分配
+    const handleRollBack = (item) => {
+        setRollbackData({
+            test_item_id: item.test_item_id,
+            note: item.note
+        });
         setShowRollbackModal(true);
     };
 
@@ -884,31 +895,31 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "test_item": "检测项目",
                 "customer_name": "委托单位",
                 "contact_name": "联系人",
-                "check_note":"审批意见",
-                "create_time":"创建时间",
-                "deadline":"截止时间",
-                "department_id":"所属部门",
-                "test_note":"检测备注",
+                "check_note": "审批意见",
+                "create_time": "创建时间",
+                "deadline": "截止时间",
+                "department_id": "所属部门",
+                "test_note": "检测备注",
                 "order_status": "订单状态",
-                "listed_price":"标准价格",
+                "listed_price": "标准价格",
                 "discounted_price": "业务价格",
-                "start_time":"预约开始时间",
-                "end_time":"预约结束时间",
-                "equipment_name":"设备名称",
-                "model":"设备型号",
-                "hasAttachments":"附件",
-                "machine_hours":"机时",
-                "work_hours":"工时",
-                "original_no":"样品原号",
-                "test_method":"检测方法",
-                "manager_names":"负责人",
-                "team_names":"检测员",
-                "sales_names":"业务员",
-                "size":"尺寸",
-                "quantity":"数量",
-                "note":"客户备注",
-                "status":"状态",
-                "appoint_time":"分配时间",
+                "start_time": "预约开始时间",
+                "end_time": "预约结束时间",
+                "equipment_name": "设备名称",
+                "model": "设备型号",
+                "hasAttachments": "附件",
+                "machine_hours": "机时",
+                "work_hours": "工时",
+                "original_no": "样品原号",
+                "test_method": "检测方法",
+                "manager_names": "负责人",
+                "team_names": "检测员",
+                "sales_names": "业务员",
+                "size": "尺寸",
+                "quantity": "数量",
+                "note": "客户备注",
+                "status": "状态",
+                "appoint_time": "分配时间",
             };
             // 使用映射表调整 data 中的字段名
             const mappedData = data.map(item => {
@@ -1107,19 +1118,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
     // 设置优惠价
-    const handleDiscount = async (testItemId) => {
-        const newPrice = prompt("请输入优惠价格:");
-        if (newPrice && !isNaN(parseFloat(newPrice))) {
-            try {
-                await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/discount`, { discountedPrice: newPrice });
-                fetchDataForEmployee(account); // 重新获取数据以更新UI
-            } catch (error) {
-                console.error('Error updating price:', error);
-            }
-        } else {
-            alert("请输入有效的价格");
-        }
-    };
+    // const handleDiscount = async (testItemId) => {
+    //     const newPrice = prompt("请输入优惠价格:");
+    //     if (newPrice && !isNaN(parseFloat(newPrice))) {
+    //         try {
+    //             await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/discount`, { discountedPrice: newPrice });
+    //             fetchDataForEmployee(account); // 重新获取数据以更新UI
+    //         } catch (error) {
+    //             console.error('Error updating price:', error);
+    //         }
+    //     } else {
+    //         alert("请输入有效的价格");
+    //     }
+    // };
 
     // 交付
     const handleDeliver = async (item) => {
@@ -1258,6 +1269,32 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
         } catch (error) {
             console.error('Error updating test items:', error);
+        }
+    };
+
+
+    const handleDoubleClick = (index, initialValue) => {
+        setEditingRow(index);
+        setEditingValue(initialValue);
+    };
+    
+    const handleBlurOrSave = async (item, newValue) => {
+        // 停止编辑模式
+        setEditingRow(null);
+    
+        // 如果值未更改，则不执行更新操作
+        if (item.discounted_price === newValue) return;
+    
+        // 更新逻辑
+        if (newValue && !isNaN(parseFloat(newValue))) {
+            try {
+                await axios.patch(`${config.API_BASE_URL}/api/tests/${item.test_item_id}/discount`, { discountedPrice: newValue });
+                fetchDataForEmployee(account); // 重新获取数据以更新UI
+            } catch (error) {
+                console.error('Error updating price:', error);
+            }
+        } else {
+            alert("请输入有效的价格");
         }
     };
 
@@ -1473,8 +1510,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 回退
     const submitRollback = async () => {
+        const {test_item_id, note} = rollbackData;
         try {
-            await axios.post(`${config.API_BASE_URL}/api/tests/rollback`, { testItemId: currentItem.testItemId, account });
+            await axios.post(`${config.API_BASE_URL}/api/tests/rollback`, 
+                { 
+                    testItemId: test_item_id, 
+                    note: note,
+                    account 
+                });
             setShowRollbackModal(false);
             fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
             setShowSuccessToast(true); // Show success message
@@ -1585,7 +1628,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 if (!window.confirm('请再次确认此【入账】操作！')) {
                     return;  // 用户点击取消后，不执行任何操作
                 }
-                await axios.post(`${config.API_BASE_URL}/api/orders/account`, {
+                const response = await axios.post(`${config.API_BASE_URL}/api/orders/account`, {
                     invoiceId: invoiceId,
                     invoiceNumber: invoiceNumber,
                     orderStatus: '2',
@@ -1593,8 +1636,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     description: description,
                     accountTime: accountTime
                 })
+                const { newBalance } = response.data;
+                setShowAccountSuccessModal({
+                    show: true,
+                    newBalance,
+                });
                 fetchInvoices();
-                setShowAccountSuccessModal(true); // Show success message
                 setShowAccountModal(false);
             }
 
@@ -1718,7 +1765,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'handleTests':
                     // 为员工定制的视图逻辑
-                    headers = ["委托单号", "我的检测项目", "状态", "客户名称", "联系人", "剩余天数", "负责人", "机时", "工时", "标准价格", "附件", "组长指派时间", "样品原号", "审批意见"];
+                    headers = ["委托单号", "我的检测项目", "状态", "客户名称", "联系人", "剩余天数", "负责人", "机时", "工时", "标准价格", "附件", "组长指派时间", "样品原号", "客户备注", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td className='order-num-fixed'>{item.order_num}</td>
@@ -1737,8 +1784,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.listed_price}</td>
                             <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
                             <td>{item.appoint_time ? new Date(item.appoint_time).toLocaleString() : ''}</td>
-
                             <td>{item.original_no}</td>
+                            <td>{item.note}</td>
                             <td>{item.check_note}</td>
 
                             <td className='fixed-column'>
@@ -1753,11 +1800,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 )}
 
                                 {item.status === '2' && (
-                                    <Button variant="secondary" onClick={() => handleRollBack(item.test_item_id)}>回退</Button>
+                                    <Button variant="secondary" onClick={() => handleRollBack(item)}>回退</Button>
                                 )}
 
                                 {item.status !== '3' && (
-                                    <Button onClick={() => handleQuote(item.test_item_id)}>确定报价(可选)</Button>
+                                    <Button onClick={() => handleQuote(item.test_item_id)}>改标准价(选)</Button>
                                 )}
                             </td>
                         </tr>
@@ -1792,7 +1839,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'handleTests':
                     // 为员工定制的视图逻辑
-                    headers = ["委托单号", "检测项目", "状态", "剩余天数", "客户名称", "联系人", "检测人员", "业务人员", "附件", "审批意见", "机时", "工时", "标准价格", "样品原号"];
+                    headers = ["委托单号", "检测项目", "状态", "剩余天数", "客户名称", "联系人", "检测人员", "业务人员", "附件", "客户备注", "审批意见", "机时", "工时", "标准价格", "样品原号"];
                     rows = currentItems.map((item, index) => (
 
                         <tr key={index}>
@@ -1811,20 +1858,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 {item.sales_names ? `${item.sales_names}` : '暂未分配'}
                             </td>
                             <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
-
+                            <td>{item.note}</td>
                             <td>{item.check_note}</td>
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
                             <td>{item.listed_price}</td>
-
                             <td>{item.original_no}</td>
-
                             <td className='fixed-column'>
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                                 {item.team_names === item.manager_names && (
                                     <>
                                         <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
-                                        <Button onClick={() => handleQuote(item.test_item_id)}>确定报价(可选)</Button>
+                                        <Button onClick={() => handleQuote(item.test_item_id)}>改标准价(选)</Button>
                                     </>
 
                                 )}
@@ -1837,7 +1882,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     <Button variant="warning" onClick={() => handleCheck(item)}>审核</Button>
                                 )}
                                 {(item.status === '2' || item.status === '1') && (
-                                    <Button variant="secondary" onClick={() => handleRollBack(item.test_item_id)}>回退</Button>
+                                    <Button variant="secondary" onClick={() => handleRollBack(item)}>回退</Button>
                                 )}
                             </td>
 
@@ -1874,7 +1919,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         } else if (role === 'leader' && selected === 'handleTests') {
             // 为员工定制的视图逻辑
-            headers = ["委托单号", "检测项目", "状态", "附件", "客户名称", "联系人", "机时", "工时", "标准价格", "负责人", "检测人员", "业务人员", "审批意见", "样品原号", "剩余天数"];
+            headers = ["委托单号", "检测项目", "状态", "附件", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "负责人", "检测人员", "业务人员", "客户备注", "审批意见", "样品原号", "剩余天数"];
             rows = currentItems.map((item, index) => (
                 <tr key={index}>
                     <td>
@@ -1893,6 +1938,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>{item.machine_hours}</td>
                     <td>{item.work_hours}</td>
                     <td>{item.listed_price}</td>
+                    <td>{item.discounted_price}</td>
                     <td>
                         {item.manager_names ? `${item.manager_names}` : '暂未分配'}
                     </td>
@@ -1902,7 +1948,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>
                         {item.sales_names ? `${item.sales_names}` : '暂未分配'}
                     </td>
-
+                    <td>{item.note}</td>
                     <td>{item.check_note}</td>
                     <td>{item.original_no}</td>
                     <td>
@@ -1924,19 +1970,44 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } else if (role === 'sales') {
             switch (selected) {
                 case 'handleTests':
-                    headers = ["委托单号", "检测项目", "状态", "客户名称", "联系人", "样品原号", "数量", "机时", "标准价格", "优惠价格", "检测人员", "业务人员", "审批意见"];
+                    headers = ["委托单号", "检测项目", "客户名称", "联系人", "数量", "机时", "标准价格", "实收(含税)价", "附件", "状态", "样品原号", "检测人员", "业务人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             <td className='order-num-fixed'>{item.order_num}</td>
                             <td className='test-item-fixed'>{item.test_item}</td>
-                            <td>{statusLabels[item.status]}</td>
                             <td>{item.customer_name}</td>
                             <td>{item.contact_name}</td>
-                            <td>{item.original_no}</td>
                             <td>{item.quantity}</td>
                             <td>{item.machine_hours}</td>
                             <td>{item.listed_price}</td>
-                            <td>{item.discounted_price}</td>
+                            {/* <td>{item.discounted_price}</td> */}
+
+                            {/* 双击编辑逻辑 */}
+                            <td
+                                onDoubleClick={() => handleDoubleClick(index, item.discounted_price)}
+                            >
+                                {editingRow === index ? (
+                                    <input
+                                        type="text"
+                                        value={editingValue}
+                                        onChange={(e) => setEditingValue(e.target.value)}
+                                        onBlur={() => handleBlurOrSave(item, editingValue)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                handleBlurOrSave(item, editingValue);
+                                            }
+                                        }}
+                                        autoFocus
+                                    />
+                                ) : (
+                                    item.discounted_price
+                                )}
+                            </td>
+
+                            <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
+                            <td>{statusLabels[item.status]}</td>
+                            <td>{item.original_no}</td>
+
                             <td>
                                 {item.team_names ? `${item.team_names}` : '暂未分配'}
                             </td>
@@ -1946,9 +2017,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.check_note}</td>
                             <td className='fixed-column'>
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                                {item.status !== '3' && item.status !== '5' && (
+                                {/* {item.status !== '3' && item.status !== '5' && (
                                     <Button onClick={() => handleDiscount(item.test_item_id)}>设置优惠价</Button>
-                                )}
+                                )} */}
                                 {item.status === '3' && (
                                     <Button onClick={() => handleDeliver(item)}>交付</Button>
                                 )}
@@ -2123,7 +2194,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "样品原号", "检测项目", "方法", "客户名称", "联系人", "机时", "工时", "标准价格", "优惠价格", "状态", "实验人员", "业务人员", "审批意见"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             {/* 选择框 */}
@@ -2148,7 +2219,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.discounted_price}</td>
                             <td>{statusLabels[item.status]}</td>
                             <td>{item.team_names}</td>
-
                             <td>{item.sales_names}</td>
                             <td>{item.check_note}</td>
 
@@ -2325,12 +2395,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         onChange={(e) => setFilterOrderNum(e.target.value)}
                                         placeholder="输入委托单号进行搜索"
                                     />
-                                    {role === 'supervisor' || role === 'leader' ? (
-                                        <button onClick={() => fetchDataForSupervisor(departmentID)}>查询单号</button>
-                                    ) : (
-                                        <button onClick={() => fetchDataForEmployee(account)}>查询单号</button>
-
-                                    )}&nbsp;&nbsp;&nbsp;
+                                    &nbsp;&nbsp;&nbsp;
                                     <span>人员：</span>
                                     <input
                                         type="text"
@@ -2338,7 +2403,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         onChange={(e) => setFilterEmployee(e.target.value)}
                                         placeholder="输入员工名称进行搜索"
                                     />
-                                    <button onClick={() => fetchData('tests')}>查询员工</button>
                                     {(role === 'leader' || role === 'admin') && (
                                         <>
                                             <span>表格：</span>
@@ -2523,13 +2587,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             )}
                                             {(role === 'admin' && selected === 'getCommission') && (
                                                 <th>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isAllSelected}
-                                                    onChange={handleSelectAll}
-                                                />
-                                                &nbsp;全选
-                                            </th>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isAllSelected}
+                                                        onChange={handleSelectAll}
+                                                    />
+                                                    &nbsp;全选
+                                                </th>
                                             )}
                                             {headers.map((header, index) =>
                                                 <th key={header}
@@ -3120,8 +3184,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
-                        <h1>确定要回退至上级吗？</h1>
+                        <h2>确定要回退至上级吗？</h2>
                         <p>回退操作会导致指派后的人员和任务清空。因此执行回退操作前请与组长/室主任进行沟通。</p>
+                        <br></br>
+                        <Form.Group controlId="formAssignmentInfo">
+                            <Form.Label>回退备注填写请跟在客户委托备注后面(选填)</Form.Label>
+
+                            <Form.Control
+                                type="text"
+                                value={rollbackData.note}
+                                onChange={ e => setRollbackData({ ...rollbackData, note: e.target.value })}>
+
+                            </Form.Control>
+                        </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
@@ -3751,8 +3826,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Header>
                 <Modal.Body>
                     <div>
-                        <h1>入账操作成功！ </h1>
-                        <div>当前账户余额：</div>
+                        <h2>入账操作成功！ </h2>
+                        <div>当前账户余额：<strong>{showAccountSuccessModal?.newBalance} 元</strong></div>
                     </div>
 
                 </Modal.Body>

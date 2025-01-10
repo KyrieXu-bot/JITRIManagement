@@ -270,7 +270,10 @@ router.post('/account', async (req, res) => {
             await db.insertTransaction(paymentId, amount, newBalance, description);
 
             // 返回成功响应
-            res.status(200).json({ message: '入账成功' });
+            res.status(200).json({ 
+                message: '入账成功',
+                newBalance: newBalance.toFixed(2), // 保留两位小数
+             });
         } else {
             return res.status(400).json({ message: '未找到关联的订单' });
         }

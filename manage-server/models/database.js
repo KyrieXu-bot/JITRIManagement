@@ -610,7 +610,7 @@ async function reassignTestToUser(newAccount, account, testItemId) {
 
 
 // 回退操作
-async function rollbackTest(account, testItemId) {
+async function rollbackTest(account, testItemId, note) {
     const connection = await db.getConnection();
 
     // 查询用户角色
@@ -640,10 +640,15 @@ async function rollbackTest(account, testItemId) {
     // 更新 `test_items` 表中的状态
     const updateTestItemsStatusQuery = `
         UPDATE test_items 
-        SET status = '0' 
+        SET status = '0', note = ?
         WHERE test_item_id = ?
     `;
 
+    const updateNoteQuery = `
+        UPDATE test_items
+        SET note = ?
+        WHERE test_item_id = ?
+    `
     try {
         // 开启事务
         await connection.beginTransaction();
@@ -659,10 +664,13 @@ async function rollbackTest(account, testItemId) {
         if (userRole === "employee") {
             // 员工回退：仅删除自己的记录
             await connection.query(deleteEmployeeQuery, [account, testItemId]);
+            await connection.query(updateNoteQuery, [note, testItemId]);
+
+
         } else if (userRole === "supervisor") {
             // 组长回退：删除所有非业务员（sales）的记录，并更新状态
             await connection.query(deleteNonSalesAssignmentsQuery, [testItemId]);
-            await connection.query(updateTestItemsStatusQuery, [testItemId]);
+            await connection.query(updateTestItemsStatusQuery, [note, testItemId]);
         } else {
             throw new Error("不支持的用户角色执行回退操作");
         }
