@@ -721,7 +721,8 @@ async function updateTestItemStatus(finishData) {
                             equipment_id = ?,
                             quantity = ?,
                             listed_price = ?,
-                            test_note = ? 
+                            test_note = ?,
+                            latest_finish_time = NOW()
                             WHERE test_item_id = ?`;
     try {
         await connection.beginTransaction();
@@ -1903,7 +1904,8 @@ async function deliverTest(testItemId, status) {
         // 检查并更新状态
         const [result] = await connection.query(`
             UPDATE test_items 
-            SET status = ? 
+            SET status = ?,
+            deliver_time = NOW()
             WHERE test_item_id = ? AND status NOT IN ('5')
         `, [status, testItemId]);
 
