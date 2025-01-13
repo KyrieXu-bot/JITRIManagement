@@ -260,14 +260,25 @@ async function getSalesOrders(orderNum, account) {
             JOIN test_items t ON a.test_item_id = t.test_item_id
             JOIN orders o ON t.order_num = o.order_num
             JOIN customers c ON c.customer_id = o.customer_id
-            WHERE a.account = ?
+            JOIN users u ON u.account = a.account
         `
-        const params = [account];
+        const params = [];
+
+        if (account !== undefined && account !== '') {
+            query += ' WHERE a.account = ?';
+            params.push(`%${account}%`);
+        } else {
+            query += ' WHERE u.role = ?';
+            params.push('sales')
+
+        }
 
         if (orderNum !== undefined && orderNum !== '') {
             query += ' AND o.order_num LIKE ?';
             params.push(`%${orderNum}%`);
         }
+
+
         const [results] = await db.query(query, params);
         return results; // 返回查询结果
     } catch (error) {
@@ -441,7 +452,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
 }
 
 
-async function getAllTestItems(status, departmentId, month, employeeName, orderNum) {
+async function getAllTestItems(status, departmentId, month, employeeName, orderNum, role) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -517,7 +528,14 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
         params.push(departmentId);
         whereClauseAdded = true;
     }
+    // 动态添加 WHERE 条件
+    if (role !== undefined && role !== '') {
+        query += ' WHERE u.role = ? && u.account != ?';
+        params.push(role);
+        params.push('YW001');
 
+        whereClauseAdded = true;
+    }
     if (status !== undefined && status !== '') {
         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.status = ?';
         params.push(status);
@@ -1878,11 +1896,30 @@ async function checkTimeConflict(equipment_id, start_time, end_time) {
 }
 
 async function deliverTest(testItemId, status) {
-    return db.query(`
-        UPDATE test_items 
-        SET status = ?
-        WHERE test_item_id = ?
-    `, [status, testItemId]);
+    const connection = await db.getConnection(); // 从连接池获取数据库连接
+    try {
+        await connection.beginTransaction(); // 开始事务
+
+        // 检查并更新状态
+        const [result] = await connection.query(`
+            UPDATE test_items 
+            SET status = ? 
+            WHERE test_item_id = ? AND status NOT IN ('5')
+        `, [status, testItemId]);
+
+        if (result.affectedRows === 0) {
+            throw new Error('未能更新状态，检测项目可能已交付或不符合条件');
+        }
+
+        await connection.commit(); // 提交事务
+        return { success: true, message: '状态更新成功' };
+    } catch (error) {
+        await connection.rollback(); // 发生错误时回滚事务
+        console.error('Error delivering test item:', error);
+        return { success: false, message: error.message };
+    } finally {
+        connection.release(); // 确保连接释放到连接池
+    }
 }
 
 // 获取检测项目的详细信息

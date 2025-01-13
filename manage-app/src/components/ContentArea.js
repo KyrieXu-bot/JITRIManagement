@@ -304,8 +304,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
             if (role === 'supervisor') {
                 params.append('account', account)
-
+            } else if (role === 'sales'){
+                params.append('role', role);
             }
+            
             if (filterOrderNum) {
                 params.append('orderNum', filterOrderNum); // 添加员工名称到请求参数
             }
@@ -333,7 +335,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (filterData) params.append('filterData', filterData);
             const response = await axios.get(`${config.API_BASE_URL}/api/orders/invoices?${params}`);
             const invoices = response.data;
-            console.log(invoices)
             setData(invoices);
         } catch (error) {
             console.error('拉取发票信息错误:', error);
@@ -346,9 +347,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         try {
             const params = new URLSearchParams();
             if (filterOrderNum) params.append('orderNum', filterOrderNum);
-            params.append('account', account);
+            if(account !== 'YW001'){
+                params.append('account', account);
+            }
             const response = await axios.get(`${config.API_BASE_URL}/api/orders/sales?${params}`);
             const results = response.data;
+            console.log(results)
             setData(results);
         } catch (error) {
             console.error('拉取业务委托单错误:', error);
@@ -580,12 +584,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     useEffect(() => {
         if ((role === 'employee')) {
             fetchMonths();
-            if (selected === 'handleTests') {
-                fetchDataForEmployee(account);
-            } else if (selected === 'timeline') {
+            if (selected === 'timeline') {
                 fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchData('orders');
+            } else {
+                fetchDataForEmployee(account);
             }
         } else if (role === 'supervisor' || role === 'leader') {
             fetchMonths();
@@ -600,12 +604,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
         } else if (role === 'sales') {
             fetchMonths();
-            if (selected === 'handleTests') {
-                fetchDataForEmployee(account);
-            } else if (selected === 'timeline') {
+            if (selected === 'timeline') {
                 fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchOrdersForSales();
+            } else {
+                if(account === 'YW001'){
+                    fetchDataForSupervisor()
+                }else{
+                fetchDataForEmployee(account);}
             }
         } else {
             // 管理员情况
@@ -1040,7 +1047,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     //完成按钮
     const handleFinishTest = async () => {
-        const { test_item_id, machine_hours, work_hours, operator, equipment_id, quantity, test_note, listed_price } = finishData;
+        const { test_item_id, machine_hours, work_hours, operator, equipment_id, quantity, test_note, calculated_price } = finishData;
         if (!machine_hours) {
             alert("请填写机时！")
             return;
@@ -1063,7 +1070,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 equipment_id,
                 quantity,
                 test_note,
-                listed_price: listed_price * quantity
+                listed_price: calculated_price,
             });
             setShowFinishModal(false); // 成功后关闭 Modal
             setShowSuccessToast(true); // 显示成功提示
@@ -1102,19 +1109,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     }
 
     // 设置标价
-    const handleQuote = async (testItemId) => {
-        const newPrice = prompt("请输入标准价格:");
-        if (newPrice && !isNaN(parseFloat(newPrice))) {
-            try {
-                await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/price`, { listedPrice: newPrice });
-                fetchDataForSupervisor(departmentID); // 重新获取数据以更新UI
-            } catch (error) {
-                console.error('Error updating price:', error);
-            }
-        } else {
-            alert("请输入有效的价格");
-        }
-    };
+    // const handleQuote = async (testItemId) => {
+    //     const newPrice = prompt("请输入标准价格:");
+    //     if (newPrice && !isNaN(parseFloat(newPrice))) {
+    //         try {
+    //             await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/price`, { listedPrice: newPrice });
+    //             fetchDataForSupervisor(departmentID); // 重新获取数据以更新UI
+    //         } catch (error) {
+    //             console.error('Error updating price:', error);
+    //         }
+    //     } else {
+    //         alert("请输入有效的价格");
+    //     }
+    // };
 
 
     // 设置优惠价
@@ -1277,14 +1284,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setEditingRow(index);
         setEditingValue(initialValue);
     };
-    
+
     const handleBlurOrSave = async (item, newValue) => {
         // 停止编辑模式
         setEditingRow(null);
-    
+
         // 如果值未更改，则不执行更新操作
         if (item.discounted_price === newValue) return;
-    
+
         // 更新逻辑
         if (newValue && !isNaN(parseFloat(newValue))) {
             try {
@@ -1510,13 +1517,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 回退
     const submitRollback = async () => {
-        const {test_item_id, note} = rollbackData;
+        const { test_item_id, note } = rollbackData;
         try {
-            await axios.post(`${config.API_BASE_URL}/api/tests/rollback`, 
-                { 
-                    testItemId: test_item_id, 
+            await axios.post(`${config.API_BASE_URL}/api/tests/rollback`,
+                {
+                    testItemId: test_item_id,
                     note: note,
-                    account 
+                    account
                 });
             setShowRollbackModal(false);
             fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
@@ -1767,7 +1774,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     // 为员工定制的视图逻辑
                     headers = ["委托单号", "我的检测项目", "状态", "客户名称", "联系人", "剩余天数", "负责人", "机时", "工时", "标准价格", "附件", "组长指派时间", "样品原号", "客户备注", "审批意见"];
                     rows = currentItems.map((item, index) => (
-                        <tr key={index}>
+                        <tr key={index}
+                            className={item.status === '5' ? 'row-delivered' : ''}
+                        >
                             <td className='order-num-fixed'>{item.order_num}</td>
                             <td className='test-item-fixed'>{item.test_item}</td>
                             <td>{statusLabels[item.status]}</td>
@@ -1803,9 +1812,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     <Button variant="secondary" onClick={() => handleRollBack(item)}>回退</Button>
                                 )}
 
-                                {item.status !== '3' && (
+                                {/* {item.status !== '3' && (
                                     <Button onClick={() => handleQuote(item.test_item_id)}>改标准价(选)</Button>
-                                )}
+                                )} */}
                             </td>
                         </tr>
                     ));
@@ -1842,7 +1851,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     headers = ["委托单号", "检测项目", "状态", "剩余天数", "客户名称", "联系人", "检测人员", "业务人员", "附件", "客户备注", "审批意见", "机时", "工时", "标准价格", "样品原号"];
                     rows = currentItems.map((item, index) => (
 
-                        <tr key={index}>
+                        <tr key={index}
+                            className={item.status === '5' ? 'row-delivered' : ''}
+                        >
                             <td className='order-num-fixed'>{item.order_num}</td>
                             <td className='test-item-fixed'>{item.test_item}</td>
                             <td>{statusLabels[item.status]}</td>
@@ -1866,10 +1877,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.original_no}</td>
                             <td className='fixed-column'>
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                                {item.team_names === item.manager_names && (
+                                {item.team_names === item.manager_names && item.status !== '4' && item.status !== '5' && (
                                     <>
                                         <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
-                                        <Button onClick={() => handleQuote(item.test_item_id)}>改标准价(选)</Button>
+                                        {/* <Button onClick={() => handleQuote(item.test_item_id)}>改标准价(选)</Button> */}
                                     </>
 
                                 )}
@@ -1972,7 +1983,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 case 'handleTests':
                     headers = ["委托单号", "检测项目", "客户名称", "联系人", "数量", "机时", "标准价格", "实收(含税)价", "附件", "状态", "样品原号", "检测人员", "业务人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
-                        <tr key={index}>
+                        <tr key={index}
+                            className={item.status === '5' ? 'row-delivered' : ''}
+                        >
                             <td className='order-num-fixed'>{item.order_num}</td>
                             <td className='test-item-fixed'>{item.test_item}</td>
                             <td>{item.customer_name}</td>
@@ -2379,6 +2392,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         <option value="2">已检测待审批</option>
                                         <option value="3">审批通过</option>
                                         <option value="4">审批失败</option>
+                                        <option value="5">已交付</option>
+
 
                                     </select>&nbsp;&nbsp;&nbsp;
                                     <span>月份：</span>
@@ -2632,6 +2647,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         onShowAssignment={showAssignmentModalHandler}
                         onShowCheck={handleCheck}
                         renderDeadlineStatus={renderDeadlineStatus}
+                        account={account}
                     />
                 </div>
 
@@ -2726,6 +2742,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <option value="2">已检测</option>
                                 <option value="3">已审批</option>
                                 <option value="4">审批失败</option>
+                                <option value="5">已交付</option>
+
                             </Form.Control>
                         </Form.Group>
                         <Form.Group controlId="formMachineHours">
@@ -3193,7 +3211,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <Form.Control
                                 type="text"
                                 value={rollbackData.note}
-                                onChange={ e => setRollbackData({ ...rollbackData, note: e.target.value })}>
+                                onChange={e => setRollbackData({ ...rollbackData, note: e.target.value })}>
 
                             </Form.Control>
                         </Form.Group>
@@ -3264,7 +3282,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <Form.Control
                                 type="number"
                                 value={finishData.machine_hours}
-                                onChange={e => setFinishData({ ...finishData, machine_hours: e.target.value })}
+                                onChange={e => {
+                                    const updatedMachineHours = e.target.value;
+                                    const calculatedPrice = finishData.calculationMode === 'machineHours' 
+                                        ? finishData.listed_price * updatedMachineHours 
+                                        : finishData.listed_price * finishData.quantity;
+                                    setFinishData({ 
+                                        ...finishData, 
+                                        machine_hours: updatedMachineHours, 
+                                        calculated_price: calculatedPrice.toFixed(2) 
+                                    });
+                                }}
+                                // onChange={e => setFinishData({ ...finishData, machine_hours: e.target.value })}
                             />
                         </Form.Group>
                         <Form.Group>
@@ -3275,29 +3304,102 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 onChange={e => setFinishData({ ...finishData, work_hours: e.target.value })}
                             />
                         </Form.Group>
-                        <Form.Group>
-                            <Form.Label>单价 (标准价格=单价×数量)</Form.Label>
-                            <Form.Control
-                                type="number"
-                                value={finishData.listed_price || ''}
-                                onChange={e => setFinishData({ ...finishData, listed_price: e.target.value })}
-                            />
-                        </Form.Group>
+
                         <Form.Group>
                             <Form.Label>数量</Form.Label>
                             <Form.Control
                                 type="number"
                                 value={finishData.quantity}
-                                onChange={e => setFinishData({ ...finishData, quantity: e.target.value })}
+                                onChange={e => {
+                                    const updatedQuantity = e.target.value;
+                                    const calculatedPrice = finishData.calculationMode === 'machineHours' 
+                                        ? finishData.listed_price * finishData.machine_hours 
+                                        : finishData.listed_price * updatedQuantity;
+                                    setFinishData({ 
+                                        ...finishData, 
+                                        quantity: updatedQuantity, 
+                                        calculated_price: calculatedPrice.toFixed(2) 
+                                    });
+                                }}
+                                // onChange={e => setFinishData({ ...finishData, quantity: e.target.value })}
                             />
                         </Form.Group>
 
-                        {/* 动态显示计算值，仅供参考 */}
+                        <Form.Group>
+                            <Form.Label>单价</Form.Label>
+                            <Form.Control
+                                type="number"
+                                value={finishData.listed_price || ''}
+                                onChange={e => {
+                                    const updatedListedPrice = e.target.value;
+                                    const calculatedPrice = finishData.calculationMode === 'machineHours' 
+                                        ? updatedListedPrice * finishData.machine_hours 
+                                        : updatedListedPrice * finishData.quantity;
+                                    setFinishData({ 
+                                        ...finishData, 
+                                        listed_price: updatedListedPrice, 
+                                        calculated_price: calculatedPrice.toFixed(2) 
+                                    });
+                                }}
+                                // onChange={e => setFinishData({ ...finishData, listed_price: e.target.value })}
+                            />
+                        </Form.Group>
+
+                        {/* 动态选择计算标准价格方式 */}
+                        <Form.Group>
+                            <Form.Label>选择标准价格计算方式</Form.Label>
+                            <div className='finish-cal-type'>
+                                <Form.Check
+                                    type="radio"
+                                    label="按照数量"
+                                    name="priceCalculation"
+                                    checked={finishData.calculationMode === 'quantity'}
+                                    onChange={() => {
+                                        const calculatedPrice = finishData.listed_price * finishData.quantity;
+                                        setFinishData({ 
+                                            ...finishData, 
+                                            calculationMode: 'quantity', 
+                                            calculated_price: calculatedPrice.toFixed(2) 
+                                        });
+                                    }}
+                                    // onChange={() => setFinishData({ ...finishData, calculationMode: 'quantity' })}
+                                />
+                                <Form.Check
+                                    type="radio"
+                                    label="按照机时"
+                                    name="priceCalculation"
+                                    checked={finishData.calculationMode === 'machineHours'}
+                                    onChange={() => {
+                                        const calculatedPrice = finishData.listed_price * finishData.machine_hours;
+                                        setFinishData({ 
+                                            ...finishData, 
+                                            calculationMode: 'machineHours', 
+                                            calculated_price: calculatedPrice.toFixed(2) 
+                                        });
+                                    }}
+                                    // onChange={() => setFinishData({ ...finishData, calculationMode: 'machineHours' })}
+                                />
+                            </div>
+                        </Form.Group>
+
+                        {/* 动态显示计算结果 */}
                         <div>
+                            <strong>标准价格(单价×数量/机时)：</strong>
+                            {/* {finishData.listed_price &&
+                                (finishData.calculationMode === 'quantity' && finishData.quantity
+                                    ? (finishData.listed_price * finishData.quantity).toFixed(2)
+                                    : finishData.calculationMode === 'machineHours' && finishData.machine_hours
+                                        ? (finishData.listed_price * finishData.machine_hours).toFixed(2)
+                                        : 'N/A')} */}
+                                {finishData.calculated_price || 'N/A'}
+                        </div>
+                        {/* 动态显示计算值，仅供参考 */}
+                        {/* <div>
                             <strong>标准价格:</strong> {finishData.listed_price && finishData.quantity
                                 ? (finishData.listed_price * finishData.quantity).toFixed(2)
                                 : 'N/A'}
-                        </div>
+                        </div> */}
+                        <hr></hr>
                         <Form.Group>
                             <Form.Label>实验备注</Form.Label>
                             <Form.Control

@@ -1,11 +1,11 @@
 import React from 'react';
 import '../css/HomePage.css'
-const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, onShowCheck, renderDeadlineStatus }) => {
+const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, onShowCheck, renderDeadlineStatus }) => {
     const notAssigned = assignedNotTestedOrders.filter(order => order.status === '0');
     const notTested = assignedNotTestedOrders.filter(order => order.status === '1');
     const notChecked = assignedNotTestedOrders.filter(order => order.status === '2');
-
     const checked = assignedNotTestedOrders.filter(order => order.status === '3');
+    const delivered = assignedNotTestedOrders.filter(order => order.status === '5');
     let totalMachineHours = 0;
     let totalWorkHours = 0;
     let totalListedPrice = 0;
@@ -31,6 +31,29 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, onShowCheck
         minimumFractionDigits: 2
     }).format(totalListedPrice);
 
+    // 统计市场部门销售员工数据
+    const salesStats = {};
+    assignedNotTestedOrders.forEach(order => {
+        if (order.sales_names) {
+            const salesName = order.sales_names;
+            if (!salesStats[salesName]) {
+                salesStats[salesName] = {
+                    deliveredCount: 0,
+                    totalProjects: 0,
+                    totalListedPrice: 0,
+                    totalDiscountedPrice: 0
+                };
+            }
+
+            if (order.status === '5') {
+                salesStats[salesName].deliveredCount += 1;
+            }
+
+            salesStats[salesName].totalProjects += 1;
+            salesStats[salesName].totalListedPrice += Number(order.listed_price) || 0;
+            salesStats[salesName].totalDiscountedPrice += Number(order.discounted_price) || 0;
+        }
+    });
     const renderRoleContent = () => {
         switch (role) {
             case 'leader':
@@ -125,6 +148,11 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, onShowCheck
                         <p>{assignedNotTestedOrders.length}个</p>
                     </div>
                     <div className='countGroup'>
+                        交付项目总数量：
+                        <br />
+                        <p>{delivered.length}个</p>
+                    </div>
+                    <div className='countGroup'>
                         检测项目总委托额：
                         <br />
                         <p>{formattedListed}元</p>
@@ -151,7 +179,7 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, onShowCheck
                                             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                                             检测项目：{order.test_item}
                                             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                            开单时间：{new Date(order.create_time).toLocaleString()}
+                                            开单时间：{order.create_time ? new Date(order.create_time).toLocaleString() : ''}
                                             <button onClick={() => onShowAssignment(order)}>立即分配</button>
 
                                         </li>
@@ -234,8 +262,35 @@ const HomePage = ({ role, assignedNotTestedOrders, onShowAssignment, onShowCheck
                     </div>
 
 
+                ) : role === 'sales' && account === 'YW001' ? (
+                    <div className="market-department">
+                    <h3>市场部门销售员工统计</h3>
+                    <table className="stats-table">
+                        <thead>
+                            <tr>
+                                <th>销售员工</th>
+                                <th>已交付数量</th>
+                                <th>检测项目总数</th>
+                                <th>总委托额 (元)</th>
+                                <th>总优惠额 (元)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(salesStats).map(([salesName, stats]) => (
+                                <tr key={salesName}>
+                                    <td>{salesName}</td>
+                                    <td>{stats.deliveredCount}</td>
+                                    <td>{stats.totalProjects}</td>
+                                    <td>{stats.totalListedPrice.toFixed(2)}</td>
+                                    <td>{stats.totalDiscountedPrice.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
                 ) : (
                     <div></div>
+
                 )}
 
             </div>

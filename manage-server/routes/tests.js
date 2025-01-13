@@ -9,6 +9,8 @@ router.get('/', async (req, res) => {
     let month = req.query.month;
     let employeeName = req.query.employeeName
     let orderNum = req.query.orderNum
+    let role = req.query.role
+
     try {
         //查询组长数据
         if (account != undefined && account != '') {
@@ -16,7 +18,7 @@ router.get('/', async (req, res) => {
             res.json(results);
 
         } else {
-            const results = await db.getAllTestItems(status, departmentId, month, employeeName, orderNum);
+            const results = await db.getAllTestItems(status, departmentId, month, employeeName, orderNum, role);
             res.json(results);
         }
     } catch (error) {

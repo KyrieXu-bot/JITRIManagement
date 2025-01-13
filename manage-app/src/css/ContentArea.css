@@ -429,7 +429,22 @@ nav {
     text-align: center;       /* 居中对齐 */
 }
 
+.finish-cal-type{
+    margin: 10px 0px;
+    display: flex;
+    border: 1px;
+    justify-content: space-around;
+}
 
+/* 定义已交付状态的背景颜色样式 */
+.row-delivered {
+    background-color: #d4edda; /* 柔和的绿色 */
+    color: #155724;           /* 深绿色字体，提升可读性 */
+}
+
+.row-delivered:hover {
+    background-color: #c3e6cb; /* 悬停时更亮的绿色 */
+}
 
 
 /* 基础样式调整，以适应移动设备 */
