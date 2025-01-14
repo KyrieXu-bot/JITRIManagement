@@ -86,6 +86,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [handleDeliverModal, setHandleDeliverModal] = useState(false);
     const [showSingleReservationModal, setShowSingleReservationModal] = useState(false);
     const [showAccountSuccessModal, setShowAccountSuccessModal] = useState(false); // 控制Toast显示的状态
+    const [publicReserveModal, setPublicReserveModal] = useState(false); // 控制Toast显示的状态
+
 
     //分页
     const itemsCountPerPage = 20;
@@ -112,6 +114,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         listed_price: ''
 
     });
+
+    const [reserveData, setReserveData] = useState({
+        equipment_id: '',
+        start_time: '',
+        end_time: ''
+    }); 
 
     //添加检测项目时候的数据
     const [addData, setAddData] = useState({
@@ -304,10 +312,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
             if (role === 'supervisor') {
                 params.append('account', account)
-            } else if (role === 'sales'){
+            } else if (role === 'sales') {
                 params.append('role', role);
             }
-            
+
             if (filterOrderNum) {
                 params.append('orderNum', filterOrderNum); // 添加员工名称到请求参数
             }
@@ -347,7 +355,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         try {
             const params = new URLSearchParams();
             if (filterOrderNum) params.append('orderNum', filterOrderNum);
-            if(account !== 'YW001'){
+            if (account !== 'YW001') {
                 params.append('account', account);
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/orders/sales?${params}`);
@@ -609,10 +617,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             } else if (selected === 'getCommission') {
                 fetchOrdersForSales();
             } else {
-                if(account === 'YW001'){
+                if (account === 'YW001') {
                     fetchDataForSupervisor()
-                }else{
-                fetchDataForEmployee(account);}
+                } else {
+                    fetchDataForEmployee(account);
+                }
             }
         } else {
             // 管理员情况
@@ -768,6 +777,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowCheckModal(true);
     };
 
+    const handleFinish = (item) => {
+        setFinishData({
+            test_item_id: item.test_item_id, // 保存当前项目ID以便提交时使用
+            machine_hours: item.machine_hours,
+            work_hours: item.work_hours,
+            operator: account,
+            equipment_id: item.equipment_id,
+            equipment_name: item.equipment_name,
+            model: item.model,
+            quantity: item.quantity,
+            test_note: item.test_note,
+            listed_price: ''
+        });
+        setShowFinishModal(true);
+    };
 
     // 处理选中的委托单
     const handleCheckboxChange = (orderNum) => {
@@ -1249,6 +1273,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setReservationDeptId(deptId); // 更新部门 ID
     };
 
+    // 定义点击设备预约后的模块
+    const handleReserve = () => {
+        setPublicReserveModal(true);
+    }
     const addItem = async () => {
         if (!addData.test_item) {
             alert(`提交失败！"检测项目"为必填项，请重新填写`);
@@ -1598,6 +1626,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     };
 
+
+    const submitReservation = (item) => {
+        console.log(item);
+    }
     //设置最终价操作
     // const submitFinalPrice = async (invoiceId) => {
     //     try {
@@ -2335,6 +2367,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 ) : selected === 'getReservation' ? (
                     <>
                         <h2>设备预约情况</h2>
+                        <button className='reserve-button' onClick={handleReserve}>设备预约</button>
                         {(role === 'sales' || role === 'admin') && (
                             <div>
                                 <Button
@@ -2646,6 +2679,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         assignedNotTestedOrders={data}
                         onShowAssignment={showAssignmentModalHandler}
                         onShowCheck={handleCheck}
+                        onShowFinish={handleFinish}
                         renderDeadlineStatus={renderDeadlineStatus}
                         account={account}
                     />
@@ -3284,16 +3318,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 value={finishData.machine_hours}
                                 onChange={e => {
                                     const updatedMachineHours = e.target.value;
-                                    const calculatedPrice = finishData.calculationMode === 'machineHours' 
-                                        ? finishData.listed_price * updatedMachineHours 
+                                    const calculatedPrice = finishData.calculationMode === 'machineHours'
+                                        ? finishData.listed_price * updatedMachineHours
                                         : finishData.listed_price * finishData.quantity;
-                                    setFinishData({ 
-                                        ...finishData, 
-                                        machine_hours: updatedMachineHours, 
-                                        calculated_price: calculatedPrice.toFixed(2) 
+                                    setFinishData({
+                                        ...finishData,
+                                        machine_hours: updatedMachineHours,
+                                        calculated_price: calculatedPrice.toFixed(2)
                                     });
                                 }}
-                                // onChange={e => setFinishData({ ...finishData, machine_hours: e.target.value })}
                             />
                         </Form.Group>
                         <Form.Group>
@@ -3312,16 +3345,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 value={finishData.quantity}
                                 onChange={e => {
                                     const updatedQuantity = e.target.value;
-                                    const calculatedPrice = finishData.calculationMode === 'machineHours' 
-                                        ? finishData.listed_price * finishData.machine_hours 
+                                    const calculatedPrice = finishData.calculationMode === 'machineHours'
+                                        ? finishData.listed_price * finishData.machine_hours
                                         : finishData.listed_price * updatedQuantity;
-                                    setFinishData({ 
-                                        ...finishData, 
-                                        quantity: updatedQuantity, 
-                                        calculated_price: calculatedPrice.toFixed(2) 
+                                    setFinishData({
+                                        ...finishData,
+                                        quantity: updatedQuantity,
+                                        calculated_price: calculatedPrice.toFixed(2)
                                     });
                                 }}
-                                // onChange={e => setFinishData({ ...finishData, quantity: e.target.value })}
                             />
                         </Form.Group>
 
@@ -3332,16 +3364,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 value={finishData.listed_price || ''}
                                 onChange={e => {
                                     const updatedListedPrice = e.target.value;
-                                    const calculatedPrice = finishData.calculationMode === 'machineHours' 
-                                        ? updatedListedPrice * finishData.machine_hours 
+                                    const calculatedPrice = finishData.calculationMode === 'machineHours'
+                                        ? updatedListedPrice * finishData.machine_hours
                                         : updatedListedPrice * finishData.quantity;
-                                    setFinishData({ 
-                                        ...finishData, 
-                                        listed_price: updatedListedPrice, 
-                                        calculated_price: calculatedPrice.toFixed(2) 
+                                    setFinishData({
+                                        ...finishData,
+                                        listed_price: updatedListedPrice,
+                                        calculated_price: calculatedPrice.toFixed(2)
                                     });
                                 }}
-                                // onChange={e => setFinishData({ ...finishData, listed_price: e.target.value })}
                             />
                         </Form.Group>
 
@@ -3356,13 +3387,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     checked={finishData.calculationMode === 'quantity'}
                                     onChange={() => {
                                         const calculatedPrice = finishData.listed_price * finishData.quantity;
-                                        setFinishData({ 
-                                            ...finishData, 
-                                            calculationMode: 'quantity', 
-                                            calculated_price: calculatedPrice.toFixed(2) 
+                                        setFinishData({
+                                            ...finishData,
+                                            calculationMode: 'quantity',
+                                            calculated_price: calculatedPrice.toFixed(2)
                                         });
                                     }}
-                                    // onChange={() => setFinishData({ ...finishData, calculationMode: 'quantity' })}
                                 />
                                 <Form.Check
                                     type="radio"
@@ -3371,13 +3401,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     checked={finishData.calculationMode === 'machineHours'}
                                     onChange={() => {
                                         const calculatedPrice = finishData.listed_price * finishData.machine_hours;
-                                        setFinishData({ 
-                                            ...finishData, 
-                                            calculationMode: 'machineHours', 
-                                            calculated_price: calculatedPrice.toFixed(2) 
+                                        setFinishData({
+                                            ...finishData,
+                                            calculationMode: 'machineHours',
+                                            calculated_price: calculatedPrice.toFixed(2)
                                         });
                                     }}
-                                    // onChange={() => setFinishData({ ...finishData, calculationMode: 'machineHours' })}
                                 />
                             </div>
                         </Form.Group>
@@ -3385,20 +3414,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {/* 动态显示计算结果 */}
                         <div>
                             <strong>标准价格(单价×数量/机时)：</strong>
-                            {/* {finishData.listed_price &&
-                                (finishData.calculationMode === 'quantity' && finishData.quantity
-                                    ? (finishData.listed_price * finishData.quantity).toFixed(2)
-                                    : finishData.calculationMode === 'machineHours' && finishData.machine_hours
-                                        ? (finishData.listed_price * finishData.machine_hours).toFixed(2)
-                                        : 'N/A')} */}
-                                {finishData.calculated_price || 'N/A'}
+                            {finishData.calculated_price || 'N/A'}
                         </div>
-                        {/* 动态显示计算值，仅供参考 */}
-                        {/* <div>
-                            <strong>标准价格:</strong> {finishData.listed_price && finishData.quantity
-                                ? (finishData.listed_price * finishData.quantity).toFixed(2)
-                                : 'N/A'}
-                        </div> */}
                         <hr></hr>
                         <Form.Group>
                             <Form.Label>实验备注</Form.Label>
@@ -3975,6 +3992,80 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowSingleReservationModal(false)}>关闭</Button>
+                </Modal.Footer>
+            </Modal>
+
+
+            <Modal show={publicReserveModal} onHide={() => setPublicReserveModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>设备预约</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {/* 设备使用开始时间 */}
+                    <Form.Group controlId="formStartTime">
+                            <Form.Label>设备使用开始时间</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={reserveData.start_time}
+                                onChange={e => setReserveData({ ...reserveData, start_time: e.target.value })}
+                            />
+                        </Form.Group>
+
+                        {/* 设备使用结束时间 */}
+                        <Form.Group controlId="formEndTime">
+                            <Form.Label>设备使用结束时间</Form.Label>
+                            <Form.Control
+                                type="datetime-local"
+                                value={reserveData.end_time}
+                                onChange={e => setReserveData({ ...reserveData, end_time: e.target.value })}
+                            />
+                        </Form.Group>
+
+                    <Row>
+                        {/* 设备分类标签选择（一级菜单，使用select） */}
+                        <Col md={6}>
+                            <Form.Group controlId="formEquipmentLabel">
+                                <Form.Label>设备分类标签</Form.Label>
+                                <Form.Control
+                                    as="select"
+                                    value={selectedLabel}
+                                    onChange={handleLabelChange}
+                                >
+                                    <option value="">---选择设备分类---</option>
+                                    {[...new Set(equipments.map(equipment => equipment.equipment_label))].map(equipment_label => (
+                                        <option key={equipment_label} value={equipment_label}>
+                                            {equipment_label}
+                                        </option>
+                                    ))}
+                                </Form.Control>
+                            </Form.Group>
+                        </Col>
+
+                        {/* 设备选择（根据分类标签展示，二级菜单） */}
+                        <Col md={6}>
+                            <Form.Group controlId="formEquipment">
+                                <Form.Label>设备名称</Form.Label>
+                                <Form.Control
+                                    as="select"
+                                    value={reserveData.equipment_id}
+                                    onChange={e => setReserveData({ ...reserveData, equipment_id: e.target.value })}
+                                    disabled={!selectedLabel} // 如果没有选择分类标签则禁用
+                                >
+                                    <option value="">---选择设备---</option>
+                                    {filteredEquipments.map(equipment => (
+                                        <option key={equipment.equipment_id} value={equipment.equipment_id}>
+                                            {equipment.equipment_name} ({equipment.model})
+                                        </option>
+                                    ))}
+                                </Form.Control>
+                            </Form.Group>
+                        </Col>
+                    </Row>
+
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="primary" onClick={() => submitReservation(reserveData)}>预约</Button>
+                    <Button variant="secondary" onClick={() => setPublicReserveModal(false)}>关闭</Button>
                 </Modal.Footer>
             </Modal>
         </div>

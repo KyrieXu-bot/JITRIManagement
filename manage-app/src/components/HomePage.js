@@ -1,6 +1,7 @@
 import React from 'react';
 import '../css/HomePage.css'
-const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, onShowCheck, renderDeadlineStatus }) => {
+const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, onShowCheck, onShowFinish, renderDeadlineStatus }) => {
+    console.log(assignedNotTestedOrders)
     const notAssigned = assignedNotTestedOrders.filter(order => order.status === '0');
     const notTested = assignedNotTestedOrders.filter(order => order.status === '1');
     const notChecked = assignedNotTestedOrders.filter(order => order.status === '2');
@@ -17,6 +18,7 @@ const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, on
         totalListedPrice += Number(order.listed_price) || 0;
         totalDiscountedPrice += Number(order.discounted_price) || 0;
     }
+
     totalDiscountedPrice = Number(totalDiscountedPrice);
     totalListedPrice = Number(totalListedPrice);
     const formattedDiscount = new Intl.NumberFormat('zh-CN', {
@@ -139,6 +141,11 @@ const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, on
                         <br />
                         <p>{totalMachineHours}小时</p>
                     </div>
+                    <div className='countGroup'>
+                        我的总委托额
+                        <br />
+                        <p>{totalListedPrice}元</p>
+                    </div>
                 </nav>
             ) : (
                 <nav className='navGroup'>
@@ -216,6 +223,13 @@ const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, on
                                                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                                                 <br></br>
                                                 {renderDeadlineStatus(order.deadline, order.appoint_time)}
+                                                {order.team_names ? (
+                                                    <button className='home-check' onClick={() => onShowFinish(order)}>完成</button>
+
+                                                ) : (
+                                                    <button className='home-check' onClick={() => onShowAssignment(order)}>指派</button>
+
+                                                )}
 
                                             </li>
                                         ))}
@@ -227,7 +241,8 @@ const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, on
                             )}
                         </div>
 
-                        <div className='block'>
+                        {role === 'supervisor' && (
+                            <div className='block'>
                             <h3>待审批项目：<span className='projTitle'>{notChecked.length}个</span></h3>
                             {notChecked.length > 0 ? (
 
@@ -259,6 +274,7 @@ const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, on
                                 <p>当前暂无审批任务</p>
                             )}
                         </div>
+                        )}
                     </div>
 
 

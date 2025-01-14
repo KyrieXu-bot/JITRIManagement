@@ -59,13 +59,14 @@ h2 {
     display: flex;
     margin: 0;
     padding: 0;
+
 }
 .block{
     display: flex;
     justify-content: space-around;
     flex-wrap: wrap;
     margin: 0px;
-    width: 50%;
+    flex-grow: 1;
 }
 .block div {
     width: 100%;
@@ -82,6 +83,7 @@ button {
     cursor: pointer;
     background-color: #5f87a0; /* 深天蓝色背景与表头一致 */
     color: white;
+
 }
 
 button:hover {

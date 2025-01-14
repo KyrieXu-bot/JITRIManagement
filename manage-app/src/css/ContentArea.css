@@ -446,7 +446,13 @@ nav {
     background-color: #c3e6cb; /* 悬停时更亮的绿色 */
 }
 
-
+/* 设备预约按钮 */
+.reserve-button{
+    width: 150px;
+    height: 45px;
+    border-radius: 1em;
+    margin-top: -50px;
+}
 /* 基础样式调整，以适应移动设备 */
 @media (max-width: 768px) {
     .content {
