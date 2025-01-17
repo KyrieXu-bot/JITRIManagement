@@ -303,7 +303,6 @@ router.get('/equipments/schedule', async (req, res) => {
 
         // 2. 获取设备的预约情况
         const testItems = await db.getEquipmentReservations();
-
         // 3. 创建一个设备ID到预约记录的映射
         const equipmentSchedule = {};
 
@@ -316,7 +315,9 @@ router.get('/equipments/schedule', async (req, res) => {
                 order_num: item.order_num,
                 test_item: item.test_item,
                 start_time: item.start_time,
-                end_time: item.end_time
+                end_time: item.end_time,
+                name: item.name,
+                equip_user: item.equip_user
             });
         });
 
@@ -358,41 +359,6 @@ router.delete('/:testItemId', async (req, res) => {
     }
 });
 
-
-// 路由处理：检查时间冲突
-router.get('/checkTimeConflict', async (req, res) => {
-    const { equipment_id, start_time, end_time } = req.query;
-
-    // 转换时间格式
-    const start = new Date(start_time);
-    const end = new Date(end_time);
-
-    try {
-        // 调用数据库方法检查时间冲突
-        const conflictInfo = await db.checkTimeConflict(equipment_id, start, end);
-        if (conflictInfo.conflict) {
-            // 如果有冲突，返回详细的冲突时间段
-            return res.status(200).json({
-                success: false,
-                message: '设备时间冲突，请查看以下预约信息：',
-                conflict: true,
-                conflictDetails: conflictInfo.conflictDetails,
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            message: '设备分配成功',
-        });
-    } catch (error) {
-        console.error('Error checking time conflict:', error);
-        res.status(500).json({
-            success: false,
-            message: '服务器错误',
-        });
-    }
-});
-
 // 导出检测项目excel的路由
 router.post('/exportTestData', async (req, res) => {
     try {
@@ -411,6 +377,23 @@ router.post('/exportTestData', async (req, res) => {
     }
 });
 
+// 导出检测项目excel的路由
+router.post('/exportTestDataForSales', async (req, res) => {
+    try {
+        const { selectedOrders } = req.body;
+        if (!selectedOrders || selectedOrders.length === 0) {
+            return res.status(400).send('No test items provided');
+        }
+        // 获取数据库中的发票数据
+        const tests = await db.getTestForExcelForSales(selectedOrders);  // 你可以根据实际情况调用数据库查询
+        // 返回查询结果
+        res.json(tests);
+        return tests;
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Error exporting data');
+    }
+});
 
 
 module.exports = router;

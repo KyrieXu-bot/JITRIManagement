@@ -168,8 +168,8 @@ async function getTestForExcel(selectedOrders) {
             t.create_time,
             t.deadline,
             t.department_id,
-            t.start_time,
-            t.end_time,
+            r.start_time,
+            r.end_time,
             t.appoint_time,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
@@ -224,6 +224,39 @@ async function getTestForExcel(selectedOrders) {
     }
 }
 
+
+async function getTestForExcelForSales(selectedOrders) {
+    // 将传入的 test_item_id 转为数组形式，以防止 SQL 注入
+    const placeholders = selectedOrders.map(() => '?').join(', ');
+    const query = `
+    SELECT 
+            t.test_item,
+            t.quantity,
+            t.order_num,
+            t.note,
+            t.machine_hours,
+            t.listed_price,
+            t.create_time,
+            c.customer_name,
+            c.contact_name
+        FROM
+            test_items t
+        LEFT JOIN
+            orders o ON t.order_num = o.order_num
+        LEFT JOIN
+            customers c ON o.customer_id = c.customer_id
+        WHERE t.test_item_id IN (${placeholders})
+        GROUP BY t.test_item_id, c.customer_name, c.contact_name;
+    `
+    try {
+        const [results] = await db.query(query, selectedOrders);
+        return results;
+    } catch (error) {
+        console.error("Error fetching test items:", error);
+        throw error;  // 错误捕获并抛出
+    }
+}
+
 async function updateOrder(orderNum, updateData) {
     let updates = [];
     let values = [];
@@ -263,10 +296,9 @@ async function getSalesOrders(orderNum, account) {
             JOIN users u ON u.account = a.account
         `
         const params = [];
-
         if (account !== undefined && account !== '') {
             query += ' WHERE a.account = ?';
-            params.push(`%${account}%`);
+            params.push(`${account}`);
         } else {
             query += ' WHERE u.role = ?';
             params.push('sales')
@@ -277,7 +309,6 @@ async function getSalesOrders(orderNum, account) {
             query += ' AND o.order_num LIKE ?';
             params.push(`%${orderNum}%`);
         }
-
 
         const [results] = await db.query(query, params);
         return results; // 返回查询结果
@@ -362,8 +393,8 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
             t.check_note,
             t.create_time,
             t.deadline,
-            t.start_time,
-            t.end_time,
+            r.start_time,
+            r.end_time,
             t.test_note,
             t.size,
             t.quantity,
@@ -408,6 +439,8 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
             equipment e ON e.equipment_id = t.equipment_id
         JOIN 
 	        users u ON u.account = a.account
+        LEFT JOIN 
+            reservation r ON r.reservation_id = t.reservation_id
         WHERE 
             EXISTS (
                 SELECT 1
@@ -474,8 +507,8 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
             t.create_time,
             t.deadline,
             t.department_id,
-            t.start_time,
-            t.end_time,
+            r.start_time,
+            r.end_time,
             t.appoint_time,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
@@ -518,6 +551,8 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
             equipment e ON e.equipment_id = t.equipment_id
         LEFT JOIN 
             users u ON u.account = a.account 
+        LEFT JOIN
+            reservation r ON r.reservation_id = t.reservation_id
     `;
 
     const params = [];
@@ -1861,13 +1896,19 @@ const getPaymentIdByOrderNum = async (orderNum) => {
 async function checkTimeConflict(equipment_id, start_time, end_time) {
     try {
         const query = `
-            SELECT equipment_id, start_time, end_time, test_item, order_num
-            FROM test_items
-            WHERE equipment_id = ?
-            AND start_time >= NOW() 
-            AND start_time <= DATE_ADD(NOW(), INTERVAL 1 MONTH)
+            SELECT 
+                r.equipment_id,
+                r.start_time, 
+                r.end_time, 
+                t.test_item, 
+                t.order_num
+            FROM test_items t
+            JOIN reservation r ON r.test_item_id = t.test_item_id
+            WHERE r.equipment_id = ?
+            AND r.start_time >= NOW() 
+            AND r.start_time <= DATE_ADD(NOW(), INTERVAL 1 MONTH)
             AND (
-                ? <= end_time AND ? >= start_time
+                ? <= r.end_time AND ? >= r.start_time
             )
         `;
 
@@ -1974,18 +2015,54 @@ async function duplicateTestItem(testItemData) {
 async function getEquipmentReservations() {
     const query = `
         SELECT 
-            t.equipment_id,
+            r.equipment_id,
             t.order_num,
             t.test_item,
-            t.start_time,
-            t.end_time
+            r.start_time,
+            r.end_time,
+            r.equip_user,
+            u.name
         FROM test_items t
+        LEFT JOIN reservation r ON r.test_item_id = t.test_item_id
+        LEFT JOIN users u ON u.account = r.equip_user
         WHERE t.equipment_id IS NOT NULL;
     `;
     const [testItems] = await db.query(query);
     return testItems;
 }
 
+// 创建预约
+async function createReservation(equipment_id, start_time, end_time, equip_user, test_item_id, operator) {
+    const query = `
+        INSERT INTO reservation (equipment_id, start_time, end_time, equip_user, test_item_id, operator)
+        VALUES (?, ?, ?, ?, ?, ?);
+    `;
+    const [result] = await db.query(query, [equipment_id, start_time, end_time, equip_user, test_item_id, operator]);
+    return result; // 返回插入结果
+}
+
+// 查找我的预约
+async function getMyReservation(account) {
+    const query = `
+        SELECT 
+            r.reservation_id,
+            t.test_item,
+            r.equipment_id,
+            r.start_time,
+            r.equip_user,
+            u.name,
+            r.end_time,
+            e.equipment_name,
+            e.model
+        FROM reservation r
+        JOIN equipment e ON r.equipment_id = e.equipment_id
+        JOIN users u ON u.account = r.equip_user
+        JOIN test_items t ON t.test_item_id = r.test_item_id
+        WHERE r.operator = ?;
+    `;
+    const [result] = await db.query(query, [account]);
+    return result;  // 返回查询结果
+}
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -2008,6 +2085,7 @@ module.exports = {
     getEquipmentTimeline,
     getInvoicesForExcel,
     getCommissionForExcel,
+    getMyReservation,
     updateOrder,
     updateTestItemPrice,
     updateTestItemStatus,
@@ -2049,5 +2127,7 @@ module.exports = {
     getTestItemById,
     getTestForExcel,
     duplicateTestItem,
-    getEquipmentReservations
+    getEquipmentReservations,
+    getTestForExcelForSales,
+    createReservation
 };

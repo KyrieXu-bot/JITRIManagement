@@ -58,13 +58,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [selectedDetails, setSelectedDetails] = useState({});
     const [errorMessage, setErrorMessage] = useState('');
     const [deliverTest, setDeliverTest] = useState({});
-    const [showEquipmentSchedule, setShowEquipmentSchedule] = useState(false); // 控制设备预约视图的显示
+    // const [showEquipmentSchedule, setShowEquipmentSchedule] = useState(false); // 控制设备预约视图的显示
     const [equipmentReservations, setEquipmentReservations] = useState([]); // 设备预约数据
     const [selectedItem, setSelectedItem] = useState(null); // 存储当前选中的条目信息
     const [reservationDeptId, setReservationDeptId] = useState('');
     const [timelineKey, setTimelineKey] = useState(0);
     const [editingRow, setEditingRow] = useState(null); // 存储当前正在编辑的行
     const [editingValue, setEditingValue] = useState(""); // 存储当前输入框的值
+    const [filteredData, setFilteredData] = useState(""); // 存储选择预约设备时候的检测项目
+    const [myReservationInfo, setMyReservationInfo] = useState(""); // 存储选择预约设备时候的检测项目
 
 
     const [showModal, setShowModal] = useState(false);
@@ -96,6 +98,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
     const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
 
+    const totalReservationCount = myReservationInfo.length;
+    const lastRes = activePage * itemsCountPerPage;
+    const firstRes = lastRes - itemsCountPerPage
+    const reservationPaging = myReservationInfo.slice(firstRes, lastRes);
+
     //领导点击分配时候的数据
     const [assignmentData, setAssignmentData] = useState({
         equipment_id: '',
@@ -119,7 +126,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         equipment_id: '',
         start_time: '',
         end_time: ''
-    }); 
+    });
 
     //添加检测项目时候的数据
     const [addData, setAddData] = useState({
@@ -207,37 +214,37 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
 
-    const headerLabelFormats = {
-        yearShort: "YY年",
-        yearLong: "YYYY年",
-        monthShort: "MM月",
-        monthMedium: "YYYY年MM月",
-        monthMediumLong: "YYYY年MMM",
-        monthLong: "YYYY年MMMM",
-        dayShort: "MM/DD",
-        dayLong: "YYYY年MM月DD日",
-        hourShort: "HH点",
-        hourMedium: "HH点",
-        hourMediumLong: "YYYY年MM月DD日 HH点",
-        hourLong: "YYYY年MM月DD日 HH点",
-        time: "YYYY年MM月DD日 HH点mm分"
-    };
+    // const headerLabelFormats = {
+    //     yearShort: "YY年",
+    //     yearLong: "YYYY年",
+    //     monthShort: "MM月",
+    //     monthMedium: "YYYY年MM月",
+    //     monthMediumLong: "YYYY年MMM",
+    //     monthLong: "YYYY年MMMM",
+    //     dayShort: "MM/DD",
+    //     dayLong: "YYYY年MM月DD日",
+    //     hourShort: "HH点",
+    //     hourMedium: "HH点",
+    //     hourMediumLong: "YYYY年MM月DD日 HH点",
+    //     hourLong: "YYYY年MM月DD日 HH点",
+    //     time: "YYYY年MM月DD日 HH点mm分"
+    // };
 
-    const subHeaderLabelFormats = {
-        yearShort: "YY",
-        yearLong: "YYYY",
-        monthShort: "MM",
-        monthMedium: "MMM",
-        monthLong: "MMMM",
-        dayShort: "D日",
-        dayMedium: "MM月D日",
-        dayMediumLong: "MM月DD日",
-        dayLong: "YYYY年MM月DD日",
-        hourShort: "HH时",
-        hourLong: "HH点mm分",
-        minuteShort: "mm分",
-        minuteLong: "HH点mm分"
-    };
+    // const subHeaderLabelFormats = {
+    //     yearShort: "YY",
+    //     yearLong: "YYYY",
+    //     monthShort: "MM",
+    //     monthMedium: "MMM",
+    //     monthLong: "MMMM",
+    //     dayShort: "D日",
+    //     dayMedium: "MM月D日",
+    //     dayMediumLong: "MM月DD日",
+    //     dayLong: "YYYY年MM月DD日",
+    //     hourShort: "HH时",
+    //     hourLong: "HH点mm分",
+    //     minuteShort: "mm分",
+    //     minuteLong: "HH点mm分"
+    // };
 
 
     // 获取委托单数据
@@ -588,6 +595,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, [filterPayerName, filterPayerContactName, transactionType, selectedMonth]);
 
+    //拉取预约时间           
+    const fetchMyReservation = useCallback(async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/reservations/myReservation`, {
+                params: { account: account }  // 将账号传递给后端
+            });
+            console.log(response.data)
+            setMyReservationInfo(response.data.reservations);
+        } catch (error) {
+            console.error('Failed to fetch my reservation:', error);
+        }
+    }, [account]);
+
 
     useEffect(() => {
         if ((role === 'employee')) {
@@ -647,6 +667,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             fetchAssignableUsers();
         }
         fetchEquipments();
+        fetchMyReservation();
         fetchEquipmentSchedule(); // 拉取新的预约数据
         setTimelineKey((prevKey) => prevKey + 1);
         const savedPage = localStorage.getItem('currentPage');
@@ -675,6 +696,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchPayers,
         fetchOrdersForSales,
         fetchEquipmentSchedule,
+        fetchMyReservation
     ]);
 
     // 当用户选择标签时，直接更新筛选后的设备
@@ -1018,6 +1040,65 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }
 
+
+    // 执行Excel导出检测项目的操作
+    const handleExportTestDataForSales = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/exportTestDataForSales`, { selectedOrders });
+            console.log(response.data)
+            const data = response.data;
+            // 定义字段名映射，将英文字段名转换为中文
+            const fieldMapping = {
+                "create_time": "收样日期",
+                "order_num": "任务编号",
+                "test_item": "检测项目",
+                "quantity": "数量",
+                "machine_hours": "机时",
+                "listed_price": "标准价格",
+                "note": "客户备注",
+                "customer_name": "委托单位",
+                "contact_name": "联系人",
+            };
+            // 使用映射表调整 data 中的字段名
+            const mappedData = data.map(item => {
+                const mappedItem = {};
+                Object.keys(item).forEach(key => {
+                    const mappedKey = fieldMapping[key] || key;
+                    let value = item[key];
+                    // 转换时间格式
+                    if (['create_time', 'start_time', 'end_time', 'appoint_time'].includes(key)) {
+                        mappedItem[mappedKey] = formatDateToLocal(value); // 调用你定义的 formatDateToLocal 函数
+                    }
+                    else {
+                        mappedItem[mappedKey] = value;  // 其他字段保持原值
+                    }
+                });
+                return mappedItem;
+            });
+            const headers = [
+                "收样日期",
+                "任务编号",
+                "检测项目",
+                "单价",
+                "数量",
+                "机时",
+                "标准价格",
+                "客户备注",
+                "委托单位",
+                "联系人",
+
+            ];
+            setCommissionData({ data: mappedData, headers, filename: "检测项目统计" });
+            setShowExcelExportModal(true);
+
+        } catch (error) {
+            console.error("导出数据失败:", error);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     // 执行结算操作
     const handleCheckout = async () => {
         try {
@@ -1233,9 +1314,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     //获取设备预约时间线
-    const toggleScheduleView = () => {
-        setShowEquipmentSchedule(!showEquipmentSchedule);
-    };
+    // const toggleScheduleView = () => {
+    //     setShowEquipmentSchedule(!showEquipmentSchedule);
+    // };
 
 
     // 点击条目时触发
@@ -1260,6 +1341,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 test_item: selectedReservation.test_item,
                 start_time: selectedReservation.start_time, // 预约开始时间
                 end_time: selectedReservation.end_time, // 预约结束时间
+                equip_user: `${selectedReservation.name}(${selectedReservation.equip_user})`
             });
             setShowSingleReservationModal(true);
         } else {
@@ -1275,6 +1357,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 定义点击设备预约后的模块
     const handleReserve = () => {
+        const filteredData = data.filter(item => item.status === '0' || item.status === '1')
+        setFilteredData(filteredData);
         setPublicReserveModal(true);
     }
     const addItem = async () => {
@@ -1448,36 +1532,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const submitAssignment = useCallback(async () => {
         try {
-            // **前端验证：检查结束时间是否晚于开始时间**
-            if (new Date(assignmentData.end_time) <= new Date(assignmentData.start_time)) {
-                setAlertMessage("结束时间必须晚于开始时间，请重新选择时间。");
-                setShowAlert(true);
-                return; // 阻止提交
-            }
-            // 先检查设备是否有时间冲突
-            const checkResponse = await axios.get(`${config.API_BASE_URL}/api/tests/checkTimeConflict`, {
-                params: {
-                    equipment_id: assignmentData.equipment_id,
-                    start_time: assignmentData.start_time,
-                    end_time: assignmentData.end_time,
-                }
-            });
-            if (checkResponse.data.conflict) {
-                // 如果有冲突，提示用户冲突的设备预约时间
-                const conflictMessage = checkResponse.data.conflictDetails.map(
-                    (item) => `${item.test_item}(${item.order_num}): \n${new Date(item.start_time).toLocaleString()} 到 ${new Date(item.end_time).toLocaleString()}`
-                ).join('\n');
-                setAlertMessage(`该设备在选择的时间段已被预约，请选择其他时间。\n冲突时间段(一个月内)：\n${conflictMessage}`);
-                setShowAlert(true);
-                return; // 阻止继续提交
-            }
-
+            
             const payload = {
                 testItemId: currentItem.testItemId ? currentItem.testItemId : testId,
                 assignmentInfo,
                 equipment_id: assignmentData.equipment_id,
-                start_time: assignmentData.start_time,
-                end_time: assignmentData.end_time,
+                // start_time: assignmentData.start_time,
+                // end_time: assignmentData.end_time,
                 role: role
             };
             const response = await axios.post(`${config.API_BASE_URL}/api/tests/assign`, payload);
@@ -1627,8 +1688,50 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
 
-    const submitReservation = (item) => {
-        console.log(item);
+    const submitReservation = async (item) => {
+        try {
+            item.operator = account;
+            // **前端验证：检查结束时间是否晚于开始时间**
+            if (new Date(item.end_time) <= new Date(item.start_time)) {
+                setAlertMessage("结束时间必须晚于开始时间，请重新选择时间。");
+                setShowAlert(true);
+                return; // 阻止提交
+            }
+            // 先检查设备是否有时间冲突
+            const checkResponse = await axios.get(`${config.API_BASE_URL}/api/reservations/checkTimeConflict`, {
+                params: {
+                    equipment_id: item.equipment_id,
+                    start_time: item.start_time,
+                    end_time: item.end_time,
+                }
+            });
+            if (checkResponse.data.conflict) {
+                // 如果有冲突，提示用户冲突的设备预约时间
+                const conflictMessage = checkResponse.data.conflictDetails.map(
+                    (item) => `${item.test_item}(${item.order_num}): \n${new Date(item.start_time).toLocaleString()} 到 ${new Date(item.end_time).toLocaleString()}`
+                ).join('\n');
+                setAlertMessage(`该设备在选择的时间段已被预约，请选择其他时间。\n冲突时间段(一个月内)：\n${conflictMessage}`);
+                setShowAlert(true);
+                return; // 阻止继续提交
+            }
+
+
+            const response = await axios.post(`${config.API_BASE_URL}/api/reservations/`, item);
+
+            if (response.data.success) {
+                console.log('预约成功', response.data);
+                setPublicReserveModal(false);
+                setShowSuccessToast(true);
+                setTimeout(() => setShowSuccessToast(false), 3000);
+
+            } else {
+                console.error('预约失败', response.data.message);
+            }
+        } catch (error) {
+            setError('交付操作失败');
+            setTimeout(() => setError(''), 3000);
+            console.error('Error delivering:', error);
+        }
     }
     //设置最终价操作
     // const submitFinalPrice = async (invoiceId) => {
@@ -1909,7 +2012,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.original_no}</td>
                             <td className='fixed-column'>
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                                {item.team_names === item.manager_names && item.status !== '4' && item.status !== '5' && (
+                                {item.team_names === item.manager_names && item.status !== '3' && item.status !== '5' && (
                                     <>
                                         <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
                                         {/* <Button onClick={() => handleQuote(item.test_item_id)}>改标准价(选)</Button> */}
@@ -2018,6 +2121,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         <tr key={index}
                             className={item.status === '5' ? 'row-delivered' : ''}
                         >
+                            <td>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedOrders.includes(item.test_item_id)}
+                                    onChange={() => handleCheckboxChange(item.test_item_id)}
+                                />
+                            </td>
                             <td className='order-num-fixed'>{item.order_num}</td>
                             <td className='test-item-fixed'>{item.test_item}</td>
                             <td>{item.customer_name}</td>
@@ -2339,10 +2449,30 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </tr>
                     ));
                     break;
+
+                case 'myReservation':
+                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    rows = reservationPaging.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.test_item}</td>
+                            <td>{item.equipment_name}</td>
+                            <td>{item.model}</td>
+                            <td>{item.equip_user}</td>
+                            <td>{new Date(item.start_time).toLocaleString()}</td>
+                            <td>{new Date(item.end_time).toLocaleString()}</td>
+                            <td className='fixed-column'>
+                                <Button>取消预约</Button>
+
+
+                            </td>
+                        </tr>
+                    ));
+                    break;
                 default:
                     headers = ["暂无数据"];
                     rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
                     break;
+
             }
             return { headers, rows };
         }
@@ -2410,11 +2540,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         <div className='content-head'>
                             <h2>{selected === 'getCommission' ? '委托单信息'
                                 : selected === 'getSamples' ? '样品管理'
-                                    : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
-                                        : selected === 'customerInfo' ? '客户信息'
-                                            : selected === 'transactionHistory' ? '交易流水'
-                                                : selected === 'getChecked' ? '结算账单明细'
-                                                    : '首页'}</h2>
+                                : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
+                                : selected === 'customerInfo' ? '客户信息'
+                                : selected === 'transactionHistory' ? '交易流水'
+                                : selected === 'getChecked' ? '结算账单明细'
+                                : selected === 'myReservation'? '我的预约'
+                                : '首页'}</h2>
                             {selected === 'handleTests' || selected === 'getTests' ? (
                                 <div className="searchBar">
                                     <span>项目状态：</span>
@@ -2459,6 +2590,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             </button>
                                         </>
                                     )}
+
+                                    {role === 'sales' && (
+                                        <>
+                                            <span>表格：</span>
+                                            <button onClick={handleExportTestDataForSales} disabled={loading}>
+                                                {loading ? '正在准备...' : '一键导出'}
+                                            </button>
+                                        </>
+                                    )}
+
                                 </div>
                             ) : selected === 'getCommission' ? (
 
@@ -2579,7 +2720,24 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 </div>
                             )}
 
-                            <Pagination
+                            {selected === 'myReservation' ? (
+                                <Pagination
+                                    activePage={activePage}
+                                    itemsCountPerPage={itemsCountPerPage}
+                                    totalItemsCount={totalReservationCount}
+                                    onChange={handlePageChange}
+                                    pageRangeDisplayed={3}
+                                    innerClass="pagination"
+                                    itemClass="pagination-item" // 添加样式类
+                                    linkClass="pagination-link" // 添加样式类
+                                    hideDisabled={true} // 隐藏不可用的分页链接
+                                    firstPageText="首页"  // 首页
+                                    lastPageText="尾页"   // 尾页
+                                    prevPageText="上一页"
+                                    nextPageText="下一页"
+                                />
+                            ) : (
+                                <Pagination
                                 activePage={activePage}
                                 itemsCountPerPage={itemsCountPerPage}
                                 totalItemsCount={totalItemsCount}
@@ -2594,6 +2752,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 prevPageText="上一页"
                                 nextPageText="下一页"
                             />
+                            )}
                         </div>
                         <div class='content'>
                             {selected === 'getChecked' ? (
@@ -2623,7 +2782,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <table>
                                     <thead>
                                         <tr>
-                                            {((role === 'leader' && selected === 'handleTests') || selected === 'getTests') && (
+                                            {(((role === 'leader' || role === 'sales' )&& selected === 'handleTests') || selected === 'getTests') && (
                                                 <th>
                                                     <input
                                                         type="checkbox"
@@ -3075,7 +3234,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             </Modal>
 
             {/* 领导分配按钮 */}
-            <Modal show={showAssignmentModal} onHide={() => setShowAssignmentModal(false)} size="xl">
+            <Modal show={showAssignmentModal} onHide={() => setShowAssignmentModal(false)} >
                 <Modal.Header closeButton>
                     <Modal.Title>检测人员分配</Modal.Title>
                 </Modal.Header>
@@ -3144,30 +3303,30 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </Row>
 
                         {/* 设备使用开始时间 */}
-                        <Form.Group controlId="formStartTime">
+                        {/* <Form.Group controlId="formStartTime">
                             <Form.Label>设备使用开始时间</Form.Label>
                             <Form.Control
                                 type="datetime-local"
                                 value={assignmentData.start_time}
                                 onChange={e => setAssignmentData({ ...assignmentData, start_time: e.target.value })}
                             />
-                        </Form.Group>
+                        </Form.Group> */}
 
                         {/* 设备使用结束时间 */}
-                        <Form.Group controlId="formEndTime">
+                        {/* <Form.Group controlId="formEndTime">
                             <Form.Label>设备使用结束时间</Form.Label>
                             <Form.Control
                                 type="datetime-local"
                                 value={assignmentData.end_time}
                                 onChange={e => setAssignmentData({ ...assignmentData, end_time: e.target.value })}
                             />
-                        </Form.Group>
+                        </Form.Group> */}
 
                         {/* 查看所有设备预约情况按钮 */}
-                        <Button variant="info" onClick={toggleScheduleView}>查看所有设备预约情况</Button>
+                        {/* <Button variant="info" onClick={toggleScheduleView}>查看所有设备预约情况</Button> */}
 
                         {/* 如果需要显示设备预约情况 */}
-                        {showEquipmentSchedule && (
+                        {/* {showEquipmentSchedule && (
                             <div style={{ marginTop: '20px' }}>
                                 <h5>设备预约情况</h5>
                                 <Timeline
@@ -3184,7 +3343,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 />
 
                             </div>
-                        )}
+                        )} */}
 
                     </Form>
                 </Modal.Body>
@@ -3977,6 +4136,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 {selectedItem.test_item}
                             </p>
                             <p>
+                                <strong>设备操作员：</strong>
+                                {selectedItem.equip_user}
+                            </p>
+                            <p>
                                 <strong>开始时间：</strong>
                                 {new Date(selectedItem.start_time).toLocaleString("zh-CN")}
                             </p>
@@ -4001,25 +4164,69 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <Modal.Title>设备预约</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
+
+                    <Form.Group controlId="formAssignmentInfo">
+                        <Form.Label>设备使用人员：</Form.Label>
+                        <Form.Control
+                            as="select"
+                            value={reserveData.equip_user}
+                            onChange={(e) => setReserveData({ ...reserveData, equip_user: e.target.value })}
+                        >
+                            <option value="">---选择人员---</option>
+                            {assignableUsers.map(user => (
+                                <option key={user.account} value={user.account}>
+                                    {user.name}
+                                    {user.account === account ? (
+                                        <p>(--自己--)</p>
+                                    ) : (
+                                        <p>({user.account})</p>
+                                    )}
+                                </option>
+                            ))}
+                        </Form.Control>
+                    </Form.Group>
+
+                    <Form.Group controlId="formAssignmentInfo">
+                        <Form.Label>选择检测项目：</Form.Label>
+                        <Form.Control
+                            as="select"
+                            value={reserveData.test_item_id}
+                            onChange={(e) => setReserveData({ ...reserveData, test_item_id: e.target.value })}
+                        >
+                            {filteredData && (
+                                <>
+                                    <option value="">---选择检测---</option>
+                                    {filteredData.map(item => (
+                                        <option key={item.test_item_id} value={item.test_item_id}>
+                                            {item.test_item}
+                                            <p>({item.order_num})</p>
+                                        </option>
+                                    ))}
+                                </>
+                            )}
+                        </Form.Control>
+                    </Form.Group>
+
+
                     {/* 设备使用开始时间 */}
                     <Form.Group controlId="formStartTime">
-                            <Form.Label>设备使用开始时间</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={reserveData.start_time}
-                                onChange={e => setReserveData({ ...reserveData, start_time: e.target.value })}
-                            />
-                        </Form.Group>
+                        <Form.Label>设备使用开始时间</Form.Label>
+                        <Form.Control
+                            type="datetime-local"
+                            value={reserveData.start_time}
+                            onChange={e => setReserveData({ ...reserveData, start_time: e.target.value })}
+                        />
+                    </Form.Group>
 
-                        {/* 设备使用结束时间 */}
-                        <Form.Group controlId="formEndTime">
-                            <Form.Label>设备使用结束时间</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={reserveData.end_time}
-                                onChange={e => setReserveData({ ...reserveData, end_time: e.target.value })}
-                            />
-                        </Form.Group>
+                    {/* 设备使用结束时间 */}
+                    <Form.Group controlId="formEndTime">
+                        <Form.Label>设备使用结束时间</Form.Label>
+                        <Form.Control
+                            type="datetime-local"
+                            value={reserveData.end_time}
+                            onChange={e => setReserveData({ ...reserveData, end_time: e.target.value })}
+                        />
+                    </Form.Group>
 
                     <Row>
                         {/* 设备分类标签选择（一级菜单，使用select） */}
@@ -4064,8 +4271,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="primary" onClick={() => submitReservation(reserveData)}>预约</Button>
                     <Button variant="secondary" onClick={() => setPublicReserveModal(false)}>关闭</Button>
+                    <Button variant="primary" onClick={() => submitReservation(reserveData)}>预约</Button>
                 </Modal.Footer>
             </Modal>
         </div>
