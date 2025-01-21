@@ -61,6 +61,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     // const [showEquipmentSchedule, setShowEquipmentSchedule] = useState(false); // 控制设备预约视图的显示
     const [equipmentReservations, setEquipmentReservations] = useState([]); // 设备预约数据
     const [selectedItem, setSelectedItem] = useState(null); // 存储当前选中的条目信息
+    const [isEditMode, setIsEditMode] = useState(false); // 控制预约功能是否为编辑模式
     const [reservationDeptId, setReservationDeptId] = useState('');
     const [timelineKey, setTimelineKey] = useState(0);
     const [editingRow, setEditingRow] = useState(null); // 存储当前正在编辑的行
@@ -601,7 +602,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             const response = await axios.get(`${config.API_BASE_URL}/api/reservations/myReservation`, {
                 params: { account: account }  // 将账号传递给后端
             });
-            console.log(response.data)
             setMyReservationInfo(response.data.reservations);
         } catch (error) {
             console.error('Failed to fetch my reservation:', error);
@@ -1341,7 +1341,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 test_item: selectedReservation.test_item,
                 start_time: selectedReservation.start_time, // 预约开始时间
                 end_time: selectedReservation.end_time, // 预约结束时间
-                equip_user: `${selectedReservation.name}(${selectedReservation.equip_user})`
+                equip_user: `${selectedReservation.equip_user_name}(${selectedReservation.equip_user})`,
+                operator: `${selectedReservation.operator_name}(${selectedReservation.operator})`
+
             });
             setShowSingleReservationModal(true);
         } else {
@@ -1416,7 +1418,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             alert("请输入有效的价格");
         }
     };
-
 
 
     const updateItem = async () => {
@@ -1703,6 +1704,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     equipment_id: item.equipment_id,
                     start_time: item.start_time,
                     end_time: item.end_time,
+                    reservation_id: item.reservation_id || null,
                 }
             });
             if (checkResponse.data.conflict) {
@@ -1716,14 +1718,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
 
 
-            const response = await axios.post(`${config.API_BASE_URL}/api/reservations/`, item);
+            // 如果是编辑模式，调用修改接口
+            const apiUrl = isEditMode 
+            ? `${config.API_BASE_URL}/api/reservations/update`  // 修改预约
+            : `${config.API_BASE_URL}/api/reservations/`; // 新增预约
+
+            const response = await axios.post(apiUrl, item);
 
             if (response.data.success) {
                 console.log('预约成功', response.data);
                 setPublicReserveModal(false);
                 setShowSuccessToast(true);
                 setTimeout(() => setShowSuccessToast(false), 3000);
-
+                if(isEditMode){
+                    fetchMyReservation();
+                }
             } else {
                 console.error('预约失败', response.data.message);
             }
@@ -1733,6 +1742,47 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             console.error('Error delivering:', error);
         }
     }
+
+    //编辑预约
+    const handleEditReservation = (reservation) => {
+        setIsEditMode(true);
+        setPublicReserveModal(true);
+        const filteredData = data.filter(item => item.status === '0' || item.status === '1')
+        setFilteredData(filteredData);
+        setReserveData({
+            equipment_id: reservation.equipment_id,
+            equip_user: reservation.equip_user,
+            test_item_id: reservation.test_item_id,
+            start_time: formatDateToLocal(reservation.start_time),
+            end_time: formatDateToLocal(reservation.end_time),
+            reservation_id: reservation.reservation_id, // 记录修改的 reservation_id
+        });
+    };
+
+    const handleCancelReservation = async (reservationId) => {
+        try {
+            if (!window.confirm('确定取消此项预约吗？确认后提交！')) {
+                return;  // 用户点击取消后，不执行任何操作
+            }
+            const response = await axios.post(`${config.API_BASE_URL}/api/reservations/cancel`, {
+                reservationId: reservationId  // 发送预约ID到后端
+            });
+    
+            if (response.data.success) {
+                setShowSuccessToast(true);
+                setTimeout(() => setShowSuccessToast(false), 3000);
+
+                console.log('预约取消成功', response.data);
+                // 重新加载预约信息，刷新页面
+                fetchMyReservation();
+            } else {
+                console.error('取消预约失败', response.data.message);
+            }
+        } catch (error) {
+            console.error('请求失败:', error);
+        }
+    };
+
     //设置最终价操作
     // const submitFinalPrice = async (invoiceId) => {
     //     try {
@@ -1972,6 +2022,23 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </tr>
                     ));
                     break;
+                case 'myReservation':
+                headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                rows = reservationPaging.map((item, index) => (
+                    <tr key={index}>
+                        <td>{item.test_item}</td>
+                        <td>{item.equipment_name}</td>
+                        <td>{item.model}</td>
+                        <td>{item.name}</td>
+                        <td>{new Date(item.start_time).toLocaleString()}</td>
+                        <td>{new Date(item.end_time).toLocaleString()}</td>
+                        <td className='fixed-column'>
+                            <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
+                            <Button onClick={() => handleEditReservation(item)}>修改</Button>
+                        </td>
+                    </tr>
+                ));
+                break;
                 default:
                     headers = ["暂无数据"];
                     rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
@@ -2056,6 +2123,23 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </tr>
                     ));
                     break;
+                case 'myReservation':
+                headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                rows = reservationPaging.map((item, index) => (
+                    <tr key={index}>
+                        <td>{item.test_item}</td>
+                        <td>{item.equipment_name}</td>
+                        <td>{item.model}</td>
+                        <td>{item.name}</td>
+                        <td>{new Date(item.start_time).toLocaleString()}</td>
+                        <td>{new Date(item.end_time).toLocaleString()}</td>
+                        <td className='fixed-column'>
+                            <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
+                            <Button onClick={() => handleEditReservation(item)}>修改</Button>
+                        </td>
+                    </tr>
+                ));
+                break;
                 default:
 
                     break;
@@ -2099,9 +2183,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <td>{item.original_no}</td>
                     <td>
                         {(item.status === '1' || item.status === '2') ? renderDeadlineStatus(item.deadline, item.appoint_time) : ''}
-
                     </td>
-
                     <td className='fixed-column'>
                         <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                         {/* 只有当状态不是'1'（已检测）时，才显示分配按钮 */}
@@ -2136,7 +2218,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.machine_hours}</td>
                             <td>{item.listed_price}</td>
                             {/* <td>{item.discounted_price}</td> */}
-
                             {/* 双击编辑逻辑 */}
                             <td
                                 onDoubleClick={() => handleDoubleClick(index, item.discounted_price)}
@@ -2158,11 +2239,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     item.discounted_price
                                 )}
                             </td>
-
                             <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
                             <td>{statusLabels[item.status]}</td>
                             <td>{item.original_no}</td>
-
                             <td>
                                 {item.team_names ? `${item.team_names}` : '暂未分配'}
                             </td>
@@ -2195,6 +2274,23 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{serviceTypeLabels[item.service_type]}</td>
                             <td>{item.sample_shipping_address}</td>
                             <td>{new Date(item.create_time).toLocaleString()}</td>
+                        </tr>
+                    ));
+                    break;
+                case 'myReservation':
+                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    rows = reservationPaging.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.test_item}</td>
+                            <td>{item.equipment_name}</td>
+                            <td>{item.model}</td>
+                            <td>{item.name}</td>
+                            <td>{new Date(item.start_time).toLocaleString()}</td>
+                            <td>{new Date(item.end_time).toLocaleString()}</td>
+                            <td className='fixed-column'>
+                                <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
+                                <Button onClick={() => handleEditReservation(item)}>修改</Button>
+                                </td>
                         </tr>
                     ));
                     break;
@@ -2457,13 +2553,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
                             <td>{item.model}</td>
-                            <td>{item.equip_user}</td>
+                            <td>{item.name}</td>
                             <td>{new Date(item.start_time).toLocaleString()}</td>
                             <td>{new Date(item.end_time).toLocaleString()}</td>
                             <td className='fixed-column'>
-                                <Button>取消预约</Button>
-
-
+                                <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
                             </td>
                         </tr>
                     ));
@@ -4122,7 +4216,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     {/* 显示选中的时间条目详细信息 */}
                     {selectedItem ? (
                         <div style={{ marginTop: "20px", padding: "10px", border: "1px solid #ddd" }}>
-                            <h5>选中的预约信息</h5>
+                            <h4>选中的预约信息</h4>
+                            <hr></hr>
+
+                            <p>
+                                <strong>预约人：</strong>
+                                {selectedItem.operator}
+                            </p>
                             <p>
                                 <strong>设备名称：</strong>
                                 {selectedItem.equipment_name}
@@ -4139,6 +4239,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <strong>设备操作员：</strong>
                                 {selectedItem.equip_user}
                             </p>
+
                             <p>
                                 <strong>开始时间：</strong>
                                 {new Date(selectedItem.start_time).toLocaleString("zh-CN")}
@@ -4161,7 +4262,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
             <Modal show={publicReserveModal} onHide={() => setPublicReserveModal(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>设备预约</Modal.Title>
+                    <Modal.Title>{isEditMode ? '修改预约' : '设备预约'}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
 
@@ -4272,9 +4373,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setPublicReserveModal(false)}>关闭</Button>
-                    <Button variant="primary" onClick={() => submitReservation(reserveData)}>预约</Button>
+                    <Button variant="primary" onClick={() => submitReservation(reserveData)}>{isEditMode ? '修改' : '预约'}</Button>
                 </Modal.Footer>
             </Modal>
+
         </div>
     );
 };

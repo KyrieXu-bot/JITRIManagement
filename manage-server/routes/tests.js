@@ -98,11 +98,11 @@ router.post('/assign', async (req, res) => {
 
         //如果组长分配给组长。设置组长初始为不执行
         if (role === 'leader') {
-            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role, 0);
+            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, role, 0);
 
         } else {
             // 否则，按照正常组长逻辑。给分配的组员添加新记录
-            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, start_time, end_time, role, 1);
+            await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, role, 1);
         }
 
         res.status(200).json({ success: true, message: "检测项目分配成功!" });
@@ -305,7 +305,6 @@ router.get('/equipments/schedule', async (req, res) => {
         const testItems = await db.getEquipmentReservations();
         // 3. 创建一个设备ID到预约记录的映射
         const equipmentSchedule = {};
-
         // 将预约记录按设备ID分组
         testItems.forEach(item => {
             if (!equipmentSchedule[item.equipment_id]) {
@@ -316,11 +315,12 @@ router.get('/equipments/schedule', async (req, res) => {
                 test_item: item.test_item,
                 start_time: item.start_time,
                 end_time: item.end_time,
-                name: item.name,
-                equip_user: item.equip_user
+                equip_user_name: item.equip_user_name,
+                equip_user: item.equip_user,
+                operator: item.operator,
+                operator_name: item.operator_name
             });
         });
-
         // 4. 合并设备信息和预约记录
         const result = equipments.map(equipment => {
             return {

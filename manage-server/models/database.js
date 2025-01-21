@@ -599,7 +599,7 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
     return results;
 }
 
-async function assignTestToUser(testId, userId, equipment_id, start_time, end_time, role, isAssigned) {
+async function assignTestToUser(testId, userId, equipment_id, role, isAssigned) {
     const connection = await db.getConnection();
 
     const query = 'INSERT INTO assignments (test_item_id, account, is_assigned) VALUES (?, ?, ?)';
@@ -622,14 +622,6 @@ async function assignTestToUser(testId, userId, equipment_id, start_time, end_ti
         if (equipment_id !== undefined && equipment_id !== '') {
             updateQuery += ', equipment_id = ?';
             params.push(equipment_id);
-        }
-        if (start_time !== undefined && start_time !== '') {
-            updateQuery += `, start_time = ?`;
-            params.push(start_time);
-        }
-        if (end_time !== undefined && end_time !== '') {
-            updateQuery += ', end_time = ?';
-            params.push(end_time);
         }
         // 判断室主任还是组长，以存储不同的修改时间
         if (role !== undefined && role !== '') {
@@ -1893,10 +1885,11 @@ const getPaymentIdByOrderNum = async (orderNum) => {
 
 
 // 检查预约时间是否被冲突
-async function checkTimeConflict(equipment_id, start_time, end_time) {
+async function checkTimeConflict(equipment_id, start_time, end_time, reservation_id) {
     try {
         const query = `
             SELECT 
+                r.reservation_id,
                 r.equipment_id,
                 r.start_time, 
                 r.end_time, 
@@ -1910,10 +1903,14 @@ async function checkTimeConflict(equipment_id, start_time, end_time) {
             AND (
                 ? <= r.end_time AND ? >= r.start_time
             )
+            ${reservation_id ? "AND r.reservation_id != ?" : ""}
         `;
 
         // 执行查询并返回结果
-        const [result] = await db.query(query, [equipment_id, start_time, end_time]);
+        const params = reservation_id ? [equipment_id, start_time, end_time, reservation_id] : [equipment_id, start_time, end_time];
+        const [result] = await db.query(query, params);        
+        
+        console.log(result)
         // 返回冲突状态
         if (result.length > 0) {
             // 如果存在时间冲突，返回详细的冲突时间段
@@ -1987,8 +1984,8 @@ async function duplicateTestItem(testItemData) {
     }
 
     const query = `INSERT INTO test_items (
-        order_num, original_no, test_item, test_method, size, quantity, note, status, department_id, deadline, create_time, equipment_id, start_time, end_time
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`;
+        order_num, original_no, test_item, test_method, size, quantity, note, status, department_id, deadline, create_time, equipment_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`;
 
     const params = [
         testItemData.order_num,
@@ -2002,8 +1999,6 @@ async function duplicateTestItem(testItemData) {
         testItemData.department_id,
         testItemData.deadline,
         testItemData.equipment_id,
-        testItemData.start_time,
-        testItemData.end_time
     ];
 
     const [result] = await db.query(query, params);
@@ -2021,10 +2016,13 @@ async function getEquipmentReservations() {
             r.start_time,
             r.end_time,
             r.equip_user,
-            u.name
+            r.operator,
+            u1.name AS equip_user_name,
+            u2.name AS operator_name
         FROM test_items t
         LEFT JOIN reservation r ON r.test_item_id = t.test_item_id
-        LEFT JOIN users u ON u.account = r.equip_user
+        LEFT JOIN users u1 ON u1.account = r.equip_user
+        LEFT JOIN users u2 ON u2.account = r.operator
         WHERE t.equipment_id IS NOT NULL;
     `;
     const [testItems] = await db.query(query);
@@ -2047,6 +2045,7 @@ async function getMyReservation(account) {
         SELECT 
             r.reservation_id,
             t.test_item,
+            t.test_item_id,
             r.equipment_id,
             r.start_time,
             r.equip_user,
@@ -2062,6 +2061,24 @@ async function getMyReservation(account) {
     `;
     const [result] = await db.query(query, [account]);
     return result;  // 返回查询结果
+}
+
+// 取消我的预约
+async function cancelReservation(reservationId) {
+    const query = `DELETE FROM reservation WHERE reservation_id = ?`;
+    const [result] = await db.query(query, [reservationId]);
+    return result;  // 返回删除操作的结果
+}
+
+// 修改我的预约
+async function updateReservation(reservation_id, equipment_id, start_time, end_time, equip_user, test_item_id, operator) {
+    const query = `
+        UPDATE reservation 
+        SET equipment_id = ?, start_time = ?, end_time = ?, equip_user = ?, test_item_id = ?, operator = ?
+        WHERE reservation_id = ?;
+    `;
+    const [result] = await db.query(query, [equipment_id, start_time, end_time, equip_user, test_item_id, operator, reservation_id]);
+    return result;
 }
 module.exports = {
     findUserByAccount,
@@ -2129,5 +2146,7 @@ module.exports = {
     duplicateTestItem,
     getEquipmentReservations,
     getTestForExcelForSales,
-    createReservation
+    createReservation,
+    cancelReservation,
+    updateReservation
 };
