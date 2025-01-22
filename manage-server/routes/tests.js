@@ -151,8 +151,8 @@ router.post('/update-status', async (req, res) => {
 //更新审批状态
 router.post('/update-check', async (req, res) => {
     try {
-        const { testItemId, status, checkNote } = req.body;
-        await db.updateTestItemCheckStatus(testItemId, status, checkNote);
+        const { testItemId, status, checkNote, listedPrice } = req.body;
+        await db.updateTestItemCheckStatus(testItemId, status, checkNote, listedPrice);
         res.json({ success: true, message: 'Test status updated successfully' });
     } catch (error) {
         console.error('Failed to update test status:', error);

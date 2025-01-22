@@ -68,6 +68,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [editingValue, setEditingValue] = useState(""); // 存储当前输入框的值
     const [filteredData, setFilteredData] = useState(""); // 存储选择预约设备时候的检测项目
     const [myReservationInfo, setMyReservationInfo] = useState(""); // 存储选择预约设备时候的检测项目
+    const [editingPrice, setEditingPrice] = useState(false); // 存储选择预约设备时候的检测项目
 
 
     const [showModal, setShowModal] = useState(false);
@@ -1533,7 +1534,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const submitAssignment = useCallback(async () => {
         try {
-            
+
             const payload = {
                 testItemId: currentItem.testItemId ? currentItem.testItemId : testId,
                 assignmentInfo,
@@ -1668,7 +1669,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             status: status,
             checkNote: checkNote,
             discountedPrice: currentItem.discounted_price,
-            orderNum: currentItem.order_num
+            orderNum: currentItem.order_num,
+            listedPrice: currentItem.listed_price
         };
         updateTestStatus(payload);
     };
@@ -1719,9 +1721,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
             // 如果是编辑模式，调用修改接口
-            const apiUrl = isEditMode 
-            ? `${config.API_BASE_URL}/api/reservations/update`  // 修改预约
-            : `${config.API_BASE_URL}/api/reservations/`; // 新增预约
+            const apiUrl = isEditMode
+                ? `${config.API_BASE_URL}/api/reservations/update`  // 修改预约
+                : `${config.API_BASE_URL}/api/reservations/`; // 新增预约
 
             const response = await axios.post(apiUrl, item);
 
@@ -1730,7 +1732,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 setPublicReserveModal(false);
                 setShowSuccessToast(true);
                 setTimeout(() => setShowSuccessToast(false), 3000);
-                if(isEditMode){
+                if (isEditMode) {
                     fetchMyReservation();
                 }
             } else {
@@ -1767,7 +1769,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             const response = await axios.post(`${config.API_BASE_URL}/api/reservations/cancel`, {
                 reservationId: reservationId  // 发送预约ID到后端
             });
-    
+
             if (response.data.success) {
                 setShowSuccessToast(true);
                 setTimeout(() => setShowSuccessToast(false), 3000);
@@ -2023,22 +2025,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
-                rows = reservationPaging.map((item, index) => (
-                    <tr key={index}>
-                        <td>{item.test_item}</td>
-                        <td>{item.equipment_name}</td>
-                        <td>{item.model}</td>
-                        <td>{item.name}</td>
-                        <td>{new Date(item.start_time).toLocaleString()}</td>
-                        <td>{new Date(item.end_time).toLocaleString()}</td>
-                        <td className='fixed-column'>
-                            <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
-                            <Button onClick={() => handleEditReservation(item)}>修改</Button>
-                        </td>
-                    </tr>
-                ));
-                break;
+                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    rows = reservationPaging.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.test_item}</td>
+                            <td>{item.equipment_name}</td>
+                            <td>{item.model}</td>
+                            <td>{item.name}</td>
+                            <td>{new Date(item.start_time).toLocaleString()}</td>
+                            <td>{new Date(item.end_time).toLocaleString()}</td>
+                            <td className='fixed-column'>
+                                <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
+                                <Button onClick={() => handleEditReservation(item)}>修改</Button>
+                            </td>
+                        </tr>
+                    ));
+                    break;
                 default:
                     headers = ["暂无数据"];
                     rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
@@ -2091,7 +2093,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     <Button onClick={() => handleAssignment(item.test_item_id)}>指派</Button>
                                 )}
                                 {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
-                                {(item.status === '2' || item.status === '4') && item.listed_price && (
+                                {(item.status === '2' || item.status === '4') && (
                                     <Button variant="warning" onClick={() => handleCheck(item)}>审核</Button>
                                 )}
                                 {(item.status === '2' || item.status === '1') && (
@@ -2124,22 +2126,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
-                rows = reservationPaging.map((item, index) => (
-                    <tr key={index}>
-                        <td>{item.test_item}</td>
-                        <td>{item.equipment_name}</td>
-                        <td>{item.model}</td>
-                        <td>{item.name}</td>
-                        <td>{new Date(item.start_time).toLocaleString()}</td>
-                        <td>{new Date(item.end_time).toLocaleString()}</td>
-                        <td className='fixed-column'>
-                            <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
-                            <Button onClick={() => handleEditReservation(item)}>修改</Button>
-                        </td>
-                    </tr>
-                ));
-                break;
+                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    rows = reservationPaging.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.test_item}</td>
+                            <td>{item.equipment_name}</td>
+                            <td>{item.model}</td>
+                            <td>{item.name}</td>
+                            <td>{new Date(item.start_time).toLocaleString()}</td>
+                            <td>{new Date(item.end_time).toLocaleString()}</td>
+                            <td className='fixed-column'>
+                                <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
+                                <Button onClick={() => handleEditReservation(item)}>修改</Button>
+                            </td>
+                        </tr>
+                    ));
+                    break;
                 default:
 
                     break;
@@ -2290,7 +2292,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td className='fixed-column'>
                                 <Button onClick={() => handleCancelReservation(item.reservation_id)}>取消预约</Button>
                                 <Button onClick={() => handleEditReservation(item)}>修改</Button>
-                                </td>
+                            </td>
                         </tr>
                     ));
                     break;
@@ -2634,12 +2636,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         <div className='content-head'>
                             <h2>{selected === 'getCommission' ? '委托单信息'
                                 : selected === 'getSamples' ? '样品管理'
-                                : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
-                                : selected === 'customerInfo' ? '客户信息'
-                                : selected === 'transactionHistory' ? '交易流水'
-                                : selected === 'getChecked' ? '结算账单明细'
-                                : selected === 'myReservation'? '我的预约'
-                                : '首页'}</h2>
+                                    : selected === 'getTests' || selected === 'handleTests' ? '检测管理'
+                                        : selected === 'customerInfo' ? '客户信息'
+                                            : selected === 'transactionHistory' ? '交易流水'
+                                                : selected === 'getChecked' ? '结算账单明细'
+                                                    : selected === 'myReservation' ? '我的预约'
+                                                        : '首页'}</h2>
                             {selected === 'handleTests' || selected === 'getTests' ? (
                                 <div className="searchBar">
                                     <span>项目状态：</span>
@@ -2832,20 +2834,20 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 />
                             ) : (
                                 <Pagination
-                                activePage={activePage}
-                                itemsCountPerPage={itemsCountPerPage}
-                                totalItemsCount={totalItemsCount}
-                                onChange={handlePageChange}
-                                pageRangeDisplayed={3}
-                                innerClass="pagination"
-                                itemClass="pagination-item" // 添加样式类
-                                linkClass="pagination-link" // 添加样式类
-                                hideDisabled={true} // 隐藏不可用的分页链接
-                                firstPageText="首页"  // 首页
-                                lastPageText="尾页"   // 尾页
-                                prevPageText="上一页"
-                                nextPageText="下一页"
-                            />
+                                    activePage={activePage}
+                                    itemsCountPerPage={itemsCountPerPage}
+                                    totalItemsCount={totalItemsCount}
+                                    onChange={handlePageChange}
+                                    pageRangeDisplayed={3}
+                                    innerClass="pagination"
+                                    itemClass="pagination-item" // 添加样式类
+                                    linkClass="pagination-link" // 添加样式类
+                                    hideDisabled={true} // 隐藏不可用的分页链接
+                                    firstPageText="首页"  // 首页
+                                    lastPageText="尾页"   // 尾页
+                                    prevPageText="上一页"
+                                    nextPageText="下一页"
+                                />
                             )}
                         </div>
                         <div class='content'>
@@ -2876,7 +2878,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <table>
                                     <thead>
                                         <tr>
-                                            {(((role === 'leader' || role === 'sales' )&& selected === 'handleTests') || selected === 'getTests') && (
+                                            {(((role === 'leader' || role === 'sales') && selected === 'handleTests') || selected === 'getTests') && (
                                                 <th>
                                                     <input
                                                         type="checkbox"
@@ -3519,7 +3521,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <Modal.Body>
 
                     <Form>
+                        <h4>{currentItem.order_num}-{currentItem.test_item}</h4>
+                        <hr></hr>
+                        <strong style={{ color: 'red' }}>请核对信息：</strong>
                         <div className='check-box'>
+
                             <div>
                                 <strong>机时：</strong> {currentItem.machine_hours} 小时
                             </div>
@@ -3527,10 +3533,47 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <strong>工时：</strong> {currentItem.work_hours} 小时
                             </div>
                         </div>
-                        <div>
-                            <strong>标准价格：</strong> ¥ {currentItem.listed_price}
+                        <div className='check-box'>
+                            <div>
+                                <strong>标准价格：</strong>
+                                <span>¥ {currentItem.listed_price}</span>
+                                <Button
+                                    variant="link"
+                                    onClick={() => setEditingPrice(true)}
+                                    style={{ marginLeft: '10px', padding: 0, marginTop: 0 }}
+                                >
+                                    修改
+                                </Button>
+                                {editingPrice && (
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="输入新的标准价格"
+                                        defaultValue={currentItem.listed_price || ''}
+                                        onBlur={(e) => {
+                                            setCurrentItem({
+                                                ...currentItem,
+                                                listed_price: e.target.value ? parseFloat(e.target.value) : ''
+                                            });
+                                            setEditingPrice(false);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                setCurrentItem({
+                                                    ...currentItem,
+                                                    listed_price: e.target.value ? parseFloat(e.target.value) : ''
+                                                });
+                                                setEditingPrice(false);
+                                            }
+                                        }}
+                                        style={{ marginTop: '5px', width: '150px' }}
+                                    />
+                                )}
+                            </div>
+                            <div>
+                                <strong>检测人员：</strong>{currentItem.team_names}
+                            </div>
                         </div>
-                        <div>
+                        <div style={{ marginTop: '10px' }}>
                             <strong>使用设备：</strong> {currentItem.equipment_name}({currentItem.model})
                         </div>
                         {/* <p className='check-note'>
@@ -3552,7 +3595,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     <Button variant="secondary" onClick={() => setShowCheckModal(false)}>取消</Button>
                     <Button variant="danger" onClick={() => submitCheck('reject')}>拒绝</Button>
                     <Button variant="success" onClick={() => submitCheck('approve')}>通过</Button>
-
                 </Modal.Footer>
             </Modal>
 
@@ -3787,17 +3829,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             {selectedDetails.create_time ? new Date(selectedDetails.create_time).toLocaleString() : ''}
                         </span>
                     </p>
-                    <p>设备开始时间：
-                        <span>
-                            {selectedDetails.start_time ? new Date(selectedDetails.start_time).toLocaleString() : ''}
-                        </span>
-                    </p>
-                    <p>设备结束时间：
-                        <span>
-                            {selectedDetails.end_time ? new Date(selectedDetails.end_time).toLocaleString() : ''}
-                        </span>
-                    </p>
-
                     <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.appoint_time)}</p>
                     <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh} />
                 </Modal.Body>
@@ -4288,7 +4319,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     </Form.Group>
 
                     <Form.Group controlId="formAssignmentInfo">
-                        <Form.Label>选择检测项目：</Form.Label>
+                        <Form.Label>选择检测项目：<span style={{ color: 'red' }}>*</span></Form.Label>
                         <Form.Control
                             as="select"
                             value={reserveData.test_item_id}
@@ -4311,7 +4342,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                     {/* 设备使用开始时间 */}
                     <Form.Group controlId="formStartTime">
-                        <Form.Label>设备使用开始时间</Form.Label>
+                        <Form.Label>设备使用开始时间<span style={{ color: 'red' }}>*</span></Form.Label>
                         <Form.Control
                             type="datetime-local"
                             value={reserveData.start_time}
@@ -4321,7 +4352,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                     {/* 设备使用结束时间 */}
                     <Form.Group controlId="formEndTime">
-                        <Form.Label>设备使用结束时间</Form.Label>
+                        <Form.Label>设备使用结束时间<span style={{ color: 'red' }}>*</span></Form.Label>
                         <Form.Control
                             type="datetime-local"
                             value={reserveData.end_time}
@@ -4333,7 +4364,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {/* 设备分类标签选择（一级菜单，使用select） */}
                         <Col md={6}>
                             <Form.Group controlId="formEquipmentLabel">
-                                <Form.Label>设备分类标签</Form.Label>
+                                <Form.Label>设备分类标签<span style={{ color: 'red' }}>*</span></Form.Label>
                                 <Form.Control
                                     as="select"
                                     value={selectedLabel}
@@ -4352,7 +4383,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         {/* 设备选择（根据分类标签展示，二级菜单） */}
                         <Col md={6}>
                             <Form.Group controlId="formEquipment">
-                                <Form.Label>设备名称</Form.Label>
+                                <Form.Label>设备名称<span style={{ color: 'red' }}>*</span></Form.Label>
                                 <Form.Control
                                     as="select"
                                     value={reserveData.equipment_id}
@@ -4369,7 +4400,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             </Form.Group>
                         </Col>
                     </Row>
-
+                    <div style={{ fontSize: '12px', marginTop: '10px' }}>注: *为必填项</div>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setPublicReserveModal(false)}>关闭</Button>

@@ -204,6 +204,8 @@ async function getTestForExcel(selectedOrders) {
             test_items t
         LEFT JOIN
             orders o ON t.order_num = o.order_num
+        LEFT JOIN 
+            reservation r ON r.test_item_id = t.test_item_id 
         LEFT JOIN
             customers c ON o.customer_id = c.customer_id
         LEFT JOIN
@@ -213,7 +215,7 @@ async function getTestForExcel(selectedOrders) {
         LEFT JOIN 
             users u ON u.account = a.account 
         WHERE t.test_item_id IN (${placeholders})
-        GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;
+        GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name, r.start_time, r.end_time;
     `
     try {
         const [results] = await db.query(query, selectedOrders);
@@ -393,8 +395,6 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
             t.check_note,
             t.create_time,
             t.deadline,
-            r.start_time,
-            r.end_time,
             t.test_note,
             t.size,
             t.quantity,
@@ -440,7 +440,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
         JOIN 
 	        users u ON u.account = a.account
         LEFT JOIN 
-            reservation r ON r.reservation_id = t.reservation_id
+            reservation r ON r.test_item_id = t.test_item_id
         WHERE 
             EXISTS (
                 SELECT 1
@@ -507,8 +507,6 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
             t.create_time,
             t.deadline,
             t.department_id,
-            r.start_time,
-            r.end_time,
             t.appoint_time,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
@@ -551,8 +549,6 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
             equipment e ON e.equipment_id = t.equipment_id
         LEFT JOIN 
             users u ON u.account = a.account 
-        LEFT JOIN
-            reservation r ON r.reservation_id = t.reservation_id
     `;
 
     const params = [];
@@ -765,13 +761,13 @@ async function updateTestItemStatus(finishData) {
     }
 }
 
-async function updateTestItemCheckStatus(testItemId, status, checkNote) {
+async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPrice) {
     const query = `
         UPDATE test_items
-        SET status = ?, check_note = ? , check_time = NOW()
+        SET status = ?, check_note = ? , check_time = NOW(), listed_price = ?
         WHERE test_item_id = ?
     `;
-    await db.query(query, [status, checkNote, testItemId]);
+    await db.query(query, [status, checkNote, listedPrice, testItemId]);
 }
 
 async function getAssignedTestsByUser(userId, status, month, employeeName, orderNum) {
