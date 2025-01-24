@@ -2076,6 +2076,31 @@ async function updateReservation(reservation_id, equipment_id, start_time, end_t
     const [result] = await db.query(query, [equipment_id, start_time, end_time, equip_user, test_item_id, operator, reservation_id]);
     return result;
 }
+
+//回退结算订单的sql函数
+async function deleteInvoice(invoiceId) {
+    const query = 'DELETE FROM invoices WHERE invoice_id = ?';
+    await db.query(query, [invoiceId]);
+}
+
+async function deleteInvoiceOrders(invoiceId) {
+    const query = 'DELETE FROM invoice_orders WHERE invoice_id = ?';
+    await db.query(query, [invoiceId]);
+}
+
+async function rollbackOrdersByInvoice(invoiceId) {
+    const query = `
+        UPDATE orders 
+        SET order_status = 0
+        WHERE order_num IN (
+            SELECT order_num 
+            FROM invoice_orders 
+            WHERE invoice_id = ?
+        )
+    `;
+    await db.query(query, [invoiceId]);
+}
+
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -2144,5 +2169,8 @@ module.exports = {
     getTestForExcelForSales,
     createReservation,
     cancelReservation,
-    updateReservation
+    updateReservation,
+    deleteInvoice,
+    deleteInvoiceOrders,
+    rollbackOrdersByInvoice
 };

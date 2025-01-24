@@ -284,5 +284,30 @@ router.post('/account', async (req, res) => {
     }
 });
 
+router.post('/rollbackAccount', async (req, res) => {
+    const { invoice_id } = req.body;
+    console.log(invoice_id);
+    if (!invoice_id) {
+        return res.status(400).json({ message: '缺少必要参数 invoice_id' });
+    }
+
+    try {
+        // 更新 `orders` 表中状态
+        await db.rollbackOrdersByInvoice(invoice_id);
+        
+        // 删除 `invoices` 表中对应的记录
+        await db.deleteInvoice(invoice_id);
+
+        // 删除 `invoice_orders` 表中关联的数据
+        await db.deleteInvoiceOrders(invoice_id);
+
+
+
+        res.status(200).json({ success: true, message: '回退成功' });
+    } catch (error) {
+        console.error('回退失败:', error);
+        res.status(500).json({ success: false, message: '回退失败', error: error.message });
+    }
+});
 
 module.exports = router;

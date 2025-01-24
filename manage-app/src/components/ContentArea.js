@@ -1214,6 +1214,27 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowAccountModal(true);
     }
 
+    const handleRollbackAccount = async (item) => {
+        console.log(item.invoice_id);
+        if (!window.confirm('请确认是否要回退，回退后不会删除委托单。')) {
+            return;  // 用户点击取消后，不执行任何操作
+        }
+        try{
+            await axios.post(`${config.API_BASE_URL}/api/orders/rollbackAccount`, {
+                invoice_id: item.invoice_id,
+            });
+            setShowSuccessToast(true); // 显示成功提示
+            setTimeout(() => setShowSuccessToast(false), 3000);
+            fetchInvoices();
+        } catch (error) {
+            console.error('Error rollback orders:', error);
+            setError('Failed to rollback orders'); // 更新错误状态
+            setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
+        }
+
+    }
+
+
     // 设置标价
     // const handleQuote = async (testItemId) => {
     //     const newPrice = prompt("请输入标准价格:");
@@ -2312,13 +2333,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     rows = currentItems.map((item, index) => (
                         <tr key={index}>
                             {/* 选择框 */}
-                            {role === 'admin' && (
+                            {role === 'admin' && item.order_status === '0' ? (
                                 <td>
                                     <input
                                         type="checkbox"
                                         checked={selectedOrders.includes(item.order_num)}
                                         onChange={() => handleCheckboxChange(item.order_num)}
                                     />
+                                </td>
+                            ) : (
+                                <td>
+                                    结
                                 </td>
                             )}
                             <td>{item.order_num}</td>
@@ -2415,6 +2440,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             <td rowSpan={invoice.order_details.length} className='fixed-column'>
                                                 <div className="action-btns">
                                                     {/* <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button> */}
+                                                    <Button variant='secondary' onClick={() => handleRollbackAccount(invoice)}>回退</Button>
+
                                                     <Button onClick={() => handleAccount(invoice)}>入账</Button>
 
                                                 </div>
