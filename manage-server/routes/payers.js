@@ -64,7 +64,6 @@ router.patch('/:payment_id', async (req, res) => {
 // 删除付款方
 router.delete('/:id', async (req, res) => {
     try {
-        console.log("payeryes!", req.params.id)
         const result = await db.deletePayer(req.params.id);
         if (result) {
             res.send(result);

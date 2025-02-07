@@ -11,7 +11,7 @@ async function findUserByAccount(account) {
     return results[0] || null;
 }
 
-async function getAllOrders(orderNum, departmentId) {
+async function getAllOrders(orderNum, departmentId, filterData) {
     let query = `
         SELECT 
             o.order_num, 
@@ -52,9 +52,31 @@ async function getAllOrders(orderNum, departmentId) {
         query += 'AND t.department_id = ?';
         params.push(departmentId);
     }
+    if(filterData && filterData.trim().length > 0){
+        query += `
+            AND (
+                o.order_num LIKE ? OR
+                c.customer_name LIKE ? OR
+                c.contact_name LIKE ? OR
+                c.contact_phone_num LIKE ? OR
+                c.contact_email LIKE ? OR
+                u.name LIKE ? OR
+                s.material LIKE ? OR
+                t.test_item LIKE ? OR
+                p.area LIKE ? OR
+                p.organization LIKE ? OR
+                p.payer_contact_name LIKE ? OR
+                p.payer_contact_phone_num LIKE ? OR
+                p.payer_address LIKE ?
+            )
+        `;
+        // 填充查询参数，所有字段都使用 filterData 进行模糊查询
+        params.push(...Array(13).fill(`%${filterData}%`));
+    }
     query += ` GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
                 p.payer_address, o.service_type, o.order_status, a.account, u.name, p.area, p.organization`;
+
 
     const [results] = await db.query(query, params);
     return results;
@@ -284,7 +306,7 @@ async function updateOrder(orderNum, updateData) {
  * @param {string} account 账户名
  * @returns {Promise<Array>} 返回一个包含订单信息的数组
  */
-async function getSalesOrders(orderNum, account) {
+async function getSalesOrders(account, filterData) {
     try {
         let query = `
             SELECT DISTINCT 
@@ -298,18 +320,34 @@ async function getSalesOrders(orderNum, account) {
             JOIN users u ON u.account = a.account
         `
         const params = [];
+        let whereClauseAdded = false;
+
         if (account !== undefined && account !== '') {
             query += ' WHERE a.account = ?';
             params.push(`${account}`);
+            whereClauseAdded = true;
         } else {
             query += ' WHERE u.role = ?';
             params.push('sales')
-
+            whereClauseAdded = true;
         }
 
-        if (orderNum !== undefined && orderNum !== '') {
-            query += ' AND o.order_num LIKE ?';
-            params.push(`%${orderNum}%`);
+        // 处理 filterData 模糊查询
+        if (filterData && filterData.trim().length > 0) {
+            query += `
+                ${whereClauseAdded ? 'AND' : 'WHERE'} (
+                    o.order_num LIKE ? OR
+                    o.sample_shipping_address LIKE ? OR
+                    o.total_price LIKE ? OR
+                    c.customer_name LIKE ? OR
+                    c.customer_address LIKE ? OR
+                    c.contact_name LIKE ? OR
+                    c.contact_phone_num LIKE ?
+                )
+            `;
+
+            // 填充查询参数，所有字段都使用 filterData 进行模糊查询
+            params.push(...Array(7).fill(`%${filterData}%`));
         }
 
         const [results] = await db.query(query, params);
@@ -377,7 +415,7 @@ async function getAllSamples() {
 }
 
 
-async function getEmployeeTestItems(status, departmentId, account, month, employeeName, orderNum) {
+async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -472,9 +510,9 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
         params.push(`%${orderNum}%`);
         whereClauseAdded = true;
     }
-    if (employeeName !== undefined && employeeName !== '') {
-        query += ' AND u.name LIKE ?';
-        params.push(`%${employeeName}%`);
+    if (customerName !== undefined && customerName !== '') {
+        query += ' AND c.customer_name LIKE ?';
+        params.push(`%${customerName}%`);
         whereClauseAdded = true;
     }
     // 按 test_item_id 进行分组
@@ -485,7 +523,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, employ
 }
 
 
-async function getAllTestItems(status, departmentId, month, employeeName, orderNum, role) {
+async function getAllTestItems(status, departmentId, month, customerName, orderNum, role) {
     let query = `
         SELECT 
             t.test_item_id,
@@ -584,9 +622,9 @@ async function getAllTestItems(status, departmentId, month, employeeName, orderN
         params.push(`%${orderNum}%`);
         whereClauseAdded = true;
     }
-    if (employeeName !== undefined && employeeName !== '') {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' u.name LIKE ?';
-        params.push(`%${employeeName}%`);
+    if (customerName !== undefined && customerName !== '') {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' c.customer_name LIKE ?';
+        params.push(`%${customerName}%`);
         whereClauseAdded = true;
     }
     // 按照 test_item_id 和 equipment_name 分组
@@ -770,7 +808,7 @@ async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPr
     await db.query(query, [status, checkNote, listedPrice, testItemId]);
 }
 
-async function getAssignedTestsByUser(userId, status, month, employeeName, orderNum) {
+async function getAssignedTestsByUser(userId, status, month, customerName, orderNum) {
     let query = `
  SELECT 
         t.test_item_id,
@@ -849,9 +887,9 @@ async function getAssignedTestsByUser(userId, status, month, employeeName, order
         query += ' AND t.order_num LIKE ?';
         params.push(`%${orderNum}%`);
     }
-    if (employeeName !== undefined && employeeName !== '') {
-        query += ' AND u.name LIKE ?';
-        params.push(`%${employeeName}%`);
+    if (customerName !== undefined && customerName !== '') {
+        query += ' AND c.customer_name LIKE ?';
+        params.push(`%${customerName}%`);
     }
     query += ' GROUP BY t.test_item_id, c.customer_name, c.contact_name';
     const [results] = await db.query(query, params);
@@ -939,7 +977,7 @@ async function getAssignmentsByTestItemId(testItemId) {
              FROM assignments a 
              JOIN
                 users u ON u.account = a.account
-            WHERE a.test_item_id = ?`;
+            WHERE a.test_item_id = ? `;
         const [results] = await connection.query(query, [testItemId]);
         return results;
     } finally {
@@ -989,7 +1027,7 @@ async function getEmployeeWorkStats(departmentId) {
         FROM 
             users u
         LEFT JOIN 
-            assignments a ON u.account = a.account
+            assignments a ON u.account = a.account AND a.is_assigned = 1
         LEFT JOIN 
             test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
         WHERE 
@@ -1343,7 +1381,6 @@ async function addTestItem(addedFields) {
         const account = addedFields.account; // 假设 `account` 存在于 addedFields 中
         await connection.query(insertAssignmentQuery, [testItemId, account]);
         await connection.commit();
-        console.log(result)
         return result; // 返回执行结果
     } catch (error) {
         await connection.rollback(); // 出错时回滚事务
@@ -1556,7 +1593,6 @@ async function makeDeposit(paymentId, amount, description) {
             WHERE payment_id = ?
         `, [paymentId]);
 
-        console.log(balanceResult[0])
         const newBalance = balanceResult[0].balance;
 
         // 插入交易记录
@@ -1906,7 +1942,6 @@ async function checkTimeConflict(equipment_id, start_time, end_time, reservation
         const params = reservation_id ? [equipment_id, start_time, end_time, reservation_id] : [equipment_id, start_time, end_time];
         const [result] = await db.query(query, params);        
         
-        console.log(result)
         // 返回冲突状态
         if (result.length > 0) {
             // 如果存在时间冲突，返回详细的冲突时间段

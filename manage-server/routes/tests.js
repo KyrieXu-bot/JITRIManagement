@@ -7,18 +7,18 @@ router.get('/', async (req, res) => {
     let departmentId = req.query.departmentId; // 获取请求中的部门参数
     let account = req.query.account;
     let month = req.query.month;
-    let employeeName = req.query.employeeName
+    let customerName = req.query.customerName
     let orderNum = req.query.orderNum
     let role = req.query.role
 
     try {
         //查询组长数据
         if (account != undefined && account != '') {
-            const results = await db.getEmployeeTestItems(status, departmentId, account, month, employeeName, orderNum);
+            const results = await db.getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum);
             res.json(results);
 
         } else {
-            const results = await db.getAllTestItems(status, departmentId, month, employeeName, orderNum, role);
+            const results = await db.getAllTestItems(status, departmentId, month, customerName, orderNum, role);
             res.json(results);
         }
     } catch (error) {
@@ -44,7 +44,6 @@ router.post('/assign', async (req, res) => {
         }
         // 获取该检测项目的所有分配记录
         const existingAssignments = await db.getAssignmentsByTestItemId(testItemId);
-
         // 检查当前用户是否已经分配过
         const alreadyAssigned = existingAssignments.find(a => a.account === assignmentInfo);
         if (alreadyAssigned) {
@@ -61,8 +60,8 @@ router.post('/assign', async (req, res) => {
         // 如果是组长分配给别人（非自己），则复制检测项目
         if (role === 'supervisor') {
             const hasSupervisor = existingAssignments.some(a => a.is_assigned === 0);  // 是否已经有组长
-            const hasEmployee = existingAssignments.some(a => a.is_assigned === 1);    // 是否已经有员工
-            const hasAssignedSupervisor = existingAssignments.some(a => a.is_assigned === 1);  // 是否已经有组长自己做的
+            const hasEmployee = existingAssignments.some(a => a.role === 'employee' && a.is_assigned === 1);  
+            const hasAssignedSupervisor = existingAssignments.some(a => a.role === 'supervisor' && a.is_assigned === 1);
 
             //两种情况：这个项目有不执行的组长+执行的组员；有自己执行的组长。
             //这些情况下都需要复制项目
@@ -82,11 +81,15 @@ router.post('/assign', async (req, res) => {
                     status: '1', // 新项目为未分配状态
                 });
 
-
                 // 复制检测项目时，将原组长和实验员也分配到新项目
                 const supervisorAssignment = existingAssignments.find(a => a.role === 'supervisor'); // 通过角色找到组长
+                const salesAssignment = existingAssignments.find(a => a.role === 'sales'); // 通过角色找到业务员
                 if (supervisorAssignment) {
                     await db.assignTestToUser(newTestItemId, supervisorAssignment.account, equipment_id, start_time, end_time, 'supervisor', 0); // 绑定组长到新项目
+                }
+
+                if (salesAssignment) {
+                    await db.assignTestToUser(newTestItemId, salesAssignment.account, equipment_id, start_time, end_time, 'sales', 0); // 绑定业务员到新项目
                 }
 
                 // 分配新检测项目给新用户
@@ -164,10 +167,10 @@ router.post('/update-check', async (req, res) => {
 router.get('/assignments/:userId', async (req, res) => {
     let status = req.query.status; // 获取请求中的状态参数
     let month = req.query.month;
-    let employeeName = req.query.employeeName
+    let customerName = req.query.customerName
     let orderNum = req.query.orderNum
     try {
-        const results = await db.getAssignedTestsByUser(req.params.userId, status, month, employeeName, orderNum);
+        const results = await db.getAssignedTestsByUser(req.params.userId, status, month, customerName, orderNum);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch assignments:', error);

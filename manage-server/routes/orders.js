@@ -6,7 +6,8 @@ router.get('/', async (req, res) => {
     try {
         const orderNum = req.query.orderNum;
         const departmentId = req.query.departmentId;
-        const results = await db.getAllOrders(orderNum, departmentId);
+        const filterData = req.query.filterData;
+        const results = await db.getAllOrders(orderNum, departmentId, filterData);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch commission:', error);
@@ -16,10 +17,9 @@ router.get('/', async (req, res) => {
 
 router.get('/sales', async (req, res) => {
     try {
-        const orderNum = req.query.orderNum;
         const account = req.query.account;
-
-        const results = await db.getSalesOrders(orderNum, account);
+        const filterData = req.query.filterData;
+        const results = await db.getSalesOrders(account, filterData);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch commission:', error);
@@ -286,7 +286,6 @@ router.post('/account', async (req, res) => {
 
 router.post('/rollbackAccount', async (req, res) => {
     const { invoice_id } = req.body;
-    console.log(invoice_id);
     if (!invoice_id) {
         return res.status(400).json({ message: '缺少必要参数 invoice_id' });
     }
@@ -294,7 +293,7 @@ router.post('/rollbackAccount', async (req, res) => {
     try {
         // 更新 `orders` 表中状态
         await db.rollbackOrdersByInvoice(invoice_id);
-        
+
         // 删除 `invoices` 表中对应的记录
         await db.deleteInvoice(invoice_id);
 
