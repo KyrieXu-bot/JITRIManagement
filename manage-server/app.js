@@ -24,6 +24,7 @@ const usersRoutes = require('./routes/users')
 const chartsRoutes = require('./routes/charts')
 const monthsRoutes = require('./routes/months')
 const filesRoutes = require('./routes/files')
+const reservationRoutes = require('./routes/reservation')
 
 app.use('/api/customers', customersRoutes);
 app.use('/api/payers', payersRoutes);
@@ -36,6 +37,8 @@ app.use('/api/users', usersRoutes);
 app.use('/api/charts', chartsRoutes);
 app.use('/api/months', monthsRoutes);
 app.use('/api/files', filesRoutes);
+app.use('/api/reservations', reservationRoutes);
+
 
 
 

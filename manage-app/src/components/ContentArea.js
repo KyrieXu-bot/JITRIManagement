@@ -272,12 +272,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 params.append('filterData', filterData);
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
-            const sortedData = response.data.sort((a, b) => {
-                const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
-                const numB = parseInt(b.order_num.substring(2));
-                return numA - numB;
-            });
-            setData(sortedData);
+            if(response.data){
+                const sortedData = response.data.sort((a, b) => {
+                    const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
+                    const numB = parseInt(b.order_num.substring(2));
+                    return numA - numB;
+                });
+                setData(sortedData);
+            }
         } catch (error) {
             console.error('Error fetching data:', error);
             setError('Failed to fetch data'); // 更新错误状态
@@ -1530,7 +1532,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 setShowSuccessToast(true); // 显示成功的Toast
                 setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
                 setShowDeleteConfirm(false);
-                fetchData(selected);
+                fetchData('tests');
             } else if (selected === 'getCommission') {
                 await axios.delete(`${config.API_BASE_URL}/api/orders/${currentItem.identifier}`);
                 setShowSuccessToast(true); // 显示成功的Toast
@@ -2077,7 +2079,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     // 为员工定制的视图逻辑
                     headers = ["委托单号", "检测项目", "状态", "剩余天数", "客户名称", "联系人", "检测人员", "业务人员", "附件", "客户备注", "审批意见", "机时", "工时", "标准价格", "样品原号"];
                     rows = currentItems.map((item, index) => (
-
                         <tr key={index}
                             className={item.status === '5' ? 'row-delivered' : ''}
                         >
@@ -2113,7 +2114,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 )}
 
                                 {item.status !== '3' && item.status !== '5' && (
-                                    <Button onClick={() => handleAssignment(item.test_item_id)}>指派</Button>
+                                    <Button 
+                                        onClick={() => handleAssignment(item.test_item_id)}
+                                        className={item.appoint_time ? 'assigned-btn' : 'unassigned-btn'}
+                                    >
+                                        指派
+                                    </Button>
                                 )}
                                 {/* 当状态是已检测待审核，且标价写入时，才显示审核按钮 */}
                                 {(item.status === '2' || item.status === '4') && (
@@ -2565,7 +2571,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                                 )}
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
-                                {/* <Button onClick={() => handleDelete(item.test_item_id)}>删除</Button> */}
+                                <Button variant="danger" onClick={() => handleDelete(item.test_item_id)}>删除</Button>
                             </td>
                         </tr>
                     ));
@@ -3667,6 +3673,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <div>
                                 <strong>检测人员：</strong>{currentItem.team_names}
                             </div>
+                        </div>
+                        <div style={{ marginTop: '10px' }}>
+                            <strong>数量：</strong> {currentItem.quantity}
+                        </div>
+                        <div style={{ marginTop: '10px' }}>
+                            <strong>实验备注：</strong> {currentItem.test_note}
                         </div>
                         <div style={{ marginTop: '10px' }}>
                             <strong>使用设备：</strong> {currentItem.equipment_name}({currentItem.model})

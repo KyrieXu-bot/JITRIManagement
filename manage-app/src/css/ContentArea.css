@@ -453,6 +453,22 @@ nav {
     border-radius: 1em;
     margin-top: -50px;
 }
+
+
+/* 指派按钮样式 */
+.assigned-btn {
+    background-color: #28a745; /* 绿色按钮，表示已指派 */
+    color: white;
+    opacity: 0.4;
+}
+
+.unassigned-btn {
+    background-color: #ffc107; /* 黄色按钮，表示未指派 */
+    color: white;
+    border: 2px solid #343a40; /* 深灰色边框 */
+}
+
+
 /* 基础样式调整，以适应移动设备 */
 @media (max-width: 768px) {
     .content {

@@ -49,8 +49,35 @@ router.post('/assign', async (req, res) => {
         if (alreadyAssigned) {
             // 如果是组长并选择了自己为执行人，更新 is_assigned 为 1
             if (role === 'supervisor' && assignmentInfo === alreadyAssigned.account) {
-                await db.updateIsAssigned(testItemId, assignmentInfo, 1); // 更新为执行人
-                return res.status(200).json({ success: true, message: `组长 ${assignmentInfo} 已选择自行完成检测项目` });
+                const hasEmployeeAssigned = existingAssignments.some(a => a.role === 'employee' && a.is_assigned === 1);
+                if (hasEmployeeAssigned) {
+                    // 复制检测项目
+                    const originalTestItem = await db.getTestItemById(testItemId);
+                    if (!originalTestItem) {
+                        return res.status(404).json({ success: false, message: '未找到原始检测项目' });
+                    }
+
+                    // 创建新的检测项目
+                    const newTestItemId = await db.duplicateTestItem({
+                        ...originalTestItem,
+                        equipment_id,
+                        status: '1', // 新项目为未分配状态
+                    });
+
+                    const salesAssignment = existingAssignments.find(a => a.role === 'sales'); // 通过角色找到业务员
+                    if (salesAssignment) {
+                        await db.assignTestToUser(newTestItemId, salesAssignment.account, equipment_id, 'sales', 0); // 绑定业务员到新项目
+                    }
+                    // 分配新检测项目给组长
+                    await db.assignTestToUser(newTestItemId, assignmentInfo, equipment_id, 'supervisor', 1);
+
+                    return res.status(200).json({ success: true, message: "检测项目复制并分配成功!", newTestItemId });
+                } else {
+                    // 如果没有员工被指派，直接更新组长状态为执行人
+                    await db.updateIsAssigned(testItemId, assignmentInfo, 1); // 更新为执行人
+                    await db.updateAppointTime(testItemId);
+                    return res.status(200).json({ success: true, message: `组长 ${assignmentInfo} 已选择自行完成检测项目` });
+                }
             } else {
                 return res.status(409).json({ success: false, message: `项目已分配给 ${assignmentInfo}` });
             }
@@ -76,8 +103,6 @@ router.post('/assign', async (req, res) => {
                 const newTestItemId = await db.duplicateTestItem({
                     ...originalTestItem,
                     equipment_id,
-                    start_time,
-                    end_time,
                     status: '1', // 新项目为未分配状态
                 });
 
@@ -85,15 +110,15 @@ router.post('/assign', async (req, res) => {
                 const supervisorAssignment = existingAssignments.find(a => a.role === 'supervisor'); // 通过角色找到组长
                 const salesAssignment = existingAssignments.find(a => a.role === 'sales'); // 通过角色找到业务员
                 if (supervisorAssignment) {
-                    await db.assignTestToUser(newTestItemId, supervisorAssignment.account, equipment_id, start_time, end_time, 'supervisor', 0); // 绑定组长到新项目
+                    await db.assignTestToUser(newTestItemId, supervisorAssignment.account, equipment_id, 'supervisor', 0); // 绑定组长到新项目
                 }
 
                 if (salesAssignment) {
-                    await db.assignTestToUser(newTestItemId, salesAssignment.account, equipment_id, start_time, end_time, 'sales', 0); // 绑定业务员到新项目
+                    await db.assignTestToUser(newTestItemId, salesAssignment.account, equipment_id,  'sales', 0); // 绑定业务员到新项目
                 }
 
                 // 分配新检测项目给新用户
-                await db.assignTestToUser(newTestItemId, assignmentInfo, equipment_id, start_time, end_time, role, 1);
+                await db.assignTestToUser(newTestItemId, assignmentInfo, equipment_id, role, 1);
 
                 return res.status(200).json({ success: true, message: "检测项目复制并分配成功!", newTestItemId });
             }

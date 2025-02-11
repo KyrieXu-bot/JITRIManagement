@@ -635,7 +635,6 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
 
 async function assignTestToUser(testId, userId, equipment_id, role, isAssigned) {
     const connection = await db.getConnection();
-
     const query = 'INSERT INTO assignments (test_item_id, account, is_assigned) VALUES (?, ?, ?)';
     let updateQuery =
         `UPDATE test_items 
@@ -719,13 +718,13 @@ async function rollbackTest(account, testItemId, note) {
     // 更新 `test_items` 表中的状态
     const updateTestItemsStatusQuery = `
         UPDATE test_items 
-        SET status = '0', note = ?
+        SET status = '0', note = ?, appoint_time = NULL
         WHERE test_item_id = ?
     `;
 
     const updateNoteQuery = `
         UPDATE test_items
-        SET note = ?
+        SET note = ?, appoint_time = NULL
         WHERE test_item_id = ?
     `
     try {
@@ -2003,20 +2002,27 @@ async function getTestItemById(testItemId) {
 // 复制检测项目并生成新的 ID
 
 async function duplicateTestItem(testItemData) {
-    // 如果 start_time 或 end_time 为空字符串，将它们设为 NULL
-    if (testItemData.start_time === '') {
-        testItemData.start_time = null;
-    }
-    if (testItemData.end_time === '') {
-        testItemData.end_time = null;
-    }
     if (testItemData.equipment_id === '') {
         testItemData.equipment_id = null;
     }
 
-    const query = `INSERT INTO test_items (
-        order_num, original_no, test_item, test_method, size, quantity, note, status, department_id, deadline, create_time, equipment_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`;
+    const query = 
+    `INSERT INTO test_items (
+        order_num, 
+        original_no, 
+        test_item, 
+        test_method, 
+        size, 
+        quantity, 
+        note, 
+        status, 
+        department_id, 
+        deadline, 
+        create_time, 
+        equipment_id,
+        assign_time,
+        appoint_time
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(),NOW())`;
 
     const params = [
         testItemData.order_num,
@@ -2136,6 +2142,23 @@ async function rollbackOrdersByInvoice(invoiceId) {
     await db.query(query, [invoiceId]);
 }
 
+async function updateAppointTime(testItemId) {
+    try {
+        const query = `
+            UPDATE test_items
+            SET appoint_time = NOW()
+            WHERE test_item_id = ?;
+        `;
+        
+        const [results] = await db.query(query, [testItemId]);
+        
+        // 返回成功信息
+        return results;
+    } catch (error) {
+        console.error("Error updating appoint_time:", error);
+        throw new Error("Error updating appoint_time");
+    }
+}
 module.exports = {
     findUserByAccount,
     deleteOrder,
@@ -2207,5 +2230,6 @@ module.exports = {
     updateReservation,
     deleteInvoice,
     deleteInvoiceOrders,
-    rollbackOrdersByInvoice
+    rollbackOrdersByInvoice,
+    updateAppointTime
 };
