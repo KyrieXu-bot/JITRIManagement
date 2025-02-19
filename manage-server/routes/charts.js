@@ -4,15 +4,17 @@ const db = require('../models/database'); // 确保路径正确
 
 // 获取员工工时和机时统计数据
 router.get('/statistics', async (req, res) => {
-    const { departmentId } = req.query;
+    const { departmentId, timePeriod } = req.query;
     try {
-        const employeePromise = db.getEmployeeWorkStats(departmentId);
+        const employeePromise = db.getEmployeeWorkStats(departmentId, timePeriod);
         const equipmentPromise = db.getMachineWorkStats(departmentId);
-        const [employeeStats, equipmentStats] = await Promise.all([employeePromise, equipmentPromise]);
+        const totalPricePromise = db.getYearlyListedPrice(departmentId);
 
+        const [employeeStats, equipmentStats, totalPriceStats] = await Promise.all([employeePromise, equipmentPromise, totalPricePromise]);
         res.json({
             employeeStats,
-            equipmentStats
+            equipmentStats,
+            totalPriceStats
         });
     } catch (error) {
         console.error('Failed to fetch statistics:', error);

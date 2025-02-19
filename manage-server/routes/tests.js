@@ -34,8 +34,6 @@ router.post('/assign', async (req, res) => {
         role,
         assignmentInfo,
         equipment_id,
-        start_time,
-        end_time
     } = req.body;
     try {
         if (!assignmentInfo || assignmentInfo === '') {
@@ -179,8 +177,8 @@ router.post('/update-status', async (req, res) => {
 //更新审批状态
 router.post('/update-check', async (req, res) => {
     try {
-        const { testItemId, status, checkNote, listedPrice } = req.body;
-        await db.updateTestItemCheckStatus(testItemId, status, checkNote, listedPrice);
+        const { testItemId, status, checkNote, listedPrice, machine_hours } = req.body;
+        await db.updateTestItemCheckStatus(testItemId, status, checkNote, listedPrice, machine_hours);
         res.json({ success: true, message: 'Test status updated successfully' });
     } catch (error) {
         console.error('Failed to update test status:', error);

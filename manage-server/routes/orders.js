@@ -50,10 +50,10 @@ router.delete('/:orderNum', async (req, res) => {
 
 // 结算操作
 router.post('/checkout', async (req, res) => {
-    const { orderNums } = req.body; // 接收前端传过来的订单号数组
+    const { orderNums, checkoutTime } = req.body; // 接收前端传过来的订单号数组
     try {
         // 调用handleCheckout函数，检查是否有订单的discounted_price为空
-        const result = await db.handleCheckout(orderNums);
+        const result = await db.handleCheckout(orderNums, checkoutTime);
 
         if (result.success) {
             res.status(200).json({ success: true, message: '结算成功' });
@@ -80,7 +80,7 @@ router.get('/invoices', async (req, res) => {
         let currentInvoiceNum = null;
         let currentOrderNum = null;
         let orderDetails = [];
-
+        let checkoutTime = null;
         // 按照 invoice_id 和 order_num 分组数据
         invoiceDetails.forEach(item => {
             // 按 invoice_id 分组
@@ -91,13 +91,15 @@ router.get('/invoices', async (req, res) => {
                         invoice_id: currentInvoiceId,
                         invoice_number: currentInvoiceNum,
                         created_at: createdAt,
-                        order_details: orderDetails
+                        order_details: orderDetails,
+                        checkout_time: checkoutTime
                     });
                 }
                 // 更新 currentInvoiceId 并重置 orderDetails
                 currentInvoiceId = item.invoice_id;
                 currentInvoiceNum = item.invoice_number;
                 createdAt = item.created_at;
+                checkoutTime = item.checkout_time;
                 orderDetails = [];
             }
 
@@ -145,6 +147,7 @@ router.get('/invoices', async (req, res) => {
                 invoice_id: currentInvoiceId,
                 invoice_number: currentInvoiceNum,
                 created_at: createdAt,
+                checkout_time: checkoutTime,
                 order_details: orderDetails
             });
         }

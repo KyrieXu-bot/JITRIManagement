@@ -235,7 +235,7 @@ async function getTestForExcel(selectedOrders) {
         LEFT JOIN 
             equipment e ON e.equipment_id = t.equipment_id
         LEFT JOIN 
-            users u ON u.account = a.account 
+            users u ON u.account = a.account
         WHERE t.test_item_id IN (${placeholders})
         GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name, r.start_time, r.end_time;
     `
@@ -439,6 +439,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
             IFNULL(e.equipment_name, '') AS equipment_name,
             t.appoint_time,
             e.model,
+            p.unit_price,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
              FROM assignments aa 
              JOIN users ua ON ua.account = aa.account
@@ -479,6 +480,8 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
 	        users u ON u.account = a.account
         LEFT JOIN 
             reservation r ON r.test_item_id = t.test_item_id
+        LEFT JOIN
+            price p ON p.price_id = t.price_id
         WHERE 
             EXISTS (
                 SELECT 1
@@ -548,6 +551,7 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             t.appoint_time,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
+            p.unit_price,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
              FROM assignments aa 
              JOIN users ua ON ua.account = aa.account
@@ -587,6 +591,8 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             equipment e ON e.equipment_id = t.equipment_id
         LEFT JOIN 
             users u ON u.account = a.account 
+        LEFT JOIN
+            price p ON p.price_id = t.price_id
     `;
 
     const params = [];
@@ -798,13 +804,13 @@ async function updateTestItemStatus(finishData) {
     }
 }
 
-async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPrice) {
+async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPrice, machine_hours) {
     const query = `
         UPDATE test_items
-        SET status = ?, check_note = ? , check_time = NOW(), listed_price = ?
+        SET status = ?, check_note = ? , check_time = NOW(), listed_price = ?, machine_hours = ?
         WHERE test_item_id = ?
     `;
-    await db.query(query, [status, checkNote, listedPrice, testItemId]);
+    await db.query(query, [status, checkNote, listedPrice, machine_hours, testItemId]);
 }
 
 async function getAssignedTestsByUser(userId, status, month, customerName, orderNum) {
@@ -831,6 +837,7 @@ async function getAssignedTestsByUser(userId, status, month, customerName, order
         IFNULL(e.equipment_name, '') AS equipment_name,
         e.model,
         t.appoint_time,
+        p.unit_price,
         (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
             FROM assignments aa 
             JOIN users ua ON ua.account = aa.account
@@ -863,6 +870,8 @@ async function getAssignedTestsByUser(userId, status, month, customerName, order
         assignments a ON t.test_item_id = a.test_item_id
     JOIN 
         users u ON u.account = a.account
+    JOIN 
+        price p ON p.price_id = t.price_id
     WHERE 
         EXISTS (
             SELECT 1
@@ -1014,30 +1023,131 @@ async function getEquipmentsByDepartment(departmentId) {
 }
 
 // 获取员工的总机时和工时
-async function getEmployeeWorkStats(departmentId) {
-    const query = `
-        SELECT 
-            u.account,
-            u.name,
-            COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
-            COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
-            COALESCE(SUM(t.size), 0) AS total_samples,
-            COALESCE(SUM(t.listed_price), 0) AS total_listed_price
-        FROM 
-            users u
-        LEFT JOIN 
-            assignments a ON u.account = a.account AND a.is_assigned = 1
-        LEFT JOIN 
-            test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
-        WHERE 
-            u.department_id = ?
-        GROUP BY 
-            u.account, u.name
-        ;
+async function getEmployeeWorkStats(departmentId, timePeriod) {
+    // const query = `
+    //     SELECT 
+    //         u.account,
+    //         u.name,
+    //         COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+    //         COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+    //         COALESCE(SUM(t.size), 0) AS total_samples,
+    //         COALESCE(SUM(t.listed_price), 0) AS total_listed_price
+    //     FROM 
+    //         users u
+    //     LEFT JOIN 
+    //         assignments a ON u.account = a.account AND a.is_assigned = 1
+    //     LEFT JOIN 
+    //         test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+    //     WHERE 
+    //         u.department_id = ?
+    //     GROUP BY 
+    //         u.account, u.name
+    //     ;
 
-    `;
+    // `;
+    // try {
+    //     const [results] = await db.query(query, [departmentId]);
+    //     return results;
+    // } catch (error) {
+    //     console.error('Failed to fetch employee work stats:', error);
+    //     throw error;
+    // }
+
+    let query;
+    let queryParams = [departmentId];
+    // 根据时间筛选条件，生成不同的查询
+    if (timePeriod === 'month') {
+        query = `
+            SELECT 
+                u.account,
+                u.name,
+                COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+                COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+                COALESCE(SUM(t.size), 0) AS total_samples,
+                COALESCE(SUM(t.listed_price), 0) AS total_listed_price,
+                CONCAT('20', MID(t.order_num, 3, 2)) AS year,
+                MID(t.order_num, 5, 2) AS month
+            FROM 
+                users u
+            LEFT JOIN 
+                assignments a ON u.account = a.account
+            LEFT JOIN 
+                test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+            WHERE 
+                u.department_id = ?  and u.role != 'leader'
+            GROUP BY 
+                u.account, u.name, 
+                CONCAT('20', MID(t.order_num, 3, 2)),
+                MID(t.order_num, 5, 2)
+            ORDER BY 
+                year, month;
+        `;
+    } else if (timePeriod === 'quarter') {
+        query = `
+            SELECT 
+                u.account,
+                u.name,
+                COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+                COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+                COALESCE(SUM(t.size), 0) AS total_samples,
+                COALESCE(SUM(t.listed_price), 0) AS total_listed_price,
+                CONCAT('20', MID(t.order_num, 3, 2)) AS year,
+                CASE 
+                    WHEN MID(t.order_num, 5, 2) IN ('01', '02', '03') THEN '-第一季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('04', '05', '06') THEN '-第二季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('07', '08', '09') THEN '-第三季度'
+                    ELSE '-第四季度'
+                END AS quarter
+            FROM 
+                users u
+            LEFT JOIN 
+                assignments a ON u.account = a.account
+            LEFT JOIN 
+                test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+            WHERE 
+                u.department_id = ?  and u.role != 'leader'
+            GROUP BY 
+                u.account, u.name, 
+                CONCAT('20', MID(t.order_num, 3, 2)),
+                CASE 
+                    WHEN MID(t.order_num, 5, 2) IN ('01', '02', '03') THEN '-第一季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('04', '05', '06') THEN '-第二季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('07', '08', '09') THEN '-第三季度'
+                    ELSE '-第四季度'
+                END
+            ORDER BY 
+                year, quarter;
+        `;
+    } else if (timePeriod === 'year') {
+        query = `
+            SELECT 
+                u.account,
+                u.name,
+                COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+                COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+                COALESCE(SUM(t.size), 0) AS total_samples,
+                COALESCE(SUM(t.listed_price), 0) AS total_listed_price,
+                CONCAT('20', MID(t.order_num, 3, 2)) AS year
+            FROM 
+                users u
+            LEFT JOIN 
+                assignments a ON u.account = a.account
+            LEFT JOIN 
+                test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+            WHERE 
+                u.department_id = ?  and u.role != 'leader'
+            GROUP BY 
+                u.account, u.name, 
+                CONCAT('20', MID(t.order_num, 3, 2))
+            ORDER BY 
+                year;
+        `;
+    } else {
+        throw new Error('Invalid time period');
+    }
+
     try {
-        const [results] = await db.query(query, [departmentId]);
+        const [results] = await db.query(query, queryParams);
         return results;
     } catch (error) {
         console.error('Failed to fetch employee work stats:', error);
@@ -1045,6 +1155,32 @@ async function getEmployeeWorkStats(departmentId) {
     }
 }
 
+// 获取部门的年度总委托额
+async function getYearlyListedPrice(departmentId) {
+    const query = `
+        SELECT 
+            CONCAT('20', MID(t.order_num, 3, 2)) AS year,
+            MID(t.order_num, 5, 2) AS month,
+            COALESCE(SUM(t.listed_price), 0) AS total_listed_price
+        FROM 
+            test_items t
+        WHERE 
+            t.department_id = ?
+        GROUP BY 
+            year, month
+        ORDER BY 
+            year DESC, month ASC;
+
+    `;
+    try {
+        const [results] = await db.query(query, [departmentId]);
+        return results;
+
+    } catch (error) {
+        console.error('Failed to fetch employee work stats:', error);
+        throw error;
+    }
+}
 
 // 获取员工的总机时和工时
 async function getMachineWorkStats(departmentId) {
@@ -1615,7 +1751,7 @@ async function makeDeposit(paymentId, amount, description) {
     }
 }
 
-async function handleCheckout( orderNums ) {
+async function handleCheckout( orderNums, checkoutTime ) {
     const connection = await db.getConnection(); 
     try {
         await connection.beginTransaction();
@@ -1630,7 +1766,6 @@ async function handleCheckout( orderNums ) {
             WHERE o.order_num IN (?) AND t.discounted_price IS NULL
         `;
         const [missingPrices] = await db.query(query, [orderNums]);
-
         // 如果有订单没有填写交易价格，返回错误信息
         if (missingPrices.length > 0) {
             let errorMessage = '';
@@ -1664,10 +1799,10 @@ async function handleCheckout( orderNums ) {
 
         // 在invoices表中插入一条记录（自增ID）
         query = `
-            INSERT INTO invoices (created_at)
-            VALUES (NOW())
+            INSERT INTO invoices (created_at, checkout_time)
+            VALUES (NOW(), ?)
         `;
-        const [invoiceResult] = await db.query(query);
+        const [invoiceResult] = await db.query(query, [checkoutTime]);
 
         // 获取新生成的发票ID
         const invoiceId = invoiceResult.insertId;
@@ -1700,7 +1835,7 @@ async function getInvoiceDetails(filterData) {
         WHERE u.role = 'sales'
         AND o.customer_id IS NOT NULL
         AND p.payment_id IS NOT NULL
-        AND o.order_status = '1'
+        AND o.order_status IN ('1', '2')
     `;
     let queryParams = [];
 
@@ -1751,6 +1886,7 @@ async function getInvoiceDetails(filterData) {
             t.note,
             i.invoice_number,
             i.final_price,
+            i.checkout_time,
             u.name
         FROM invoice_orders io
         JOIN orders o ON io.order_num = o.order_num
@@ -1762,7 +1898,7 @@ async function getInvoiceDetails(filterData) {
         JOIN invoices i ON i.invoice_id = io.invoice_id
 
         ${whereSql}
-        ORDER BY io.invoice_id, o.order_num, t.test_item_id;
+        ORDER BY i.checkout_time, o.order_num, t.test_item_id;
     `;
 
     try {
@@ -2231,5 +2367,6 @@ module.exports = {
     deleteInvoice,
     deleteInvoiceOrders,
     rollbackOrdersByInvoice,
-    updateAppointTime
+    updateAppointTime,
+    getYearlyListedPrice
 };

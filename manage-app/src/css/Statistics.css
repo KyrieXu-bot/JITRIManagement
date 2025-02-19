@@ -1,8 +1,8 @@
 .chart-container {
     display: flex;
-    justify-content: space-around;
+    justify-content:center;
     flex-wrap: wrap; /* Allows the charts to wrap onto the next line */
-    align-items: center;
+    align-items: start;
     padding: 10px;
     height: 760px; /* Adjust height as needed */
     overflow: scroll;
@@ -18,6 +18,24 @@
     border-radius: 8px; /* Add rounded corners */
     background-color: #f8f9fa; /* Light background to make it visually distinct */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Add shadow for better visual effect */
+}
+
+.time-classify{
+    margin: 10px 5px;
+    max-width: 32%;
+}
+
+
+.chart-horizon{
+    width: 98%;
+    border-top: 3px solid #5f87a0; /* Thicker line with a color */
+
+}
+.chart-title{
+    width: 100%;
+    margin-top: 30px;
+    color: #5f87a0;
+
 }
 
 .total-price-container {
@@ -54,4 +72,40 @@
     border-radius: 8px; /* Rounded corners */
     background-color: #f8f9fa; /* Light background color */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Same shadow for consistency */
+}
+
+.time-period-selector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+    font-family: 'Arial', sans-serif;
+    width: 100%;
+}
+
+.time-period-selector select {
+    font-size: 16px;
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.time-period-selector select:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 5px rgba(0, 102, 204, 0.3);
+}
+
+.time-period-selector select:hover {
+    background-color: #f2f2f2;
+}
+
+.time-period-selector option {
+    font-size: 16px;
+    padding: 10px 15px;
 }

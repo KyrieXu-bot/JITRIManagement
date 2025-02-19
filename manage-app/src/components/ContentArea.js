@@ -30,9 +30,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipments, setEquipments] = useState([]);
     const [employeeStats, setEmployeeStats] = useState([]);
     const [equipmentStats, setEquipmentStats] = useState([]);
+    const [yearlyPriceStats, setYearlyPriceStats] = useState([]);    
     const [sumPrice, setSumPrice] = useState('');
     const [equipmentTimeline, setEquipmentTimeline] = useState([]);
     const [accountTime, setAccountTime] = useState([]);
+    const [checkoutTime, setCheckoutTime] = useState([]);
     const [filterCustomer, setFilterCustomer] = useState('');
     const [filterOrderNum, setFilterOrderNum] = useState('');
     const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -69,7 +71,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [filteredData, setFilteredData] = useState(""); // 存储选择预约设备时候的检测项目
     const [myReservationInfo, setMyReservationInfo] = useState(""); // 存储选择预约设备时候的检测项目
     const [editingPrice, setEditingPrice] = useState(false); // 存储选择预约设备时候的检测项目
-
+    const [editingMachineHours, setEditingMachineHours] = useState(false); // 存储选择预约设备时候的检测项目
+    const [timePeriod, setTimePeriod] = useState('month'); // 按月、季度、年筛选数据统计
 
     const [showModal, setShowModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -114,14 +117,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     //员工点击完成时候的数据
     const [finishData, setFinishData] = useState({
+        test_item: '',
         machine_hours: '',
         work_hours: '',
         operator: account, // 默认为当前登录的账户
         equipment_id: '',
         quantity: '',
         test_note: '',
-        listed_price: ''
-
+        listed_price: '',
+        unit_price: ''
     });
 
     const [reserveData, setReserveData] = useState({
@@ -272,7 +276,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 params.append('filterData', filterData);
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
-            if(response.data){
+            if (response.data) {
                 const sortedData = response.data.sort((a, b) => {
                     const numA = parseInt(a.order_num.substring(2)); // 提取数字部分进行比较
                     const numB = parseInt(b.order_num.substring(2));
@@ -439,15 +443,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     // 获取数据图
     const fetchStatistics = useCallback(async () => {
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/api/charts/statistics?departmentId=${departmentID}`);
-            const { employeeStats, equipmentStats } = response.data;
+            const response = await axios.get(`${config.API_BASE_URL}/api/charts/statistics?departmentId=${departmentID}&timePeriod=${timePeriod}`);
+            const { employeeStats, equipmentStats, totalPriceStats } = response.data;
             const formattedEmployee = employeeStats.map(item => ({
                 name: item.name,
                 //value: parseFloat(item.total_machine_hours),  // Assuming you want to visualize machine hours
                 total_machine_hours: parseFloat(item.total_machine_hours),
                 total_work_hours: parseFloat(item.total_work_hours),
                 total_samples: parseFloat(item.total_samples),
-                total_listed_price: parseFloat(item.total_listed_price)
+                total_listed_price: parseFloat(item.total_listed_price),
+                year: item.year,
+                month: item.month,
+                quarter: item.quarter
             }));
 
             const formattedEquipment = equipmentStats.map(item => ({
@@ -462,12 +469,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
             setEmployeeStats(formattedEmployee);
             setEquipmentStats(formattedEquipment);
+            setYearlyPriceStats(totalPriceStats);
             setSumPrice(totalPrice);
         } catch (error) {
             console.error('Error fetching statistics data:', error);
         }
-    }, [departmentID])
+    }, [departmentID, timePeriod])
 
+    // 用于更改时间筛选条件
+    const handleTimePeriodChange = (event) => {
+        setTimePeriod(event.target.value);
+    };
+    
     // 获取设备时间线
     const fetchTimeline = useCallback(async () => {
         try {
@@ -808,6 +821,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const handleFinish = (item) => {
         setFinishData({
+            test_item: item.test_item,
             test_item_id: item.test_item_id, // 保存当前项目ID以便提交时使用
             machine_hours: item.machine_hours,
             work_hours: item.work_hours,
@@ -817,7 +831,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             model: item.model,
             quantity: item.quantity,
             test_note: item.test_note,
-            listed_price: ''
+            listed_price: '',
+            unit_price: item.unit_price
         });
         setShowFinishModal(true);
     };
@@ -1108,15 +1123,23 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     // 执行结算操作
     const handleCheckout = async () => {
         try {
-            // 发送请求到后端检查每个订单的交易价格
-            setShowCheckoutModal(false);
-            const response = await axios.post(`${config.API_BASE_URL}/api/orders/checkout`, { orderNums: selectedOrders });
-            if (response.data.success) {
-                // 如果结算成功，更新状态
-                setShowSuccessToast(true); // 显示成功提示
-                setTimeout(() => setShowSuccessToast(false), 3000);
-                fetchData('orders');
-                setSelectedOrders([]);
+            if (checkoutTime.length === 0) {
+                setAlertMessage("入账时间未填写！");
+                setShowAlert(true);
+            } else {
+                // 发送请求到后端检查每个订单的交易价格
+                setShowCheckoutModal(false);
+                const response = await axios.post(`${config.API_BASE_URL}/api/orders/checkout`, {
+                    orderNums: selectedOrders,
+                    checkoutTime: checkoutTime
+                });
+                if (response.data.success) {
+                    // 如果结算成功，更新状态
+                    setShowSuccessToast(true); // 显示成功提示
+                    setTimeout(() => setShowSuccessToast(false), 3000);
+                    fetchData('orders');
+                    setSelectedOrders([]);
+                }
             }
         } catch (error) {
             // 如果请求失败，显示详细错误信息
@@ -1138,6 +1161,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const handleOpenFinishModal = (item) => {
         // 可以根据需要预填充已知数据
         setFinishData({
+            test_item: item.test_item,
             test_item_id: item.test_item_id, // 保存当前项目ID以便提交时使用
             machine_hours: item.machine_hours,
             work_hours: item.work_hours,
@@ -1147,7 +1171,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             model: item.model,
             quantity: item.quantity,
             test_note: item.test_note,
-            listed_price: ''
+            listed_price: '',
+            unit_price: item.unit_price
         });
         setShowFinishModal(true);
     };
@@ -1172,7 +1197,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return;
         }
         try {
-            await axios.post(`${config.API_BASE_URL}/api/tests/update-status`, {
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/update-status`, {
                 testId: test_item_id,
                 status: 2,  // 标记为已检测
                 machine_hours,
@@ -1183,16 +1208,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 test_note,
                 listed_price: calculated_price,
             });
-            setShowFinishModal(false); // 成功后关闭 Modal
-            setShowSuccessToast(true); // 显示成功提示
-            setTimeout(() => setShowSuccessToast(false), 3000);
-            // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
-            if (role === 'employee') {
-                fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
-            } else if (role === 'supervisor') {
-                fetchDataForSupervisor(departmentID)
+            if (response.status === 200) {
+                setShowFinishModal(false); // 成功后关闭 Modal
+                setShowSuccessToast(true); // 显示成功提示
+                setTimeout(() => setShowSuccessToast(false), 3000);
+                // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
+                if (role === 'employee') {
+                    fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
+                } else if (role === 'supervisor') {
+                    fetchDataForSupervisor(departmentID)
+                } else {
+                    fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
+                }
             } else {
-                fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
+                setError('点击完成操作失败。请联系技术支持');
+                setTimeout(() => setError(''), 3000);
             }
         } catch (error) {
             console.error('Error finishing test:', error);
@@ -1224,12 +1254,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return;  // 用户点击取消后，不执行任何操作
         }
         try {
-            await axios.post(`${config.API_BASE_URL}/api/orders/rollbackAccount`, {
+            const response = await axios.post(`${config.API_BASE_URL}/api/orders/rollbackAccount`, {
                 invoice_id: item.invoice_id,
             });
-            setShowSuccessToast(true); // 显示成功提示
-            setTimeout(() => setShowSuccessToast(false), 3000);
-            fetchInvoices();
+            if (response.status === 200) {
+                setShowSuccessToast(true); // 显示成功提示
+                setTimeout(() => setShowSuccessToast(false), 3000);
+                fetchInvoices();
+            } else {
+                setError("回退操作失败。请重试或联系技术支持");
+                setTimeout(() => setError(''), 3000);
+            }
         } catch (error) {
             console.error('Error rollback orders:', error);
             setError('Failed to rollback orders'); // 更新错误状态
@@ -1527,37 +1562,43 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (!window.confirm('请再次确认此【删除】操作！')) {
                 return;  // 用户点击取消后，不执行任何操作
             }
+            let endpoint = '';
+            let fetchFunction = () => { };  // Function to fetch updated data after deletion
+
+            // Determine the API endpoint and fetch function based on selection
             if (selected === 'getTests') {
-                await axios.delete(`${config.API_BASE_URL}/api/tests/${currentItem.identifier}`);
-                setShowSuccessToast(true); // 显示成功的Toast
-                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
-                setShowDeleteConfirm(false);
-                fetchData('tests');
+                endpoint = `/api/tests/${currentItem.identifier}`;
+                fetchFunction = () => fetchData('tests');
             } else if (selected === 'getCommission') {
-                await axios.delete(`${config.API_BASE_URL}/api/orders/${currentItem.identifier}`);
-                setShowSuccessToast(true); // 显示成功的Toast
-                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
-                setShowDeleteConfirm(false);
-                fetchData("orders");
+                endpoint = `/api/orders/${currentItem.identifier}`;
+                fetchFunction = () => fetchData("orders");
             } else if (selected === 'customerInfo') {
-                await axios.delete(`${config.API_BASE_URL}/api/customers/${currentItem.identifier}`);
-                setShowSuccessToast(true); // 显示成功的Toast
-                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
-                setShowDeleteConfirm(false);
-                fetchCustomers();
+                endpoint = `/api/customers/${currentItem.identifier}`;
+                fetchFunction = () => fetchCustomers();
             } else if (selected === 'payerInfo') {
-                await axios.delete(`${config.API_BASE_URL}/api/payers/${currentItem.identifier}`);
-                setShowSuccessToast(true); // 显示成功的Toast
-                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
-                setShowDeleteConfirm(false);
-                fetchPayers();
+                endpoint = `/api/payers/${currentItem.identifier}`;
+                fetchFunction = () => fetchPayers();
+            }
+
+            // Make the delete request
+            if (endpoint) {
+                const response = await axios.delete(`${config.API_BASE_URL}${endpoint}`);
+                // Check if the response status is 200 (success)
+                if (response.status === 200) {
+                    setShowSuccessToast(true);  // Show success toast
+                    setShowDeleteConfirm(false);  // Close confirmation modal
+                    fetchFunction();  // Fetch updated data
+                } else {
+                    // Handle case where response status is not 200
+                    console.error('Failed to delete item, status:', response.status);
+                }
             }
         } catch (error) {
             console.error('Error deleting order:', error);
         }
     };
 
-    const submitAssignment = useCallback(async () => {
+    const submitAssignment = async () => {
         try {
 
             const payload = {
@@ -1596,20 +1637,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setShowAlert(true);
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-    }, [currentItem,
-        assignmentData,
-        account,
-        role,
-        assignmentInfo,
-        selected,
-        fetchData,
-        setError,
-        fetchDataForEmployee,
-        departmentID,
-        fetchDataForSupervisor,
-        testId
-
-    ]);
+    };
 
     // 转办
     const submitReassignment = async () => {
@@ -1695,7 +1723,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             checkNote: checkNote,
             discountedPrice: currentItem.discounted_price,
             orderNum: currentItem.order_num,
-            listedPrice: currentItem.listed_price
+            listedPrice: currentItem.listed_price,
+            machine_hours: currentItem.machine_hours
         };
         updateTestStatus(payload);
     };
@@ -1703,11 +1732,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     //交付
     const deliver = async (testItemId) => {
         try {
-            await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/deliver`, { status: '5' });
-            setShowSuccessToast(true); // Show success message
-            setTimeout(() => setShowSuccessToast(false), 3000);
-            setHandleDeliverModal(false);
-            fetchDataForEmployee(account); // 重新获取数据以更新UI
+            const response = await axios.patch(`${config.API_BASE_URL}/api/tests/${testItemId}/deliver`, { status: '5' });
+            if (response.status === 200) {
+                setShowSuccessToast(true); // Show success message
+                setTimeout(() => setShowSuccessToast(false), 3000);
+                setHandleDeliverModal(false);
+                fetchDataForEmployee(account); // 重新获取数据以更新UI
+            } else {
+                setError('交付操作超时！请重试或联系技术支持');
+                setTimeout(() => setError(''), 3000);
+            }
         } catch (error) {
             setError('交付操作失败');
             setTimeout(() => setError(''), 3000);
@@ -1881,14 +1915,20 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const updateTestStatus = async (payload) => {
         try {
-            await axios.post(`${config.API_BASE_URL}/api/tests/update-check`, payload);
-            setShowCheckModal(false); // Close the modal after submission
-            fetchDataForSupervisor(departmentID);
-            setShowSuccessToast(true); // Optionally show a success message
-            setTimeout(() => setShowSuccessToast(false), 3000);
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/update-check`, payload);
+            if (response.status === 200) {
+                setShowCheckModal(false); // Close the modal after submission
+                fetchDataForSupervisor(departmentID);
+                setShowSuccessToast(true); // Show success toast only after successful response
+                setTimeout(() => setShowSuccessToast(false), 3000); // Hide success toast after 3 seconds
+            } else {
+                // Handle non-success status if necessary
+                setError('请求超时，修改测试状态失败！');
+                setTimeout(() => setError(''), 3000);
+            }
         } catch (error) {
             console.error('Error updating test status:', error);
-            setError('Failed to update test                    status');
+            setError('Failed to update test status');
             setTimeout(() => setError(''), 3000);
         }
     };
@@ -1944,6 +1984,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         const hours = String(date.getHours()).padStart(2, '0');
         const minutes = String(date.getMinutes()).padStart(2, '0');
         return `${year}-${month}-${day} ${hours}:${minutes}`;
+    };
+
+    // 将 ISO 日期格式转换为 date 格式
+    const formatDateToDate = (isoDate) => {
+        if (!isoDate) return '';
+        const date = new Date(isoDate);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从 0 开始，所以加 1
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;  // 仅返回日期部分
     };
 
 
@@ -2114,7 +2164,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 )}
 
                                 {item.status !== '3' && item.status !== '5' && (
-                                    <Button 
+                                    <Button
                                         onClick={() => handleAssignment(item.test_item_id)}
                                         className={item.appoint_time ? 'assigned-btn' : 'unassigned-btn'}
                                     >
@@ -2434,7 +2484,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'getChecked':
-                    headers = ["发票号", "委托单号", "客户名称", "联系人", "联系电话", "付款方", "付款联系人", "业务员", "检测项目", "开票价", "创建时间"];
+                    headers = ["发票号", "开票时间", "委托单号", "客户名称", "联系人", "联系电话", "付款方", "付款联系人", "业务员", "检测项目", "开票价", "创建时间"];
                     currentItems.forEach((invoice) => {
                         if (invoice && invoice.order_details && Array.isArray(invoice.order_details)) {
                             invoice.order_details.forEach((order, orderIndex) => {
@@ -2456,9 +2506,20 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                                 <strong>
                                                     {highlightText(invoice.invoice_number ? invoice.invoice_number : '暂未填写', filterData)}
                                                 </strong>
+
                                             </td>
 
                                         )}
+                                        {orderIndex === 0 && (
+                                            <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
+                                                <strong>
+                                                    {highlightText(formatDateToDate(invoice.checkout_time), filterData)}
+                                                </strong>
+
+                                            </td>
+
+                                        )}
+
 
                                         <td>{highlightText(order.order_num, filterData)}</td>
                                         <td>{highlightText(order.customer_name, filterData)}</td>
@@ -2491,7 +2552,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                                     <strong>{highlightText(order.final_price, filterData)}</strong>
                                                 </td>
                                                 <td className="invoice-id-cell" rowSpan={invoice.order_details.length}>
-                                                    {highlightText(new Date(invoice.created_at).toLocaleString(), filterData)}
+                                                    {highlightText(formatDateToLocal(invoice.created_at), filterData)}
                                                 </td>
 
                                             </>
@@ -2677,7 +2738,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
             {selected ? (
                 selected === 'dataStatistics' ? (
-                    <DataStatistics employeeData={employeeStats} equipmentData={equipmentStats} sumPrice={sumPrice} />
+                    <DataStatistics 
+                        employeeData={employeeStats} 
+                        equipmentData={equipmentStats} 
+                        sumPrice={sumPrice} 
+                        handleTimePeriodChange={handleTimePeriodChange}
+                        timePeriod={timePeriod}
+                        yearlyPriceData={yearlyPriceStats}
+                    />
                 ) : selected === 'timeline' ? (
                     <EquipmentTimeline tasks={equipmentTimeline} equipments={equipments} /> // 显示设备时间线
                 ) : selected === 'getReservation' ? (
@@ -3629,6 +3697,38 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                             <div>
                                 <strong>机时：</strong> {currentItem.machine_hours} 小时
+                                <Button
+                                    variant="link"
+                                    onClick={() => setEditingMachineHours(true)}
+                                    style={{ marginLeft: '10px', padding: 0, marginTop: 0 }}
+                                >
+                                    修改
+                                </Button>
+                                {editingMachineHours && (
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="输入新的机时"
+                                        defaultValue={currentItem.machine_hours || ''}
+                                        onBlur={(e) => {
+                                            setCurrentItem({
+                                                ...currentItem,
+                                                machine_hours: e.target.value ? parseFloat(e.target.value) : ''
+                                            });
+                                            setEditingMachineHours(false);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                setCurrentItem({
+                                                    ...currentItem,
+                                                    machine_hours: e.target.value ? parseFloat(e.target.value) : ''
+                                                });
+                                                setEditingMachineHours(false);
+                                            }
+                                        }}
+                                        style={{ marginTop: '5px', width: '150px' }}
+                                        min={0}
+                                    />
+                                )}
                             </div>
                             <div>
                                 <strong>工时：</strong> {currentItem.work_hours} 小时
@@ -3667,6 +3767,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             }
                                         }}
                                         style={{ marginTop: '5px', width: '150px' }}
+                                        min={0}
                                     />
                                 )}
                             </div>
@@ -3707,12 +3808,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
             {/* 完成按钮modal */}
-            <Modal show={showFinishModal} onHide={handleCloseFinishModal}>
+            <Modal show={showFinishModal} onHide={handleCloseFinishModal} size='lg'>
                 <Modal.Header closeButton>
                     <Modal.Title>完成检测</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
+                        <Form.Group>
+                            <Form.Label>检测项目</Form.Label>
+                            <br></br>
+                            <strong>{finishData.test_item}</strong>
+
+                        </Form.Group>
+
                         <Form.Group>
                             <Form.Label>机时</Form.Label>
                             <Form.Control
@@ -3729,6 +3837,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         calculated_price: calculatedPrice.toFixed(2)
                                     });
                                 }}
+                                min='0'
                             />
                         </Form.Group>
                         <Form.Group>
@@ -3737,6 +3846,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 type="number"
                                 value={finishData.work_hours}
                                 onChange={e => setFinishData({ ...finishData, work_hours: e.target.value })}
+                                min='0'
                             />
                         </Form.Group>
 
@@ -3756,28 +3866,31 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         calculated_price: calculatedPrice.toFixed(2)
                                     });
                                 }}
+                                min='0'
                             />
                         </Form.Group>
 
                         <Form.Group>
-                            <Form.Label>单价</Form.Label>
+                            <Form.Label>单价 - (若显示，则该项目为标准项目，单价为默认单价)</Form.Label>
                             <Form.Control
                                 type="number"
-                                value={finishData.listed_price || ''}
+                                value={finishData.unit_price || ''}
                                 onChange={e => {
                                     const updatedListedPrice = e.target.value;
                                     const calculatedPrice = finishData.calculationMode === 'machineHours'
                                         ? updatedListedPrice * finishData.machine_hours
                                         : updatedListedPrice * finishData.quantity;
+                                    console.log(updatedListedPrice)
                                     setFinishData({
                                         ...finishData,
-                                        listed_price: updatedListedPrice,
+                                        unit_price: updatedListedPrice,
                                         calculated_price: calculatedPrice.toFixed(2)
                                     });
                                 }}
                             />
-                        </Form.Group>
 
+                        </Form.Group>
+                        <hr></hr>
                         {/* 动态选择计算标准价格方式 */}
                         <Form.Group>
                             <Form.Label>选择标准价格计算方式</Form.Label>
@@ -3788,7 +3901,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     name="priceCalculation"
                                     checked={finishData.calculationMode === 'quantity'}
                                     onChange={() => {
-                                        const calculatedPrice = finishData.listed_price * finishData.quantity;
+                                        const calculatedPrice = finishData.unit_price * finishData.quantity;
                                         setFinishData({
                                             ...finishData,
                                             calculationMode: 'quantity',
@@ -3802,7 +3915,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     name="priceCalculation"
                                     checked={finishData.calculationMode === 'machineHours'}
                                     onChange={() => {
-                                        const calculatedPrice = finishData.listed_price * finishData.machine_hours;
+                                        const calculatedPrice = finishData.unit_price * finishData.machine_hours;
                                         setFinishData({
                                             ...finishData,
                                             calculationMode: 'machineHours',
@@ -4199,6 +4312,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Header>
                 <Modal.Body>
                     <p>确认结算选中的 {selectedOrders.length} 个委托单吗？</p>
+                    <Form.Group controlId="formStartTime">
+                        <Form.Label>开票日期</Form.Label>
+                        <Form.Control
+                            type="date"
+                            value={formatDateToDate(checkoutTime)}
+                            onChange={e => setCheckoutTime(e.target.value)}
+                        />
+                    </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowCheckoutModal(false)}>取消</Button>

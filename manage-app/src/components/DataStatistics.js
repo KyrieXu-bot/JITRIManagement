@@ -1,11 +1,50 @@
 import React from 'react';
-import { BarChart, Bar,  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar,  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import '../css/Statistics.css'
-const DataStatistics = ({ employeeData, equipmentData, sumPrice}) => {
-    return (
+const DataStatistics = ({ employeeData, equipmentData, sumPrice, handleTimePeriodChange, timePeriod, yearlyPriceData}) => {
+    const groupByPeriod = (data, period) => {
+        const grouped = {};
+        data.forEach(item => {
+            const key = period === 'year' ? item.year :
+                period === 'quarter' ? `${item.year}-${item.quarter}` :
+                `${item.year}-${item.month}`;
+            if (!grouped[key]) {
+                grouped[key] = [];
+            }
+            grouped[key].push(item);
+        });
+        return grouped;
+    };
 
+    const groupByYear = (data) => {
+        const grouped = {};
+        
+        data.forEach(item => {
+            const year = item.year;
+            const month = item.month;
+    
+            if (!grouped[year]) {
+                // 生成 12 个月的数据，并初始化为 0
+                grouped[year] = Array.from({ length: 12 }, (_, index) => ({
+                    month: `${year}-${String(index + 1).padStart(2, '0')}`, // 生成 '2024-01', '2024-02', ...
+                    total_listed_price: 0
+                }));
+            }
+            // 填充已有数据
+            const monthIndex = parseInt(month, 10) - 1; // 转换为数组索引
+            grouped[year][monthIndex].total_listed_price = item.total_listed_price;
+        });
+    
+        return grouped;
+    };
+
+    const groupedData = groupByPeriod(employeeData, timePeriod);
+    const groupedPrice = groupByYear(yearlyPriceData);  // 调用数据处理函数
+
+    return (
+        
         <div className="chart-container">
-            <h2>数据统计</h2>
+
             {/* 总委托金额 */}
             <div className="total-price-container">
                 <h2>总委托金额</h2>
@@ -13,7 +52,46 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice}) => {
                     {sumPrice.toLocaleString()} 元
                 </div>
             </div>
-            <div className="bar-chart">
+            <hr className='chart-horizon'></hr>
+            <h1 className='chart-title'>员工统计</h1>
+            <div className="time-period-selector">
+                <h4>请按时间段进行筛选：</h4>
+                <select onChange={handleTimePeriodChange} value={timePeriod}>
+                    <option value="month">按月</option>
+                    <option value="quarter">按季度</option>
+                    <option value="year">按年</option>
+                </select>
+            </div>
+            {/* 按时间粒度展示多个图表 */}
+            {Object.keys(groupedData).map((periodKey) => {
+                const periodData = groupedData[periodKey];
+                const periodLabel = timePeriod === 'month' 
+                    ? `${periodKey.replace('-', '年')}月` 
+                    : timePeriod === 'quarter' 
+                    ? `${periodKey.replace('-', '年')}` // Format for quarters (e.g., "2024年Q1")
+                    : `${periodKey.replace('-', '年')}年`; // Format for years (e.g., "2024年")
+                return (
+                    <div key={periodKey} className={`bar-chart ${timePeriod !== 'year' ? 'time-classify' : ''}`}>
+                        <h3>{periodLabel}</h3>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={periodData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis 
+                                    dataKey="name" 
+                                    textAnchor="end" // Align the rotated labels properly
+                                    tick={{ fontSize: 12 }} // Adjust the font size for X-axis labels
+                                />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="total_listed_price" fill="#ff7300" name="标准委托金额" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                );
+            })}
+
+            {/* <div className="bar-chart">
                 <h2>各员工委托金额</h2>
                 <ResponsiveContainer width="85%" height="85%">
                     <BarChart data={employeeData}>
@@ -35,7 +113,6 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice}) => {
                         <YAxis />
                         <Tooltip />
                         <Legend />
-                        {/* <Bar dataKey="total_machine_hours" fill="#8884d8" name="Machine Hours" /> */}
                         <Bar dataKey="total_work_hours" fill="#82ca9d" name="工时" />
                     </BarChart>
                 </ResponsiveContainer>
@@ -50,13 +127,37 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice}) => {
                         <YAxis />
                         <Tooltip />
                         <Legend />
-                        {/* <Bar dataKey="total_machine_hours" fill="#8884d8" name="Machine Hours" /> */}
                         <Bar dataKey="total_samples" fill="#ffc658" name="样品数量" />
                     </BarChart>
                 </ResponsiveContainer>
-            </div>
+            </div> */}
+            <hr className='chart-horizon'></hr>
+            <h1 className='chart-title'>部门统计</h1>
+
+            <h2>部门统计（每年每月的总委托金额）</h2>
+            
+            {/* 遍历每个年份，生成多个折线图 */}
+            {Object.keys(groupedPrice).map(year => (
+                <div key={year} className="bar-chart">
+                    <h3>{year} 年</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={groupedPrice[year]}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                            <YAxis 
+                                domain={[0, Math.max(...groupedPrice[year].map(item => item.total_listed_price)) * 1.1]} 
+                            />
+                            <Tooltip />
+                            <Legend />
+                            <Line type="monotone" dataKey="total_listed_price" stroke="#0066cc" name="总委托金额" />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            ))}
 
 
+            <hr className='chart-horizon'></hr>
+            <h1 className='chart-title'>设备统计</h1>
             <div className="bar-chart equipment-bar">
                 <h2>设备数据</h2>
                 <ResponsiveContainer width="100%" height="100%">
@@ -91,43 +192,6 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice}) => {
                 </ResponsiveContainer>
 
             </div>
-
-
-            {/* <div className="pie-chart">
-                <h2>设备数据</h2>
-                <ResponsiveContainer width="85%" height="85%">
-                    <PieChart>
-                        <Pie
-                            dataKey="total_machine_hours"
-                            data={equipmentData}
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            fill="#82ca9d"
-                            labelLine={true}
-                            label={({ equipment_name, total_machin_hours, cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-                                const RADIAN = Math.PI / 180;
-                                const radius = outerRadius + 30; // Radius of the label
-                                const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                                const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                                return (
-                                    <text
-                                        x={x}
-                                        y={y}
-                                        fill="#8884d8"
-                                        textAnchor={x > cx ? 'start' : 'end'}
-                                        dominantBaseline="central"
-                                    >
-                                        {`${equipment_name} (${total_machin_hours} hrs)`}
-                                    </text>
-                                );
-                            }}
-                        />
-                        <Tooltip formatter={(value) => [`${value} hrs`, 'Machine Hours']} />
-                        <Legend />
-                    </PieChart>
-                </ResponsiveContainer>
-            </div> */}
 
         </div>
 
