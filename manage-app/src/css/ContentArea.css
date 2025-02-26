@@ -438,13 +438,10 @@ nav {
 
 /* 定义已交付状态的背景颜色样式 */
 .row-delivered {
-    background-color: #d4edda; /* 柔和的绿色 */
+    background-color: #c3e6cb; /* 柔和的绿色 */
     color: #155724;           /* 深绿色字体，提升可读性 */
 }
 
-.row-delivered:hover {
-    background-color: #c3e6cb; /* 悬停时更亮的绿色 */
-}
 
 /* 设备预约按钮 */
 .reserve-button{

@@ -30,7 +30,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipments, setEquipments] = useState([]);
     const [employeeStats, setEmployeeStats] = useState([]);
     const [equipmentStats, setEquipmentStats] = useState([]);
-    const [yearlyPriceStats, setYearlyPriceStats] = useState([]);    
+    const [yearlyPriceStats, setYearlyPriceStats] = useState([]);
     const [sumPrice, setSumPrice] = useState('');
     const [equipmentTimeline, setEquipmentTimeline] = useState([]);
     const [accountTime, setAccountTime] = useState([]);
@@ -41,9 +41,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [description, setDescription] = useState('');
     const [filterData, setFilterData] = useState('');
     const [activePage, setActivePage] = useState(1);
-    const [months, setMonths] = useState([]);    //按月份筛选
     const [finalPrice, setFinalPrice] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('');
+    const [periodOptions, setPeriodOptions] = useState([]);
+    const [months, setMonths] = useState('');
+    const [selectedPeriod, setSelectedPeriod] = useState();  // 存储具体选中的月份、季度或年份
+
     const [selectedOrders, setSelectedOrders] = useState([]);
     const [selectedInvoices, setSelectedInvoices] = useState(new Set());
     const [isAllSelected, setIsAllSelected] = useState(false);
@@ -71,9 +74,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [filteredData, setFilteredData] = useState(""); // 存储选择预约设备时候的检测项目
     const [myReservationInfo, setMyReservationInfo] = useState(""); // 存储选择预约设备时候的检测项目
     const [editingPrice, setEditingPrice] = useState(false); // 存储选择预约设备时候的检测项目
-    const [editingMachineHours, setEditingMachineHours] = useState(false); // 存储选择预约设备时候的检测项目
+    // const [editingMachineHours, setEditingMachineHours] = useState(false);
     const [timePeriod, setTimePeriod] = useState('month'); // 按月、季度、年筛选数据统计
-
+    const [timeStatus, setTimeStatus] = useState('month'); // 按月、季度、年筛选数据统计
     const [showModal, setShowModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showFinishModal, setShowFinishModal] = useState(false);
@@ -477,10 +480,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     }, [departmentID, timePeriod])
 
     // 用于更改时间筛选条件
-    const handleTimePeriodChange = (event) => {
-        setTimePeriod(event.target.value);
+    const handleTimePeriodChange = async (e) => {
+        const selectedPeriod = e.target.value;
+        setTimePeriod(selectedPeriod);
+        //选择时间段以后，存储当前查询的时间段
+        setTimeStatus(selectedPeriod);
+        setSelectedPeriod('');
+        await fetchTimePeriods(selectedPeriod);
     };
-    
+
+    const handlePeriodChange = async (e) => {
+        setTimePeriod(e.target.value);
+        fetchStatistics(); 
+        console.log(timeStatus)
+        fetchTimePeriods(timeStatus)
+    };
     // 获取设备时间线
     const fetchTimeline = useCallback(async () => {
         try {
@@ -516,20 +530,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }, [departmentID])
 
-    //获取检测信息所包含的月份
-    const fetchMonths = useCallback(async () => {
+    const fetchTimePeriods = useCallback(async (selectedPeriod) => {
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/api/months`);
-            setMonths(response.data);
+            const response = await axios.get(`${config.API_BASE_URL}/api/months/time-periods?timePeriod=${selectedPeriod}`);
+            setPeriodOptions(response.data);
+
         } catch (error) {
-            console.error('Error fetching months:', error);
+            console.error('Error fetching time periods:', error);
         }
     }, []);
+
 
     //获取交易时间所包含的月份
     const fetchTransMonths = useCallback(async () => {
         try {
             const response = await axios.get(`${config.API_BASE_URL}/api/months/trans`);
+            console.log(response.data)
             setMonths(response.data);
         } catch (error) {
             console.error('Error fetching months:', error);
@@ -631,27 +647,28 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     useEffect(() => {
         if ((role === 'employee')) {
-            fetchMonths();
             if (selected === 'timeline') {
                 fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchData('orders');
-            } else {
+            } else if(selected === 'handleTests'){
                 fetchDataForEmployee(account);
+                fetchTimePeriods('month');
             }
         } else if (role === 'supervisor' || role === 'leader') {
-            fetchMonths();
+            fetchTimePeriods(timeStatus)
             if (selected === 'dataStatistics') {
                 fetchStatistics()
             } else if (selected === 'timeline') {
                 fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchData('orders');
-            } else {
+            } else if (selected === 'handleTests'){
                 fetchDataForSupervisor(departmentID);
+                fetchTimePeriods('month');
             }
         } else if (role === 'sales') {
-            fetchMonths();
+            fetchTimePeriods('month');
             if (selected === 'timeline') {
                 fetchTimeline()
             } else if (selected === 'getCommission') {
@@ -671,7 +688,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchData('samples');
             } else if (selected === 'getTests') {
                 fetchData('tests');
-                fetchMonths();
+                fetchTimePeriods('month');
             } else if (selected === 'customerInfo') {
                 fetchCustomers();
             } else if (selected === 'payerInfo') {
@@ -700,6 +717,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         departmentID,
         role,
         groupId,
+        timeStatus,
         fetchData,
         fetchDataForEmployee,
         fetchDataForSupervisor,
@@ -708,7 +726,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchEquipments,
         fetchStatistics,
         fetchTimeline,
-        fetchMonths,
+        fetchTimePeriods,
         fetchTransMonths,
         fetchCustomers,
         fetchTransactions,
@@ -716,7 +734,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchPayers,
         fetchOrdersForSales,
         fetchEquipmentSchedule,
-        fetchMyReservation
+        fetchMyReservation,
     ]);
 
     // 当用户选择标签时，直接更新筛选后的设备
@@ -736,6 +754,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setCurrentItem(item);
         setShowModal(true);
     };
+
+
 
 
     const handleEditCustomer = (item) => {
@@ -921,15 +941,27 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "material": "材料",
                 "service_type": "服务类型",
                 "order_status": "订单状态",
+                "total_listed_price": "委托总金额",
                 "total_discounted_price": "业务总价",
-                "name": "业务员"
+                "name": "业务员",
+                "area": "区域",
+                "organization": "客户性质"
             };
             // 使用映射表调整 data 中的字段名
             const mappedData = data.map(item => {
                 const mappedItem = {};
                 Object.keys(item).forEach(key => {
                     const mappedKey = fieldMapping[key] || key;  // 如果有映射字段名就使用映射值，否则保持原字段名
-                    mappedItem[mappedKey] = item[key];
+                    let value = item[key];
+                    if (key === 'order_status') {
+                        mappedItem[mappedKey] = orderStatusLabels[value] || '';  // 如果没有找到对应状态，则设置为空
+                    }
+                    else if (key === 'service_type') {
+                        mappedItem[mappedKey] = serviceTypeLabels[value] || '';  // 如果没有找到对应状态，则设置为空
+                    }
+                    else {
+                        mappedItem[mappedKey] = value;  // 其他字段保持原值
+                    }
                 });
                 return mappedItem;
             });
@@ -946,8 +978,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "材料",
                 "服务类型",
                 "订单状态",
+                "委托总金额",
                 "业务总价",
-                "业务员"];
+                "业务员",
+                "区域",
+                "客户性质"];
             setCommissionData({ data: mappedData, headers, filename: "委托单统计" });
             setShowExcelExportModal(true);
 
@@ -2018,7 +2053,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         if (text) {
             const regex = new RegExp(`(${searchText})`, 'gi'); // 使用正则表达式进行不区分大小写的匹配
             const parts = text.toString().split(regex);  // 根据匹配结果拆分字符串
-
             // 将匹配的部分包裹在 <span> 标签中，添加高亮样式
             return parts.map((part, index) =>
                 regex.test(part) ? <span key={index} className="highlight">{part}</span> : part
@@ -2034,7 +2068,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'handleTests':
                     // 为员工定制的视图逻辑
-                    headers = ["委托单号", "我的检测项目", "状态", "客户名称", "联系人", "剩余天数", "负责人", "机时", "工时", "标准价格", "附件", "组长指派时间", "样品原号", "客户备注", "审批意见"];
+                    headers = ["委托单号", "我的检测项目", "状态", "客户名称", "联系人", "剩余天数", "负责人", "数量", "机时", "工时", "标准价格", "附件", "组长指派时间", "样品原号", "客户备注", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}
                             className={item.status === '5' ? 'row-delivered' : ''}
@@ -2050,6 +2084,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>
                                 {item.manager_names ? `${item.manager_names}` : '暂未分配'}
                             </td>
+                            <td>{item.quantity}</td>
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
                             <td>{item.listed_price}</td>
@@ -2058,12 +2093,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.original_no}</td>
                             <td>{item.note}</td>
                             <td>{item.check_note}</td>
-
                             <td className='fixed-column'>
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                                {(item.status !== '3') && (
+                                {(item.status !== '3' && item.status !== '5') && (
                                     <Button onClick={() => handleOpenFinishModal(item)}>完成</Button>
                                 )}
+
                                 {/* 只有当状态不是'2'（已检测）时，才显示转办按钮 */}
                                 {(item.status === '0' || item.status === '1') && (
                                     <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
@@ -2127,7 +2162,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'handleTests':
                     // 为员工定制的视图逻辑
-                    headers = ["委托单号", "检测项目", "状态", "剩余天数", "客户名称", "联系人", "检测人员", "业务人员", "附件", "客户备注", "审批意见", "机时", "工时", "标准价格", "样品原号"];
+                    headers = ["委托单号", "检测项目", "状态", "剩余天数", "客户名称", "联系人", "检测人员", "业务人员", "附件", "客户备注", "审批意见", "数量", "机时", "工时", "标准价格", "样品原号"];
                     rows = currentItems.map((item, index) => (
                         <tr key={index}
                             className={item.status === '5' ? 'row-delivered' : ''}
@@ -2149,6 +2184,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
                             <td>{item.note}</td>
                             <td>{item.check_note}</td>
+                            <td>{item.quantity}</td>
                             <td>{item.machine_hours}</td>
                             <td>{item.work_hours}</td>
                             <td>{item.listed_price}</td>
@@ -2163,7 +2199,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                                 )}
 
-                                {item.status !== '3' && item.status !== '5' && (
+                                {(item.status ==='1' || item.status === '2') && (
                                     <Button
                                         onClick={() => handleAssignment(item.test_item_id)}
                                         className={item.appoint_time ? 'assigned-btn' : 'unassigned-btn'}
@@ -2628,9 +2664,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                             <td className='fixed-column'>
                                 {/* 当状态是待检测时，显示分配按钮 */}
-                                {item.status === '0' && (
+                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+                                {/* {item.status === '0' && (
                                     <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
-                                )}
+                                )} */}
                                 <Button onClick={() => handleEdit(item)}>修改</Button>
                                 <Button variant="danger" onClick={() => handleDelete(item.test_item_id)}>删除</Button>
                             </td>
@@ -2738,13 +2775,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
             {selected ? (
                 selected === 'dataStatistics' ? (
-                    <DataStatistics 
-                        employeeData={employeeStats} 
-                        equipmentData={equipmentStats} 
-                        sumPrice={sumPrice} 
+                    <DataStatistics
+                        employeeData={employeeStats}
+                        equipmentData={equipmentStats}
+                        sumPrice={sumPrice}
                         handleTimePeriodChange={handleTimePeriodChange}
                         timePeriod={timePeriod}
+                        timeStatus={timeStatus}
                         yearlyPriceData={yearlyPriceStats}
+                        periodOptions={periodOptions}
+                        handlePeriodChange={handlePeriodChange}
+                        selectedPeriod={selectedPeriod}
                     />
                 ) : selected === 'timeline' ? (
                     <EquipmentTimeline tasks={equipmentTimeline} equipments={equipments} /> // 显示设备时间线
@@ -2815,12 +2856,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                                     </select>&nbsp;&nbsp;&nbsp;
                                     <span>月份：</span>
-                                    <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
-                                        <option value="">选择月份</option>
-                                        {months.map(({ month }) => (
-                                            <option key={month} value={month}>{month}</option>
-                                        ))}
-                                    </select>&nbsp;&nbsp;&nbsp;
+                                    {periodOptions && (
+                                        <>
+                                            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                                                <option value="">选择月份</option>
+                                                {periodOptions.map((option, index) => (
+                                                    <option key={index} value={option.month}>
+                                                        {option.month}
+                                                    </option>
+                                                ))}
+                                            </select>&nbsp;&nbsp;&nbsp;
+                                        </>
+                                    )}
                                     <span>委托单号：</span>
                                     <input
                                         type="text"
@@ -2972,12 +3019,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                                     <div>
                                         <span>筛选月份：</span>
-                                        <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
-                                            <option value="">选择月份</option>
-                                            {months.map(({ month }) => (
-                                                <option key={month} value={month}>{month}</option>
-                                            ))}
-                                        </select>
+                                        {months && (
+                                            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                                                <option value="">选择月份</option>
+                                                {months.map(({ month }) => (
+                                                    <option key={month} value={month}>{month}</option>
+                                                ))}
+                                            </select>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -3697,7 +3746,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                             <div>
                                 <strong>机时：</strong> {currentItem.machine_hours} 小时
-                                <Button
+                                {/* <Button
                                     variant="link"
                                     onClick={() => setEditingMachineHours(true)}
                                     style={{ marginLeft: '10px', padding: 0, marginTop: 0 }}
@@ -3728,7 +3777,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         style={{ marginTop: '5px', width: '150px' }}
                                         min={0}
                                     />
-                                )}
+                                )} */}
                             </div>
                             <div>
                                 <strong>工时：</strong> {currentItem.work_hours} 小时
@@ -4001,7 +4050,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             {/* 查看按钮 */}
             <Modal show={showDetailsModal} onHide={() => setShowDetailsModal(false)} size="lg">
                 <Modal.Header closeButton>
-                    <Modal.Title>详细信息</Modal.Title>
+                    <Modal.Title>{selectedDetails.test_item_id} - 详细信息</Modal.Title>
                 </Modal.Header>
                 <Modal.Body className='detailModal'>
                     <div className="detail-container">

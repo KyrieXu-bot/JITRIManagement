@@ -26,14 +26,31 @@ function LoginForm({ onLoginSuccess }) {
     }
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      handleLogin();
+    }
+  };
+
   return (
     <div className="login-container">
       <h1>集萃检测管理系统(Beta)</h1>
       <div className="form-group">
-        <input type="text" value={account} onChange={e => setAccount(e.target.value)} placeholder="账号" />
+        <input 
+          type="text" 
+          value={account} 
+          onChange={e => setAccount(e.target.value)} 
+          onKeyDown={handleKeyDown}
+          placeholder="账号" 
+        />
       </div>
       <div className="form-group">
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="密码" />
+        <input 
+          type="password"
+          value={password} 
+          onChange={e => setPassword(e.target.value)} 
+          onKeyDown={handleKeyDown}
+          placeholder="密码" />
       </div>
       <button class="loginButton" onClick={handleLogin}>登录</button>
     </div>

@@ -10,9 +10,6 @@ const router = express.Router();
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         const uploadPath = path.join(__dirname, '../uploads/'); // 使用绝对路径
-
-        console.log("Upload path: ", uploadPath); // 日志记录路径
-
         cb(null, uploadPath) // 确保此目录已存在，否则需要创建
     },
     // filename: function (req, file, cb) {
@@ -34,7 +31,6 @@ const storage = multer.diskStorage({
             const baseName = path.basename(originalName, fileExtension);
             fileName = `${baseName}(${count})${fileExtension}`;
         }
-
         cb(null, fileName);
     }
 });
@@ -47,6 +43,7 @@ router.post('/upload', (req, res) => {
         const projectId = Date.now();
         const files = req.files;
         const testItemId = req.body.testItemId;
+        const category = req.body.category; 
         if (err instanceof multer.MulterError) {
             // 发生错误
             return res.status(500).json(err);
@@ -63,7 +60,8 @@ router.post('/upload', (req, res) => {
             filename: file.filename,
             path: file.path,
             projectId: projectId, // 为每个文件关联同一个projectId
-            testItemId: testItemId
+            testItemId: testItemId,
+            category: category
         }));
 
         // 保存文件和项目ID到数据库的逻辑

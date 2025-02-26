@@ -5,8 +5,16 @@ import '../css/FileUpload.css'; // 引入CSS文件
 import { Modal, Button } from 'react-bootstrap'; // 引入 Modal 组件
 
 const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
-    const [files, setFiles] = useState([]);
-    const [uploadedFiles, setUploadedFiles] = useState([]);
+    const [files, setFiles] = useState({
+        commissionFiles: [],   // 委托单附件
+        rawDataFiles: [],      // 实验数据原始文件/记录
+        reportFiles: []        // 文件报告
+    });
+    const [uploadedFiles, setUploadedFiles] = useState({
+        commissionFiles: [],   // 委托单附件已上传
+        rawDataFiles: [],      // 实验数据原始文件/记录已上传
+        reportFiles: []        // 文件报告已上传
+    });
     const [uploadStatus, setUploadStatus] = useState(null);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -15,7 +23,13 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
     const fetchUploadedFiles = useCallback(async (testItemId) => {
         try {
             const response = await axios.get(`${config.API_BASE_URL}/api/files/${testItemId}`);
-            setUploadedFiles(response.data.files);
+            const categorizedFiles = {
+                commissionFiles: response.data.files.filter(file => file.category === '委托单附件'),
+                rawDataFiles: response.data.files.filter(file => file.category === '实验数据原始文件/记录'),
+                reportFiles: response.data.files.filter(file => file.category === '文件报告')
+            };
+            console.log(categorizedFiles)
+            setUploadedFiles(categorizedFiles);
         } catch (error) {
             console.error('Error fetching uploaded files', error);
         }
@@ -24,26 +38,30 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
 
     // 页面加载时获取已上传的文件
     useEffect(() => {
-        if (testItemId) {
+        if(testItemId){
             fetchUploadedFiles(testItemId);
         }
     }, [testItemId, fetchUploadedFiles]);
 
 
-    const onFileChange = (event) => {
+    const onFileChange = (category, event) => {
         // 将现有文件和新选择的文件合并
         const newFiles = Array.from(event.target.files);
-
-        setFiles(prevFiles => [...prevFiles, ...newFiles]);
+        setFiles(prevFiles => ({
+            ...prevFiles,
+            [category]: [...prevFiles[category] || [], ...newFiles]
+        }));
+        // setFiles(prevFiles => [...prevFiles, ...newFiles]);
     };
 
-    const onFileUpload = async () => {
-
-        if (files.length === 0) return;
-        for (const file of files) {
+    const onFileUpload = async (category) => {
+        const categoryFiles = files[category];
+        if (categoryFiles.length === 0) return;
+        for (const file of categoryFiles) {
             const formData = new FormData();
             formData.append("files", file);
             formData.append("testItemId", testItemId);
+            formData.append("category", category); // 添加分类信息
 
             try {
                 const response = await axios.post(`${config.API_BASE_URL}/api/files/upload`, formData, {
@@ -51,12 +69,21 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                         'Content-Type': 'multipart/form-data'
                     }
                 });
-                setUploadedFiles(prevUploaded => [...prevUploaded, ...response.data.files]);
+                // 更新已上传文件列表
+                setUploadedFiles(prevUploaded => ({
+                    ...prevUploaded,
+                    [category]: [...prevUploaded[category] || [], ...response.data.files]
+                }));
 
-                setFiles([]);  // 清空待上传的文件
+                setFiles(prevFiles => ({
+                    ...prevFiles,
+                    [category]: [] // 上传完成后清空该类别文件
+                }));
                 console.log('Files uploaded successfully', response.data);
                 setUploadStatus({ success: true, message: '上传成功！' });
+
                 setShowUploadModal(true); // 显示上传成功的 Modal
+                fetchUploadedFiles(testItemId);
 
 
             } catch (error) {
@@ -70,8 +97,11 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
 
 
     // 删除待上传的文件
-    const removeFile = index => {
-        setFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
+    const removeFile = (category, index) => {
+        setFiles(prevFiles => ({
+            ...prevFiles,
+            [category]: prevFiles[category].filter((_, i) => i !== index)
+        }));
     };
 
 
@@ -79,7 +109,13 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
     const removeUploadedFile = async () => {
         try {
             await axios.delete(`${config.API_BASE_URL}/api/files/delete/${fileToDelete}`);
-            setUploadedFiles(prevUploaded => prevUploaded.filter(file => file.project_id !== fileToDelete));
+            // 更新已上传文件列表
+            setUploadedFiles(prevUploaded => ({
+                ...prevUploaded,
+                commissionFiles: prevUploaded.commissionFiles.filter(file => file.project_id !== fileToDelete),
+                rawDataFiles: prevUploaded.rawDataFiles.filter(file => file.project_id !== fileToDelete),
+                reportFiles: prevUploaded.reportFiles.filter(file => file.project_id !== fileToDelete)
+            }));
             setShowDeleteModal(false); // 隐藏删除确认 Modal
             setUploadStatus({ success: true, message: '删除成功！' });
             setShowUploadModal(true); // 显示删除成功的 Modal
@@ -107,38 +143,93 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
 
     return (
         <div className="file-upload-container">
-            <div>
-                <input type="file" name="files" multiple onChange={onFileChange}/>
-                <button className="upload-button" onClick={onFileUpload}>上传文件</button>
-            </div>
-            {uploadStatus && <p>{uploadStatus.message}</p>}
+            <h5>委托单附件：</h5>
 
-            {/* 待上传文件列表 */}
-            {files && files.length > 0 && (
-                <ul className="file-list">
-                    {files.map((file, index) => (
-                        <li key={file.name} className="file-item">
-                            <span className="file-name">{file.name}</span>
-                            <button className="delete-button" onClick={() => removeFile(index)}>删除</button>
-                        </li>
-                    ))}
-                </ul>
-            )}
-
-            {/* 已上传文件列表 */}
-            {(uploadedFiles || []).length > 0 && (
-                <ul className="file-list">
-                    {uploadedFiles.map((file, index) => {
-                        return (
+            <div className="file-upload-module">
+                <input type="file" multiple onChange={(e) => onFileChange('委托单附件', e)} />
+                <button className="upload-button" onClick={() => onFileUpload('委托单附件')}>上传文件</button>
+                {files['委托单附件'] && files['委托单附件'].length > 0 && (
+                    <ul className="file-list">
+                        {files['委托单附件'].map((file, index) => (
+                            <li key={file.name} className="file-item">
+                                <span className="file-name">{file.name}</span>
+                                <button className="delete-button" onClick={() => removeFile('委托单附件', index)}>删除</button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {/* 显示已上传的委托单附件文件 */}
+                {uploadedFiles.commissionFiles && uploadedFiles.commissionFiles.length > 0 && (
+                    <ul className="file-list">
+                        {uploadedFiles.commissionFiles.map((file) => (
                             <li key={file.filename} className="file-item">
                                 <span className="file-name">{file.filename}</span>
                                 <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
                                 <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
                             </li>
-                        );
-                    })}
-                </ul>
-            )}
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            {/* Module for 实验数据原始文件/记录 */}
+            <h5>实验数据原始文件/记录：</h5>
+            <div className="file-upload-module">
+                <input type="file" multiple onChange={(e) => onFileChange('实验数据原始文件/记录', e)} />
+                <button className="upload-button" onClick={() => onFileUpload('实验数据原始文件/记录')}>上传文件</button>
+                {files['实验数据原始文件/记录'] && files['实验数据原始文件/记录'].length > 0 && (
+                    <ul className="file-list">
+                        {files['实验数据原始文件/记录'].map((file, index) => (
+                            <li key={file.name} className="file-item">
+                                <span className="file-name">{file.name}</span>
+                                <button className="delete-button" onClick={() => removeFile('实验数据原始文件/记录', index)}>删除</button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {/* 显示已上传的实验数据原始文件/记录 */}
+                {uploadedFiles.rawDataFiles && uploadedFiles.rawDataFiles.length > 0 && (
+                    <ul className="file-list">
+                        {uploadedFiles.rawDataFiles.map((file) => (
+                            <li key={file.filename} className="file-item">
+                                <span className="file-name">{file.filename}</span>
+                                <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
+                                <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            {/* Module for 文件报告 */}
+            <h5>文件报告：</h5>
+            <div className="file-upload-module">
+                <input type="file" multiple onChange={(e) => onFileChange('文件报告', e)} />
+                <button className="upload-button" onClick={() => onFileUpload('文件报告')}>上传文件</button>
+                {files['文件报告'] && files['文件报告'].length > 0 && (
+                    <ul className="file-list">
+                        {files['文件报告'].map((file, index) => (
+                            <li key={file.name} className="file-item">
+                                <span className="file-name">{file.name}</span>
+                                <button className="delete-button" onClick={() => removeFile('文件报告', index)}>删除</button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {/* 显示已上传的文件报告 */}
+                {uploadedFiles.reportFiles && uploadedFiles.reportFiles.length > 0 && (
+                    <ul className="file-list">
+                        {uploadedFiles.reportFiles.map((file) => (
+                            <li key={file.filename} className="file-item">
+                                <span className="file-name">{file.filename}</span>
+                                <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
+                                <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+            {/* {uploadStatus && <p>{uploadStatus.message}</p>} */}
 
             {/* 上传成功 Modal */}
             <Modal show={showUploadModal} onHide={handleModalClose}>

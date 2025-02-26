@@ -1,13 +1,32 @@
 import React from 'react';
 import { LineChart, Line, BarChart, Bar,  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import '../css/Statistics.css'
-const DataStatistics = ({ employeeData, equipmentData, sumPrice, handleTimePeriodChange, timePeriod, yearlyPriceData}) => {
+const DataStatistics = ({ employeeData, equipmentData, sumPrice, handleTimePeriodChange, timePeriod, timeStatus, yearlyPriceData, periodOptions, handlePeriodChange, selectedPeriod}) => {
     const groupByPeriod = (data, period) => {
         const grouped = {};
         data.forEach(item => {
-            const key = period === 'year' ? item.year :
-                period === 'quarter' ? `${item.year}-${item.quarter}` :
-                `${item.year}-${item.month}`;
+            let key;
+
+            if (period === 'year') {
+                // 按年份分组：例如 2024
+                key = `${item.year}`;
+            } else if (period === 'month') {
+                // 按月份分组：例如 2024-11
+                key = `${item.year}-${item.month}`;
+            } else if (period === 'quarter') {
+                // 按季度分组：例如 2024-Q1
+                key = `${item.year}${item.quarter}`;
+            } else if (period.includes('季度')) {
+                // 处理类似 '2024第四季度' 或 '2024年第一季度' 的具体季度
+                const [year, quarter] = period.split('年');
+                key = `${year}-${quarter}`; // 去掉 "季度" 字符
+            } else if (period.includes('-')) {
+                // 处理类似 '2023-11' 的月份格式
+                key = period;  // 直接用 'yyyy-MM'
+            } else {
+                // 如果是类似 '2021' 的年份
+                key = period;
+            }
             if (!grouped[key]) {
                 grouped[key] = [];
             }
@@ -15,6 +34,7 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice, handleTimePerio
         });
         return grouped;
     };
+
 
     const groupByYear = (data) => {
         const grouped = {};
@@ -44,7 +64,6 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice, handleTimePerio
     return (
         
         <div className="chart-container">
-
             {/* 总委托金额 */}
             <div className="total-price-container">
                 <h2>总委托金额</h2>
@@ -56,23 +75,37 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice, handleTimePerio
             <h1 className='chart-title'>员工统计</h1>
             <div className="time-period-selector">
                 <h4>请按时间段进行筛选：</h4>
-                <select onChange={handleTimePeriodChange} value={timePeriod}>
+                <select onChange={handleTimePeriodChange} value={timeStatus}>
                     <option value="month">按月</option>
                     <option value="quarter">按季度</option>
                     <option value="year">按年</option>
                 </select>
+                &nbsp;&nbsp;
+                {timePeriod && periodOptions && (
+                    <select onChange={handlePeriodChange} value={selectedPeriod}>
+                    {timeStatus === 'month' ? (
+                        <option value="">请选择月份</option>
+                    ) : timeStatus === 'quarter'? (
+                        <option value="">请选择季度</option>
+                    ) : (
+                        <option value="">请选择年份</option>
+                    )}
+                    {periodOptions.map((option, index) => (
+                        <option key={index} value={option.month || option.quarter || option.year}>
+                            {option.month || option.quarter || option.year}
+                        </option>
+                    ))}
+                </select>
+                )}
             </div>
+
+            
             {/* 按时间粒度展示多个图表 */}
             {Object.keys(groupedData).map((periodKey) => {
-                const periodData = groupedData[periodKey];
-                const periodLabel = timePeriod === 'month' 
-                    ? `${periodKey.replace('-', '年')}月` 
-                    : timePeriod === 'quarter' 
-                    ? `${periodKey.replace('-', '年')}` // Format for quarters (e.g., "2024年Q1")
-                    : `${periodKey.replace('-', '年')}年`; // Format for years (e.g., "2024年")
+                const periodData = groupedData[periodKey];                
                 return (
                     <div key={periodKey} className={`bar-chart ${timePeriod !== 'year' ? 'time-classify' : ''}`}>
-                        <h3>{periodLabel}</h3>
+                        <h3>{periodKey}</h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={periodData}>
                                 <CartesianGrid strokeDasharray="3 3" />
@@ -134,7 +167,7 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice, handleTimePerio
             <hr className='chart-horizon'></hr>
             <h1 className='chart-title'>部门统计</h1>
 
-            <h2>部门统计（每年每月的总委托金额）</h2>
+            <h2>（每年每月的总委托金额）</h2>
             
             {/* 遍历每个年份，生成多个折线图 */}
             {Object.keys(groupedPrice).map(year => (

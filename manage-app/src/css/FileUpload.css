@@ -8,14 +8,32 @@
     background-color: #f9f9f9;
 }
 
-.file-upload-container>div:first-child{
+/* 文件上传模块样式 */
+.file-upload-module {
+    margin-bottom: 20px; /* 给每个模块底部留些间距 */
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 文件上传模块标题 */
+.file-upload-container h5 {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+/* .file-upload-container>div{
     display: flex;
     width: 100%;
     justify-content: space-between;
     align-items: center;
-}
+} */
 
-.file-upload-container>div:first-child>input:first-child{
+.file-upload-container>div>input{
     flex-grow: 1;
 }
 .file-upload-container>p:first-of-type{

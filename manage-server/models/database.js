@@ -141,6 +141,9 @@ async function getCommissionForExcel(selectedOrders) {
         s.material,
         o.service_type,
         o.order_status,
+        p.organization,
+        p.area,
+        SUM(t.listed_price) AS total_listed_price,
         SUM(t.discounted_price) AS total_discounted_price,
         u.name
     FROM orders o
@@ -156,7 +159,8 @@ async function getCommissionForExcel(selectedOrders) {
     AND o.order_num IN (${placeholders})
     GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
             c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
-            p.payer_address, o.service_type, o.order_status, a.account, u.name
+            p.payer_address, o.service_type, o.order_status, a.account, u.name,
+            p.area, p.organization
     `;
 
     try {
@@ -504,8 +508,10 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
     }
 
     if (month !== undefined && month !== '') {
-        query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
-        params.push(month);
+        const [year, monthPart] = month.split('-');
+        const monthComparison = `${year.slice(2)}${monthPart}`;
+        query += ' AND MID(t.order_num, 3, 4) = ?';
+        params.push(monthComparison); 
     }
 
     if (orderNum !== undefined && orderNum !== '') {
@@ -618,8 +624,10 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
     }
 
     if (month !== undefined && month !== '') {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ` DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
-        params.push(month);
+        const [year, monthPart] = month.split('-');
+        const monthComparison = `${year.slice(2)}${monthPart}`;
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ` MID(t.order_num, 3, 4) = ?`;
+        params.push(monthComparison); 
         whereClauseAdded = true;
     }
 
@@ -870,7 +878,7 @@ async function getAssignedTestsByUser(userId, status, month, customerName, order
         assignments a ON t.test_item_id = a.test_item_id
     JOIN 
         users u ON u.account = a.account
-    JOIN 
+    LEFT JOIN 
         price p ON p.price_id = t.price_id
     WHERE 
         EXISTS (
@@ -888,8 +896,10 @@ async function getAssignedTestsByUser(userId, status, month, customerName, order
         params.push(status);
     }
     if (month !== undefined && month !== '') {
-        query += ` AND DATE_FORMAT(t.create_time, '%Y-%m') = ?`;
-        params.push(month);
+        const [year, monthPart] = month.split('-');
+        const monthComparison = `${year.slice(2)}${monthPart}`;
+        query += ' AND MID(t.order_num, 3, 4) = ?';
+        params.push(monthComparison); 
     }
     if (orderNum !== undefined && orderNum !== '') {
         query += ' AND t.order_num LIKE ?';
@@ -988,6 +998,9 @@ async function getAssignmentsByTestItemId(testItemId) {
             WHERE a.test_item_id = ? `;
         const [results] = await connection.query(query, [testItemId]);
         return results;
+    } catch (error) {
+        console.error("Error while querying assignments: ", error);
+        throw error; // Rethrow the error to handle it in the calling function
     } finally {
         connection.release();
     }
@@ -998,8 +1011,17 @@ async function updateIsAssigned(testItemId, account, isAssigned) {
 
     const connection = await db.getConnection();
     try {
+        await connection.beginTransaction();
+
         const query = `UPDATE assignments SET is_assigned = ? WHERE test_item_id = ? AND account = ?`;
         await connection.query(query, [isAssigned, testItemId, account]);
+        await connection.commit();
+
+    } catch (error) {
+        // 发生错误时回滚事务
+        console.error("Error during updateIsAssigned: ", error);
+        await connection.rollback();
+        throw error; // Rethrow the error to handle it in the calling function
     } finally {
         connection.release();
     }
@@ -1024,39 +1046,12 @@ async function getEquipmentsByDepartment(departmentId) {
 
 // 获取员工的总机时和工时
 async function getEmployeeWorkStats(departmentId, timePeriod) {
-    // const query = `
-    //     SELECT 
-    //         u.account,
-    //         u.name,
-    //         COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
-    //         COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
-    //         COALESCE(SUM(t.size), 0) AS total_samples,
-    //         COALESCE(SUM(t.listed_price), 0) AS total_listed_price
-    //     FROM 
-    //         users u
-    //     LEFT JOIN 
-    //         assignments a ON u.account = a.account AND a.is_assigned = 1
-    //     LEFT JOIN 
-    //         test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
-    //     WHERE 
-    //         u.department_id = ?
-    //     GROUP BY 
-    //         u.account, u.name
-    //     ;
-
-    // `;
-    // try {
-    //     const [results] = await db.query(query, [departmentId]);
-    //     return results;
-    // } catch (error) {
-    //     console.error('Failed to fetch employee work stats:', error);
-    //     throw error;
-    // }
-
     let query;
     let queryParams = [departmentId];
-    // 根据时间筛选条件，生成不同的查询
-    if (timePeriod === 'month') {
+
+    // 按具体的月份（yyyy-MM）处理
+    if (timePeriod.includes('-')) {
+        const [year, month] = timePeriod.split('-');  // 获取年份和月份
         query = `
             SELECT 
                 u.account,
@@ -1074,7 +1069,130 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
             LEFT JOIN 
                 test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
             WHERE 
-                u.department_id = ?  and u.role != 'leader'
+                u.department_id = ? 
+                and u.role != 'leader' 
+                AND t.order_num IS NOT NULL
+                AND a.is_assigned = '1'
+                AND CONCAT('20', MID(t.order_num, 3, 2)) = ? 
+                AND MID(t.order_num, 5, 2) = ?
+            GROUP BY 
+                u.account, u.name, 
+                CONCAT('20', MID(t.order_num, 3, 2)),
+                MID(t.order_num, 5, 2)
+            ORDER BY 
+                year, month;
+        `;
+        queryParams.push(year, month);
+    }
+    // 按季度（例如：'2025年第一季度' 或 '2025年Q1'）处理
+    else if (timePeriod.includes('季度')) {
+        const year = timePeriod.split('年')[0].trim(); // 获取年份
+        const quarter = timePeriod.includes('第一') ? '第一季度' :
+                        timePeriod.includes('第二') ? '第二季度' :
+                        timePeriod.includes('第三') ? '第三季度' : '第四季度'; // 获取季度
+
+        query = `
+            SELECT 
+                u.account,
+                u.name,
+                COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+                COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+                COALESCE(SUM(t.size), 0) AS total_samples,
+                COALESCE(SUM(t.listed_price), 0) AS total_listed_price,
+                CONCAT('20', MID(t.order_num, 3, 2)) AS year,
+                CASE 
+                    WHEN MID(t.order_num, 5, 2) IN ('01', '02', '03') THEN '第一季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('04', '05', '06') THEN '第二季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('07', '08', '09') THEN '第三季度'
+                    ELSE '第四季度'
+                END AS quarter
+            FROM 
+                users u
+            LEFT JOIN 
+                assignments a ON u.account = a.account
+            LEFT JOIN 
+                test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+            WHERE 
+                u.department_id = ? 
+                and u.role != 'leader' 
+                AND t.order_num IS NOT NULL
+                AND a.is_assigned = '1'
+                AND CONCAT('20', MID(t.order_num, 3, 2)) = ? 
+                AND CASE 
+                    WHEN MID(t.order_num, 5, 2) IN ('01', '02', '03') THEN '第一季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('04', '05', '06') THEN '第二季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('07', '08', '09') THEN '第三季度'
+                    ELSE '第四季度'
+                END = ?
+            GROUP BY 
+                u.account, u.name, 
+                CONCAT('20', MID(t.order_num, 3, 2)),
+                CASE 
+                    WHEN MID(t.order_num, 5, 2) IN ('01', '02', '03') THEN '第一季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('04', '05', '06') THEN '第二季度'
+                    WHEN MID(t.order_num, 5, 2) IN ('07', '08', '09') THEN '第三季度'
+                    ELSE '第四季度'
+                END
+            ORDER BY 
+                year, quarter;
+        `;
+        queryParams.push(year, quarter);
+    }
+    // 按年（例如：'2024'）处理
+    else if (timePeriod.length === 4 && !isNaN(timePeriod)) {
+        const year = timePeriod; // 获取年份
+        query = `
+            SELECT 
+                u.account,
+                u.name,
+                COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+                COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+                COALESCE(SUM(t.size), 0) AS total_samples,
+                COALESCE(SUM(t.listed_price), 0) AS total_listed_price,
+                CONCAT('20', MID(t.order_num, 3, 2)) AS year
+            FROM 
+                users u
+            LEFT JOIN 
+                assignments a ON u.account = a.account
+            LEFT JOIN 
+                test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+            WHERE 
+                u.department_id = ?  
+                and u.role != 'leader' 
+                AND t.order_num IS NOT NULL
+                AND a.is_assigned = '1'
+                AND CONCAT('20', MID(t.order_num, 3, 2)) = ?
+            GROUP BY 
+                u.account, u.name, 
+                CONCAT('20', MID(t.order_num, 3, 2))
+            ORDER BY 
+                year;
+        `;
+        queryParams.push(year);
+    } else if (timePeriod === 'month') {
+        // 根据时间筛选条件，生成不同的查询
+        query = `
+            SELECT 
+                u.account,
+                u.name,
+                COALESCE(SUM(t.machine_hours), 0) AS total_machine_hours,
+                COALESCE(SUM(t.work_hours), 0) AS total_work_hours,
+                COALESCE(SUM(t.size), 0) AS total_samples,
+                COALESCE(SUM(t.listed_price), 0) AS total_listed_price,
+                CONCAT('20', MID(t.order_num, 3, 2)) AS year,
+                MID(t.order_num, 5, 2) AS month
+            FROM 
+                users u
+            LEFT JOIN 
+                assignments a ON u.account = a.account
+            LEFT JOIN 
+                test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
+            WHERE 
+                u.department_id = ? 
+                and u.role != 'leader' 
+                AND t.order_num IS NOT NULL
+                AND a.is_assigned = '1'
+
             GROUP BY 
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2)),
@@ -1105,7 +1223,10 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
             LEFT JOIN 
                 test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
             WHERE 
-                u.department_id = ?  and u.role != 'leader'
+                u.department_id = ? 
+                and u.role != 'leader' 
+                AND t.order_num IS NOT NULL
+                AND a.is_assigned = '1'
             GROUP BY 
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2)),
@@ -1135,7 +1256,10 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
             LEFT JOIN 
                 test_items t ON a.test_item_id = t.test_item_id AND t.department_id = u.department_id
             WHERE 
-                u.department_id = ?  and u.role != 'leader'
+                u.department_id = ?  
+                and u.role != 'leader' 
+                AND t.order_num IS NOT NULL
+                AND a.is_assigned = '1'
             GROUP BY 
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2))
@@ -1234,24 +1358,71 @@ async function getEquipmentTimeline(departmentId) {
 
 }
 
-// 获取所有月份
+// Fetch all months based on order_num
 async function getAllMonths() {
     const query = `
         SELECT DISTINCT 
-            DATE_FORMAT(create_time, '%Y-%m') as month
+            CONCAT('20', MID(order_num, 3, 2), '-', MID(order_num, 5, 2)) AS month
         FROM 
             test_items
         WHERE 
-            create_time is not null
+            order_num IS NOT NULL
         ORDER BY 
             month DESC;
-
     `;
     try {
         const [results] = await db.query(query);
         return results;
     } catch (error) {
-        console.error('获取检测项目月份失败:', error);
+        console.error('Error fetching months:', error);
+        throw error;
+    }
+}
+
+// Fetch all quarters based on order_num
+async function getAllQuarters() {
+    const query = `
+        SELECT DISTINCT 
+            CONCAT('20', MID(order_num, 3, 2), '年第', 
+                   CASE 
+                       WHEN MID(order_num, 5, 2) BETWEEN '01' AND '03' THEN '一季度'
+                       WHEN MID(order_num, 5, 2) BETWEEN '04' AND '06' THEN '二季度'
+                       WHEN MID(order_num, 5, 2) BETWEEN '07' AND '09' THEN '三季度'
+                       ELSE '四季度' 
+                   END) AS quarter
+        FROM 
+            test_items
+        WHERE 
+            order_num IS NOT NULL
+        ORDER BY 
+            quarter DESC;
+    `;
+    try {
+        const [results] = await db.query(query);
+        return results;
+    } catch (error) {
+        console.error('Error fetching quarters:', error);
+        throw error;
+    }
+}
+
+// Fetch all years based on order_num
+async function getAllYears() {
+    const query = `
+        SELECT DISTINCT 
+            CONCAT('20', MID(order_num, 3, 2)) AS year
+        FROM 
+            test_items
+        WHERE 
+            order_num IS NOT NULL
+        ORDER BY 
+            year DESC;
+    `;
+    try {
+        const [results] = await db.query(query);
+        return results;
+    } catch (error) {
+        console.error('Error fetching years:', error);
         throw error;
     }
 }
@@ -1343,8 +1514,8 @@ async function saveFilesToDatabase(fileDetails) {
         await connection.beginTransaction(); // 开始事务
 
         for (const file of fileDetails) {
-            const sql = `INSERT INTO project_files (filename, filepath, project_id, test_item_id) VALUES (?, ?, ?, ?)`;
-            const values = [file.filename, file.path, file.projectId, file.testItemId];
+            const sql = `INSERT INTO project_files (filename, filepath, project_id, test_item_id, category) VALUES (?, ?, ?, ?, ?)`;
+            const values = [file.filename, file.path, file.projectId, file.testItemId, file.category];
             await connection.query(sql, values);
         }
 
@@ -1364,7 +1535,7 @@ async function getFilesByTestItemId(testItemId) {
     try {
         await connection.beginTransaction(); // 开始事务
 
-        const query = `SELECT filename, filepath, project_id FROM project_files WHERE test_item_id = ?`;
+        const query = `SELECT filename, filepath, project_id, category FROM project_files WHERE test_item_id = ?`;
         const [results] = await connection.query(query, [testItemId]);
         return results;
     } catch (error) {
@@ -2135,47 +2306,85 @@ async function getTestItemById(testItemId) {
     const [results] = await db.query(query, [testItemId]);
     return results[0];
 }
-// 复制检测项目并生成新的 ID
 
+// 复制检测项目并生成新的 ID
 async function duplicateTestItem(testItemData) {
     if (testItemData.equipment_id === '') {
         testItemData.equipment_id = null;
     }
 
-    const query = 
-    `INSERT INTO test_items (
-        order_num, 
-        original_no, 
-        test_item, 
-        test_method, 
-        size, 
-        quantity, 
-        note, 
-        status, 
-        department_id, 
-        deadline, 
-        create_time, 
-        equipment_id,
-        assign_time,
-        appoint_time
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(),NOW())`;
+    // 获取当前项目名称的基础名称
+    let baseTestItemName = testItemData.test_item;
+    const suffixRegex = /-(\d+)$/;  // 用于匹配名称后缀
 
-    const params = [
-        testItemData.order_num,
-        testItemData.original_no,
-        testItemData.test_item,
-        testItemData.test_method,
-        testItemData.size,
-        testItemData.quantity,
-        testItemData.note,
-        testItemData.status,
-        testItemData.department_id,
-        testItemData.deadline,
-        testItemData.equipment_id,
-    ];
+    // 去除名称中的后缀部分
+    let newTestItemName = baseTestItemName.replace(suffixRegex, '');
 
-    const [result] = await db.query(query, params);
-    return result.insertId; // 返回新生成的 test_item_id
+    // 初始化后缀为 1
+    let suffix = 1;
+    try {
+        // 查询数据库中的测试项目，获取相同名称的项目（不需要排除委托单号）
+        const [existingItems] = await db.query(
+            `SELECT test_item FROM test_items WHERE test_item LIKE ? AND order_num = ? AND department_id = ?`,
+            [`${newTestItemName}%`, testItemData.order_num, testItemData.department_id]
+        );
+
+        // 如果已经有相同名称的项目，获取最大后缀并递增
+        if (existingItems.length > 0) {
+            // 提取所有已存在的后缀，并排序后获取最大后缀
+            const suffixes = existingItems
+                .map(item => {
+                    const match = item.test_item.match(/-(\d+)$/);
+                    return match ? parseInt(match[1], 10) : 0; // 提取数字后缀
+                })
+                .sort((a, b) => b - a); // 降序排列
+
+            // 获取最大后缀并递增
+            suffix = suffixes[0] + 1; // 增加后缀
+        }
+        newTestItemName = `${newTestItemName}-${suffix}`;
+        const query = 
+        `INSERT INTO test_items (
+            order_num, 
+            original_no, 
+            test_item, 
+            test_method, 
+            size, 
+            quantity, 
+            note, 
+            status, 
+            department_id, 
+            deadline, 
+            create_time, 
+            equipment_id,
+            assign_time,
+            appoint_time
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(),NOW())`;
+    
+        const params = [
+            testItemData.order_num,
+            testItemData.original_no,
+            newTestItemName,
+            testItemData.test_method,
+            testItemData.size,
+            testItemData.quantity,
+            testItemData.note,
+            testItemData.status,
+            testItemData.department_id,
+            testItemData.deadline,
+            testItemData.equipment_id,
+        ];
+    
+        const [result] = await db.query(query, params);
+        return result.insertId; // 返回新生成的 test_item_id
+        
+
+    } catch (error) {
+        console.error('Error while checking for duplicate test items:', error);
+        throw new Error('Error while checking for duplicate test items');
+    }
+
+
 }
 
 
@@ -2368,5 +2577,8 @@ module.exports = {
     deleteInvoiceOrders,
     rollbackOrdersByInvoice,
     updateAppointTime,
-    getYearlyListedPrice
+    getYearlyListedPrice,
+    getAllMonths,
+    getAllQuarters,
+    getAllYears
 };
