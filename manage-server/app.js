@@ -10,7 +10,11 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../manage-app/build')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-
+// app.use((req, res, next) => {
+//     res.removeHeader('Connection');
+//     res.removeHeader('X-Powered-By');
+//     next();
+// });
 // 定义路由
 
 const customersRoutes = require('./routes/customers');
@@ -48,10 +52,24 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../manage-app/build', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3003;
+// 监听 80 端口（HTTP）
+// const PORT = process.env.PORT || 3003;
 
-app.listen(3003, () => {
+// app.listen(3003, () => {
+//     console.log('Server running on http://localhost:3003');
+// });
+
+// 监听 80 和 3003
+const http = require('http');
+const server = http.createServer(app);
+
+// server.listen(443, () => {
+//     console.log('Server running on http://localhost:443');
+// });
+
+server.listen(3003, () => {
     console.log('Server running on http://localhost:3003');
 });
+
 
 module.exports = app;

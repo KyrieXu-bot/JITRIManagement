@@ -42,7 +42,7 @@ router.post('/', async (req, res) => {
 // 更新客户信息
 router.patch('/:customer_id', async (req, res) => {
     const customerId = req.params.customer_id;
-    const { customer_name, customer_address, contact_name, contact_phone_num, contact_email, category, area, organization } = req.body;
+    const { customer_name, customer_address, contact_name, contact_phone_num, contact_email} = req.body;
   
     // 组织更新数据
     const customerData = {

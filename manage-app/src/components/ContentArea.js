@@ -492,7 +492,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const handlePeriodChange = async (e) => {
         setTimePeriod(e.target.value);
         fetchStatistics(); 
-        console.log(timeStatus)
         fetchTimePeriods(timeStatus)
     };
     // 获取设备时间线
@@ -545,7 +544,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const fetchTransMonths = useCallback(async () => {
         try {
             const response = await axios.get(`${config.API_BASE_URL}/api/months/trans`);
-            console.log(response.data)
             setMonths(response.data);
         } catch (error) {
             console.error('Error fetching months:', error);
@@ -571,7 +569,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         reservation.reservations.map((item, itemIndex) => ({
             id: `${reservation.equipment_id}-${itemIndex}`, // 唯一ID，组合设备ID和预约的索引
             group: reservation.equipment_id, // 设备ID
-            title: `${reservation.equipment_name}(${reservation.equipment_label})`, // 设备名称作为标题
+            title: `${item.order_num}-${item.test_item}-${item.customer_name}(${item.contact_name})-${item.sales_name}`, // 设备名称作为标题
             start_time: new Date(item.start_time).getTime(), // 预约的开始时间
             end_time: new Date(item.end_time).getTime(), // 预约的结束时间
         }))
@@ -652,8 +650,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             } else if (selected === 'getCommission') {
                 fetchData('orders');
             } else if(selected === 'handleTests'){
-                fetchDataForEmployee(account);
                 fetchTimePeriods('month');
+                fetchDataForEmployee(account);
+            } else if (selected === 'getReservation'){
+                fetchDataForEmployee(account);
+            } else if (selected === ''){
+                fetchDataForEmployee(account);
             }
         } else if (role === 'supervisor' || role === 'leader') {
             fetchTimePeriods(timeStatus)
@@ -664,8 +666,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             } else if (selected === 'getCommission') {
                 fetchData('orders');
             } else if (selected === 'handleTests'){
-                fetchDataForSupervisor(departmentID);
                 fetchTimePeriods('month');
+                fetchDataForSupervisor(departmentID);
+            } else if (selected === 'getReservation' || selected === ''){
+                fetchDataForSupervisor(departmentID);
             }
         } else if (role === 'sales') {
             fetchTimePeriods('month');
@@ -2135,9 +2139,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
                             <td>{item.model}</td>
@@ -2241,9 +2246,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
                             <td>{item.model}</td>
@@ -2343,9 +2349,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
                             <td>{item.model}</td>
@@ -2447,9 +2454,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
                             <td>{item.model}</td>
@@ -2737,9 +2745,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     break;
 
                 case 'myReservation':
-                    headers = ["检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
                             <td>{item.model}</td>
@@ -3929,7 +3938,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     const calculatedPrice = finishData.calculationMode === 'machineHours'
                                         ? updatedListedPrice * finishData.machine_hours
                                         : updatedListedPrice * finishData.quantity;
-                                    console.log(updatedListedPrice)
                                     setFinishData({
                                         ...finishData,
                                         unit_price: updatedListedPrice,

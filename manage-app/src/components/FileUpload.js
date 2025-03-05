@@ -20,6 +20,22 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [fileToDelete, setFileToDelete] = useState(null);
 
+    const [uploadProgress, setUploadProgress] = useState({
+        '委托单附件': 0,
+        '实验数据原始文件/记录': 0,
+        '文件报告': 0
+    }); // 进度条
+    const [uploading, setUploading] = useState({
+        '委托单附件': false,
+        '实验数据原始文件/记录': false,
+        '文件报告': false
+    }); // 是否正在上传
+    const [cancelSource, setCancelSource] = useState({
+        '委托单附件': null,
+        '实验数据原始文件/记录': null,
+        '文件报告': null
+    }); // 用于取消上传
+
     const fetchUploadedFiles = useCallback(async (testItemId) => {
         try {
             const response = await axios.get(`${config.API_BASE_URL}/api/files/${testItemId}`);
@@ -28,7 +44,6 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                 rawDataFiles: response.data.files.filter(file => file.category === '实验数据原始文件/记录'),
                 reportFiles: response.data.files.filter(file => file.category === '文件报告')
             };
-            console.log(categorizedFiles)
             setUploadedFiles(categorizedFiles);
         } catch (error) {
             console.error('Error fetching uploaded files', error);
@@ -57,6 +72,10 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
     const onFileUpload = async (category) => {
         const categoryFiles = files[category];
         if (categoryFiles.length === 0) return;
+        setUploading(prev => ({ ...prev, [category]: true }));
+        const source = axios.CancelToken.source();
+        setCancelSource(prev => ({ ...prev, [category]: source }));
+
         for (const file of categoryFiles) {
             const formData = new FormData();
             formData.append("files", file);
@@ -67,7 +86,14 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                 const response = await axios.post(`${config.API_BASE_URL}/api/files/upload`, formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data'
-                    }
+                    },
+                    onUploadProgress: (progressEvent) => {
+                        if (progressEvent.total) {
+                            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                            setUploadProgress(percent); // 更新进度条
+                        }
+                    },
+                    cancelToken: source.token // 传递取消令牌
                 });
                 // 更新已上传文件列表
                 setUploadedFiles(prevUploaded => ({
@@ -87,11 +113,16 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
 
 
             } catch (error) {
-                // 处理错误
-                console.error('Error uploading files', error);
-                setUploadStatus({ success: false, message: '上传失败' });
+                if (axios.isCancel(error)) {
+                    console.log('Upload canceled');
+                    setUploadStatus({ success: false, message: '上传已取消' });
+                } else {
+                    console.error('Error uploading files', error);
+                    setUploadStatus({ success: false, message: '上传失败' });
+                }
             }
-        };
+        }
+        setUploading(prev => ({ ...prev, [category]: false }));
     };
 
 
@@ -133,6 +164,14 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
     };
 
 
+    // 取消上传
+    const cancelUpload = () => {
+        if (cancelSource) {
+            cancelSource.cancel('Upload canceled by user');
+        }
+    };
+
+
     // 在 Modal 关闭时刷新页面
     const handleModalClose = () => {
         setShowUploadModal(false);
@@ -148,6 +187,14 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
             <div className="file-upload-module">
                 <input type="file" multiple onChange={(e) => onFileChange('委托单附件', e)} />
                 <button className="upload-button" onClick={() => onFileUpload('委托单附件')}>上传文件</button>
+                {/* 进度条 */}
+                {uploading['委托单附件'] && (
+                    <div className="progress-bar">
+                        <div className="progress" style={{ width: `${uploadProgress['委托单附件']}%` }} />
+                        <button className="cancel-button" onClick={() => cancelUpload('委托单附件')}>取消</button>
+                    </div>
+                )}
+
                 {files['委托单附件'] && files['委托单附件'].length > 0 && (
                     <ul className="file-list">
                         {files['委托单附件'].map((file, index) => (
@@ -177,6 +224,15 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
             <div className="file-upload-module">
                 <input type="file" multiple onChange={(e) => onFileChange('实验数据原始文件/记录', e)} />
                 <button className="upload-button" onClick={() => onFileUpload('实验数据原始文件/记录')}>上传文件</button>
+
+                {/* 进度条 */}
+                {uploading['实验数据原始文件/记录'] && (
+                    <div className="progress-bar">
+                        <div className="progress" style={{ width: `${uploadProgress['实验数据原始文件/记录']}%` }} />
+                        <button className="cancel-button" onClick={() => cancelUpload('实验数据原始文件/记录')}>取消</button>
+                    </div>
+                )}
+
                 {files['实验数据原始文件/记录'] && files['实验数据原始文件/记录'].length > 0 && (
                     <ul className="file-list">
                         {files['实验数据原始文件/记录'].map((file, index) => (
@@ -206,6 +262,15 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
             <div className="file-upload-module">
                 <input type="file" multiple onChange={(e) => onFileChange('文件报告', e)} />
                 <button className="upload-button" onClick={() => onFileUpload('文件报告')}>上传文件</button>
+
+                {/* 进度条 */}
+                {uploading['文件报告'] && (
+                    <div className="progress-bar">
+                        <div className="progress" style={{ width: `${uploadProgress['文件报告']}%` }} />
+                        <button className="cancel-button" onClick={() => cancelUpload('文件报告')}>取消</button>
+                    </div>
+                )}
+
                 {files['文件报告'] && files['文件报告'].length > 0 && (
                     <ul className="file-list">
                         {files['文件报告'].map((file, index) => (

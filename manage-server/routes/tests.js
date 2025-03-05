@@ -35,11 +35,15 @@ router.post('/assign', async (req, res) => {
         assignmentInfo,
         equipment_id,
     } = req.body;
-    try {
-        if (!assignmentInfo || assignmentInfo === '') {
-            return res.status(409).json({ success: false, message: `提交错误：请选择分配人员！` });
 
-        }
+    if (!assignmentInfo || assignmentInfo === '') {
+        return res.status(409).json({ success: false, message: `提交错误：请选择分配人员！` });
+
+    }
+    const connection = await db.getConnection(); // 获取数据库连接
+
+    try {
+        await connection.beginTransaction();
         // 获取该检测项目的所有分配记录
         const existingAssignments = await db.getAssignmentsByTestItemId(testItemId);
         // 检查当前用户是否已经分配过
@@ -52,6 +56,7 @@ router.post('/assign', async (req, res) => {
                     // 复制检测项目
                     const originalTestItem = await db.getTestItemById(testItemId);
                     if (!originalTestItem) {
+                        await connection.rollback();
                         return res.status(404).json({ success: false, message: '未找到原始检测项目' });
                     }
 
@@ -68,15 +73,17 @@ router.post('/assign', async (req, res) => {
                     }
                     // 分配新检测项目给组长
                     await db.assignTestToUser(newTestItemId, assignmentInfo, equipment_id, 'supervisor', 1);
-
+                    await connection.commit();
                     return res.status(200).json({ success: true, message: "检测项目复制并分配成功!", newTestItemId });
                 } else {
                     // 如果没有员工被指派，直接更新组长状态为执行人
                     await db.updateIsAssigned(testItemId, assignmentInfo, 1); // 更新为执行人
                     await db.updateAppointTime(testItemId);
+                    await connection.commit();
                     return res.status(200).json({ success: true, message: `组长 ${assignmentInfo} 已选择自行完成检测项目` });
                 }
             } else {
+                await connection.rollback();
                 return res.status(409).json({ success: false, message: `项目已分配给 ${assignmentInfo}` });
             }
         }
@@ -94,6 +101,7 @@ router.post('/assign', async (req, res) => {
                 // 如果已有组长和员工，复制检测项目
                 const originalTestItem = await db.getTestItemById(testItemId);
                 if (!originalTestItem) {
+                    await connection.rollback();
                     return res.status(404).json({ success: false, message: '未找到原始检测项目' });
                 }
 
@@ -117,7 +125,7 @@ router.post('/assign', async (req, res) => {
 
                 // 分配新检测项目给新用户
                 await db.assignTestToUser(newTestItemId, assignmentInfo, equipment_id, role, 1);
-
+                await connection.commit();
                 return res.status(200).json({ success: true, message: "检测项目复制并分配成功!", newTestItemId });
             }
         }
@@ -130,12 +138,15 @@ router.post('/assign', async (req, res) => {
             // 否则，按照正常组长逻辑。给分配的组员添加新记录
             await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, role, 1);
         }
-
+        await connection.commit();
         res.status(200).json({ success: true, message: "检测项目分配成功!" });
 
     } catch (error) {
+        await connection.rollback();
         console.error('Failed to assign test:', error);
         res.status(500).json({ success: false, message: "分配项目失败！请联系开发者", error: error.message });
+    } finally {
+        connection.release(); // 释放连接
     }
 });
 
@@ -227,7 +238,6 @@ router.patch('/:testItemId/discount', async (req, res) => {
         res.status(500).send({ message: '优惠价格更新失败', error: error.message });
     }
 });
-
 
 // 交付检测项目
 router.patch('/:testItemId/deliver', async (req, res) => {
@@ -344,7 +354,10 @@ router.get('/equipments/schedule', async (req, res) => {
                 equip_user_name: item.equip_user_name,
                 equip_user: item.equip_user,
                 operator: item.operator,
-                operator_name: item.operator_name
+                operator_name: item.operator_name,
+                sales_name: item.sales_name,
+                customer_name: item.customer_name,
+                contact_name: item.contact_name
             });
         });
         // 4. 合并设备信息和预约记录

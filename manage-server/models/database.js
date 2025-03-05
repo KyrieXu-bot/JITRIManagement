@@ -1,5 +1,10 @@
 const db = require('../config/dbConfig'); // 确保路径正确
 
+async function getConnection() {
+    const connection = await db.getConnection();
+    return connection;
+}
+
 /**
  * 根据账号查找用户
  * @param {string} account 用户账号
@@ -813,12 +818,22 @@ async function updateTestItemStatus(finishData) {
 }
 
 async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPrice, machine_hours) {
-    const query = `
-        UPDATE test_items
-        SET status = ?, check_note = ? , check_time = NOW(), listed_price = ?, machine_hours = ?
-        WHERE test_item_id = ?
-    `;
-    await db.query(query, [status, checkNote, listedPrice, machine_hours, testItemId]);
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const query = `
+            UPDATE test_items
+            SET status = ?, check_note = ? , check_time = NOW(), listed_price = ?, machine_hours = ?
+            WHERE test_item_id = ?
+        `;
+        await connection.query(query, [status, checkNote, listedPrice, machine_hours, testItemId]);
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
 }
 
 async function getAssignedTestsByUser(userId, status, month, customerName, orderNum) {
@@ -1367,6 +1382,7 @@ async function getAllMonths() {
             test_items
         WHERE 
             order_num IS NOT NULL
+            AND order_num LIKE 'JC%'
         ORDER BY 
             month DESC;
     `;
@@ -1394,6 +1410,7 @@ async function getAllQuarters() {
             test_items
         WHERE 
             order_num IS NOT NULL
+            AND order_num LIKE 'JC%'
         ORDER BY 
             quarter DESC;
     `;
@@ -1415,6 +1432,7 @@ async function getAllYears() {
             test_items
         WHERE 
             order_num IS NOT NULL
+            AND order_num LIKE 'JC%'
         ORDER BY 
             year DESC;
     `;
@@ -2181,12 +2199,26 @@ const getInvoiceOrders = async (invoiceId) => {
 
 // 更新订单状态
 const updateOrderStatus = async (orderNums, orderStatus) => {
-    return db.query(`
-        UPDATE orders 
-        SET order_status = ?
-        WHERE order_num IN (?)
-    `, [orderStatus, orderNums]);
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction(); // 开始事务
+
+        // 更新订单状态
+        await connection.query(`
+            UPDATE orders 
+            SET order_status = ?
+            WHERE order_num IN (?)
+        `, [orderStatus, orderNums]);
+
+        await connection.commit(); // 提交事务
+    } catch (error) {
+        await connection.rollback(); // 回滚事务
+        throw error;
+    } finally {
+        connection.release(); // 释放连接
+    }
 };
+
 
 // 获取付款方的余额
 const getPaymentBalance = async (paymentId) => {
@@ -2198,19 +2230,45 @@ const getPaymentBalance = async (paymentId) => {
 
 // 更新付款方余额
 const updatePaymentBalance = async (paymentId, newBalance) => {
-    return db.query(`
-        UPDATE payments 
-        SET balance = ? 
-        WHERE payment_id = ?
-    `, [newBalance, paymentId]);
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction(); // 开始事务
+
+        // 更新付款方余额
+        await connection.query(`
+            UPDATE payments 
+            SET balance = ? 
+            WHERE payment_id = ?
+        `, [newBalance, paymentId]);
+
+        await connection.commit(); // 提交事务
+    } catch (error) {
+        await connection.rollback(); // 回滚事务
+        throw error;
+    } finally {
+        connection.release(); // 释放连接
+    }
 };
 
 // 插入交易记录
 const insertTransaction = async (paymentId, amount, newBalance, description) => {
-    return db.query(`
-        INSERT INTO transactions (payment_id, transaction_type, amount, balance_after_transaction, transaction_time, description) 
-        VALUES (?, 'WITHDRAWAL', ?, ?, NOW(), ?)
-    `, [paymentId, amount, newBalance, description]);
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction(); // 开始事务
+
+        // 插入交易记录
+        await connection.query(`
+            INSERT INTO transactions (payment_id, transaction_type, amount, balance_after_transaction, transaction_time, description) 
+            VALUES (?, 'WITHDRAWAL', ?, ?, NOW(), ?)
+        `, [paymentId, amount, newBalance, description]);
+
+        await connection.commit(); // 提交事务
+    } catch (error) {
+        await connection.rollback(); // 回滚事务
+        throw error;
+    } finally {
+        connection.release(); // 释放连接
+    }
 };
 
 // 获取订单的支付方ID
@@ -2322,7 +2380,9 @@ async function duplicateTestItem(testItemData) {
 
     // 初始化后缀为 1
     let suffix = 1;
+    const connection = await db.getConnection();
     try {
+        await connection.beginTransaction();
         // 查询数据库中的测试项目，获取相同名称的项目（不需要排除委托单号）
         const [existingItems] = await db.query(
             `SELECT test_item FROM test_items WHERE test_item LIKE ? AND order_num = ? AND department_id = ?`,
@@ -2376,12 +2436,16 @@ async function duplicateTestItem(testItemData) {
         ];
     
         const [result] = await db.query(query, params);
+        await connection.commit();
         return result.insertId; // 返回新生成的 test_item_id
         
 
     } catch (error) {
+        await connection.rollback();
         console.error('Error while checking for duplicate test items:', error);
         throw new Error('Error while checking for duplicate test items');
+    } finally {
+        connection.release(); // 释放连接
     }
 
 
@@ -2400,12 +2464,20 @@ async function getEquipmentReservations() {
             r.equip_user,
             r.operator,
             u1.name AS equip_user_name,
-            u2.name AS operator_name
-        FROM test_items t
-        LEFT JOIN reservation r ON r.test_item_id = t.test_item_id
+            u2.name AS operator_name,
+            u3.name AS sales_name,
+            c.customer_name,
+            c.contact_name
+        FROM reservation r
+        LEFT JOIN test_items t ON r.test_item_id = t.test_item_id
         LEFT JOIN users u1 ON u1.account = r.equip_user
         LEFT JOIN users u2 ON u2.account = r.operator
-        WHERE t.equipment_id IS NOT NULL;
+        LEFT JOIN assignments a ON a.test_item_id = t.test_item_id
+        LEFT JOIN users u3 ON u3.account = a.account and u3.role='sales'
+        LEFT JOIN orders o ON o.order_num = t.order_num
+        LEFT JOIN customers c ON c.customer_id = o.customer_id
+        WHERE r.equipment_id IS NOT NULL;
+
     `;
     const [testItems] = await db.query(query);
     return testItems;
@@ -2428,6 +2500,7 @@ async function getMyReservation(account) {
             r.reservation_id,
             t.test_item,
             t.test_item_id,
+            t.order_num,
             r.equipment_id,
             r.start_time,
             r.equip_user,
@@ -2505,6 +2578,7 @@ async function updateAppointTime(testItemId) {
     }
 }
 module.exports = {
+    getConnection,
     findUserByAccount,
     deleteOrder,
     assignTestToUser,
