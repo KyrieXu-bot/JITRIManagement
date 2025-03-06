@@ -2,15 +2,13 @@
 
 .content-area {
     display: flex;
-    /* 使用 Flex 布局 */
     flex-direction: column;
     flex-grow: 1;
-    /* 让 content-area 占据剩余的空间 */
-    height: 100%;
+    max-height: 100vh;
     /* 确保内容区域的高度占满整个视口 */
-    width: 82%;
+    width: calc(100% - 250px); /* 100% 减去 sidebar 最大宽度 */
     box-sizing: border-box;
-
+    overflow-x: hidden;
 }
 
 .content-area>nav {
@@ -23,7 +21,6 @@
 
 .content-head {
     flex-shrink: 0;
-    /* 防止 .content-head 被压缩 */
     height: auto;
 }
 
@@ -31,28 +28,30 @@
 .content {
     margin-top: 10px;
     width: 100%;
-    /* 占据除侧边栏外的剩余宽度 */
     padding: 0px;
-    /* 内边距 */
     background-color: #fff;
-    /* 背景颜色 */
     box-sizing: border-box;
-    overflow-y: auto;
-    /* 隐藏内容溢出 */
+    overflow-x: auto;
+    overflow-y: scroll;
     position: relative;
-    flex-basis: 600px;
-    flex-shrink: 0;
+    flex-basis: auto;
 }
+
+thead {
+    position: sticky;
+    top: 0;
+    background-color: white; 
+    z-index: 3;
+}
+
 
 /* 表格样式 */
 table {
     width: 100%;
     border-collapse: collapse;
-    /* 用于支持圆角边框 */
     border-spacing: 0;
     margin: 0px auto;
-    /* 增加上下外边距并居中显示 */
-
+    
 }
 
 th,

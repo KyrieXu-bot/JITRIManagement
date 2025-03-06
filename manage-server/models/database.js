@@ -1090,6 +1090,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 AND a.is_assigned = '1'
                 AND CONCAT('20', MID(t.order_num, 3, 2)) = ? 
                 AND MID(t.order_num, 5, 2) = ?
+                AND t.order_num LIKE 'JC%'
             GROUP BY 
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2)),
@@ -1133,6 +1134,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 AND t.order_num IS NOT NULL
                 AND a.is_assigned = '1'
                 AND CONCAT('20', MID(t.order_num, 3, 2)) = ? 
+                AND t.order_num LIKE 'JC%'
                 AND CASE 
                     WHEN MID(t.order_num, 5, 2) IN ('01', '02', '03') THEN '第一季度'
                     WHEN MID(t.order_num, 5, 2) IN ('04', '05', '06') THEN '第二季度'
@@ -1177,6 +1179,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 AND t.order_num IS NOT NULL
                 AND a.is_assigned = '1'
                 AND CONCAT('20', MID(t.order_num, 3, 2)) = ?
+                AND t.order_num LIKE 'JC%'
             GROUP BY 
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2))
@@ -1207,7 +1210,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 and u.role != 'leader' 
                 AND t.order_num IS NOT NULL
                 AND a.is_assigned = '1'
-
+                AND t.order_num LIKE 'JC%'
             GROUP BY 
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2)),
@@ -1242,6 +1245,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 and u.role != 'leader' 
                 AND t.order_num IS NOT NULL
                 AND a.is_assigned = '1'
+                AND t.order_num LIKE 'JC%'
             GROUP BY 
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2)),
@@ -1275,6 +1279,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 and u.role != 'leader' 
                 AND t.order_num IS NOT NULL
                 AND a.is_assigned = '1'
+                AND t.order_num LIKE 'JC%'
             GROUP BY 
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2))
@@ -1305,6 +1310,7 @@ async function getYearlyListedPrice(departmentId) {
             test_items t
         WHERE 
             t.department_id = ?
+            AND t.order_num LIKE 'JC%'
         GROUP BY 
             year, month
         ORDER BY 

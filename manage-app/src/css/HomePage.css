@@ -1,7 +1,11 @@
 .homepage {
-    margin: 0px auto;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: calc(100vh - 60px); /* 确保 homepage 填充整个视口 */
+    overflow: hidden; /* 避免滚动条出现在 body */
     padding: 20px;
-    font-family: Arial, sans-serif;
+    box-sizing: border-box;
 }
 
 h2 {
@@ -12,14 +16,18 @@ h2 {
 }
 
 .dashboard {
-    background-color: #f9f9f9;
-    padding:5px;
+    flex-grow: 1; /* 让 dashboard 充满 homepage 剩余空间 */
+    overflow: auto; /* 允许 dashboard 内滚动 */
+    padding: 10px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .dashboard h3 {
+    position: sticky;
+    top: 0;
     font-size: 1.5em;
+    z-index: 2;
     color: #333;
     margin-bottom: 15px;
 }
@@ -62,17 +70,30 @@ h2 {
 
 }
 .block{
+    flex: 1;
+    min-width: 300px;
+    background: #fff;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: hidden; /* 避免 block 自己滚动 */
     display: flex;
-    justify-content: space-around;
-    flex-wrap: wrap;
-    margin: 0px;
-    flex-grow: 1;
+    flex-direction: column;
+
 }
 .block div {
-    width: 100%;
-    max-height: 450px;
-    min-height: 300px;
-    overflow: auto;
+    flex-grow: 1;
+    overflow-y: auto;
+    max-height: calc(100% - 50px); /* 避免撑开 block */
+}
+
+.block h3 {
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 2;
+    padding: 10px;
+    border-bottom: 2px solid #ddd;
 }
 
 /* 按钮样式 */
@@ -118,4 +139,22 @@ button:hover {
     font-size: 25px;
     margin-top: 20px;
     color: #5f87a0;;
+}
+
+.loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh; /* 占满全屏高度 */
+    background: rgba(0, 0, 0, 0.05); /* 淡灰色背景 */
+}
+
+.loading-text {
+    font-size: 18px;
+    font-weight: bold;
+    color: #555; /* 深灰色 */
+    padding: 10px 20px;
+    border-radius: 5px;
+    background: white; /* 背景颜色 */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* 轻微阴影 */
 }

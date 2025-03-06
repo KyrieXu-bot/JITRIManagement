@@ -1,6 +1,6 @@
 import React from 'react';
 import '../css/HomePage.css'
-const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, onShowCheck, onShowFinish, renderDeadlineStatus }) => {
+const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, onShowCheck, onShowFinish, renderDeadlineStatus, loading }) => {
     const notAssigned = assignedNotTestedOrders.filter(order => order.status === '0');
     const notTested = assignedNotTestedOrders.filter(order => order.status === '1');
     const notChecked = assignedNotTestedOrders.filter(order => order.status === '2');
@@ -171,8 +171,13 @@ const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, on
                 </nav>
             )}
             <div className="dashboard">
-
-                {role === 'leader' ? (
+                {loading ? (
+                    <div className="loading-container">
+                        <p className="loading-text">正在加载页面，请稍等......</p>
+                    </div>
+                ) : (
+                    <>
+                    {role === 'leader' ? (
                     notAssigned.length > 0 ? (
                         <div className='block'>
                             <div>
@@ -307,6 +312,10 @@ const HomePage = ({ role, account, assignedNotTestedOrders, onShowAssignment, on
                     <div></div>
 
                 )}
+                    </>
+                    
+                )}
+                
 
             </div>
         </div>

@@ -100,7 +100,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
     //分页
-    const itemsCountPerPage = 20;
+    const itemsCountPerPage = 50;
     const totalItemsCount = data.length;
     const indexOfLastItem = activePage * itemsCountPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
@@ -259,6 +259,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     // 获取委托单数据
     const fetchData = useCallback(async (endpoint) => {
         try {
+            setLoading(true);
             const params = new URLSearchParams();
             if (filterStatus) {
                 params.append('status', filterStatus);
@@ -291,12 +292,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             console.error('Error fetching data:', error);
             setError('Failed to fetch data'); // 更新错误状态
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
+        } finally {
+            setLoading(false); // 数据加载完成
         }
     }, [setError, filterStatus, selectedMonth, filterCustomer, filterOrderNum, departmentID, filterData]);
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
         try {
+            setLoading(true);
             const params = new URLSearchParams();
             if (filterStatus) {
                 params.append('status', filterStatus);
@@ -319,12 +323,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setData(sortedData);
         } catch (error) {
             console.error('Error fetching assigned tests:', error);
+        } finally {
+            setLoading(false); // 数据加载完成
         }
     }, [filterStatus, selectedMonth, filterCustomer, filterOrderNum]);
 
     //拉取组长显示数据
     const fetchDataForSupervisor = useCallback(async (departmentId) => {
         try {
+            setLoading(true);
+
             const params = new URLSearchParams();
             if (filterStatus) params.append('status', filterStatus);
             if (departmentId) params.append('departmentId', departmentId);  // 添加部门ID到请求参数
@@ -354,6 +362,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             console.error('Error fetching data for supervisor:', error);
             setError('Failed to fetch data');
             setTimeout(() => setError(''), 3000);
+        } finally {
+            setLoading(false); // 数据加载完成
         }
     }, [role, account, filterStatus, setError, selectedMonth, filterCustomer, filterOrderNum]);
 
@@ -3164,6 +3174,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         onShowFinish={handleFinish}
                         renderDeadlineStatus={renderDeadlineStatus}
                         account={account}
+                        loading={loading}
                     />
                 </div>
 
