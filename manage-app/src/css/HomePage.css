@@ -24,10 +24,7 @@ h2 {
 }
 
 .dashboard h3 {
-    position: sticky;
-    top: 0;
     font-size: 1.5em;
-    z-index: 2;
     color: #333;
     margin-bottom: 15px;
 }

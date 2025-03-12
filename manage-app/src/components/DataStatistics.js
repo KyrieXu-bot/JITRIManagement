@@ -37,7 +37,6 @@ const DataStatistics = ({ employeeData, equipmentData, sumPrice, handleTimePerio
 
 
     const groupByYear = (data) => {
-        console.log("groupbyyear", data)
         const grouped = {};
         
         data.forEach(item => {

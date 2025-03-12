@@ -10,10 +10,12 @@ import EquipmentTimeline from '../components/EquipmentTimeline';
 import ExportExcelButton from '../components/ExportExcelButton';
 import HomePage from '../components/HomePage';
 import Timeline from 'react-calendar-timeline';
-import "react-calendar-timeline/styles.css";
+import "react-calendar-timeline/dist/style.css";
 import FileUpload from '../components/FileUpload'; // 确保路径正确
+import Select from 'react-select';
 
 const ContentArea = ({ departmentID, account, selected, role, groupId, name, onLogout }) => {
+    const [selectedDepartmentId, setSelectedDepartmentId] = useState(departmentID || null);
     const isAssignedToMeRef = useRef(false); // Use useRef to persist state across renders
     const [data, setData] = useState([]);
     const [testId, setTestId] = useState('');
@@ -46,7 +48,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [periodOptions, setPeriodOptions] = useState([]);
     const [months, setMonths] = useState('');
     const [selectedPeriod, setSelectedPeriod] = useState();  // 存储具体选中的月份、季度或年份
-
+    const [priceList, setPriceList] = useState([]);
+    const [showPriceModal, setShowPriceModal] = useState(false);
+    const [searchTestItem, setSearchTestItem] = useState('');
+    const [searchTestCondition, setSearchTestCondition] = useState('');
     const [selectedOrders, setSelectedOrders] = useState([]);
     const [selectedInvoices, setSelectedInvoices] = useState(new Set());
     const [isAllSelected, setIsAllSelected] = useState(false);
@@ -456,7 +461,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     // 获取数据图
     const fetchStatistics = useCallback(async () => {
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/api/charts/statistics?departmentId=${departmentID}&timePeriod=${timePeriod}`);
+            const response = await axios.get(`${config.API_BASE_URL}/api/charts/statistics?departmentId=${selectedDepartmentId}&timePeriod=${timePeriod}`);
             const { employeeStats, equipmentStats, totalPriceStats } = response.data;
             const formattedEmployee = employeeStats.map(item => ({
                 name: item.name,
@@ -487,7 +492,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } catch (error) {
             console.error('Error fetching statistics data:', error);
         }
-    }, [departmentID, timePeriod])
+    }, [selectedDepartmentId, timePeriod])
 
     // 用于更改时间筛选条件
     const handleTimePeriodChange = async (e) => {
@@ -501,7 +506,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const handlePeriodChange = async (e) => {
         setTimePeriod(e.target.value);
-        fetchStatistics(); 
+        fetchStatistics();
         fetchTimePeriods(timeStatus)
     };
     // 获取设备时间线
@@ -653,18 +658,32 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     }, [account]);
 
 
+    const fetchPrices = async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/tests/prices`, {
+                params: {
+                    searchTestItem,
+                    searchTestCondition
+                }
+            });
+            setPriceList(response.data);
+        } catch (error) {
+            console.error('拉取价目表失败:', error);
+        }
+    };
+
     useEffect(() => {
         if ((role === 'employee')) {
             if (selected === 'timeline') {
                 fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchData('orders');
-            } else if(selected === 'handleTests'){
+            } else if (selected === 'handleTests') {
                 fetchTimePeriods('month');
                 fetchDataForEmployee(account);
-            } else if (selected === 'getReservation'){
+            } else if (selected === 'getReservation') {
                 fetchDataForEmployee(account);
-            } else if (selected === ''){
+            } else if (selected === '') {
                 fetchDataForEmployee(account);
             }
         } else if (role === 'supervisor' || role === 'leader') {
@@ -675,10 +694,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchTimeline()
             } else if (selected === 'getCommission') {
                 fetchData('orders');
-            } else if (selected === 'handleTests'){
+            } else if (selected === 'handleTests') {
                 fetchTimePeriods('month');
                 fetchDataForSupervisor(departmentID);
-            } else if (selected === 'getReservation' || selected === ''){
+            } else if (selected === 'getReservation' || selected === '') {
                 fetchDataForSupervisor(departmentID);
             }
         } else if (role === 'sales') {
@@ -751,6 +770,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         fetchMyReservation,
     ]);
 
+    useEffect(() => {
+        if (selectedDepartmentId) {
+            fetchStatistics();
+            fetchTimePeriods(timeStatus)
+        }
+    }, [selectedDepartmentId, timeStatus, fetchStatistics, fetchTimePeriods]);
+
     // 当用户选择标签时，直接更新筛选后的设备
     const handleLabelChange = (e) => {
         const label = e.target.value;
@@ -769,8 +795,29 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowModal(true);
     };
 
-
-
+    // 处理选择项目价格
+    const handlePriceSelect = (item) => {
+        if (showModal) {  // 如果是编辑检测
+            setCurrentItem({
+                ...currentItem,
+                price_id: item.price_id,
+                test_item: `${item.test_item_name} - ${item.test_condition}`, // 更新检测项目
+                test_condition: item.test_condition, // 更新检测条件
+                unit_price: item.unit_price, // 更新单价
+                department_id: item.department_id // 更新部门
+            });
+        } else {  // 如果是添加检测
+            setAddData({
+                ...addData,
+                price_id: item.price_id,
+                test_item: `${item.test_item_name} - ${item.test_condition}`,
+                test_condition: item.test_condition,
+                unit_price: item.unit_price,
+                department_id: item.department_id
+            });
+        }
+        setShowPriceModal(false);
+    };
 
     const handleEditCustomer = (item) => {
         setCurrentItem(item);
@@ -846,7 +893,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         setShowRollbackModal(true);
     };
 
-
+    // 处理部门选择
+    const handleDepartmentSelect = (departmentId) => {
+        setSelectedDepartmentId(departmentId);
+    };
 
     const handleCheck = (item) => {
         setCurrentItem(item); // 假设我们需要订单号来处理分配
@@ -1469,10 +1519,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 定义点击设备预约后的模块
     const handleReserve = () => {
-        const filteredData = data.filter(item => item.status === '0' || item.status === '1')
+        const filteredData = data.filter(item => 
+            item.status === '0' || item.status === '1');
         setFilteredData(filteredData);
         setPublicReserveModal(true);
     }
+
     const addItem = async () => {
         if (!addData.test_item) {
             alert(`提交失败！"检测项目"为必填项，请重新填写`);
@@ -2149,9 +2201,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["预约号", "委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.reservation_id}</td>
                             <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
@@ -2214,7 +2267,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                                 )}
 
-                                {(item.status ==='1' || item.status === '2') && (
+                                {(item.status === '1' || item.status === '2') && (
                                     <Button
                                         onClick={() => handleAssignment(item.test_item_id)}
                                         className={item.appoint_time ? 'assigned-btn' : 'unassigned-btn'}
@@ -2256,9 +2309,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["预约号", "委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.reservation_id}</td>
                             <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
@@ -2359,9 +2413,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["预约号", "委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.reservation_id}</td>
                             <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
@@ -2464,9 +2519,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 case 'myReservation':
-                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["预约号", "委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.reservation_id}</td>
                             <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
@@ -2755,9 +2811,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     break;
 
                 case 'myReservation':
-                    headers = ["委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
+                    headers = ["预约号", "委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
                     rows = reservationPaging.map((item, index) => (
                         <tr key={index}>
+                            <td>{item.reservation_id}</td>
                             <td>{item.order_num}</td>
                             <td>{item.test_item}</td>
                             <td>{item.equipment_name}</td>
@@ -2784,7 +2841,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const { headers, rows } = renderTable(currentItems);
 
-
     return (
         <div className='content-area'>
             <nav>
@@ -2794,18 +2850,33 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
             {selected ? (
                 selected === 'dataStatistics' ? (
-                    <DataStatistics
-                        employeeData={employeeStats}
-                        equipmentData={equipmentStats}
-                        sumPrice={sumPrice}
-                        handleTimePeriodChange={handleTimePeriodChange}
-                        timePeriod={timePeriod}
-                        timeStatus={timeStatus}
-                        yearlyPriceData={yearlyPriceStats}
-                        periodOptions={periodOptions}
-                        handlePeriodChange={handlePeriodChange}
-                        selectedPeriod={selectedPeriod}
-                    />
+                    <>
+                        {role === 'admin' && (
+                            <div className="admin-statistics">
+                                <h3>选择需要统计的部门</h3>
+                                <div className="department-buttons">
+                                    <Button variant="secondary" onClick={() => handleDepartmentSelect(1)}>显微组织表征</Button>
+                                    <Button variant="secondary" onClick={() => handleDepartmentSelect(2)}>物化性能测试</Button>
+                                    <Button variant="secondary" onClick={() => handleDepartmentSelect(3)}>力学性能测试</Button>
+                                </div>
+                            </div>
+                        )}
+                        {selectedDepartmentId && (
+                            <DataStatistics
+                                employeeData={employeeStats}
+                                equipmentData={equipmentStats}
+                                sumPrice={sumPrice}
+                                handleTimePeriodChange={handleTimePeriodChange}
+                                timePeriod={timePeriod}
+                                timeStatus={timeStatus}
+                                yearlyPriceData={yearlyPriceStats}
+                                periodOptions={periodOptions}
+                                handlePeriodChange={handlePeriodChange}
+                                selectedPeriod={selectedPeriod}
+                            />
+                        )}
+                        
+                    </>
                 ) : selected === 'timeline' ? (
                     <EquipmentTimeline tasks={equipmentTimeline} equipments={equipments} /> // 显示设备时间线
                 ) : selected === 'getReservation' ? (
@@ -2871,8 +2942,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         <option value="3">审批通过</option>
                                         <option value="4">审批失败</option>
                                         <option value="5">已交付</option>
-
-
                                     </select>&nbsp;&nbsp;&nbsp;
                                     <span>月份：</span>
                                     {periodOptions && (
@@ -3218,11 +3287,23 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </Form.Group>
                         <Form.Group controlId="formTestItem">
                             <Form.Label>检测项目</Form.Label>
-                            <Form.Control
+                            {/* <Form.Control
                                 type="text"
                                 value={currentItem.test_item || ''}
                                 onChange={(e) => setCurrentItem({ ...currentItem, test_item: e.target.value })}
-                            />
+                            /> */}
+
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <Form.Control
+                                    type="text"
+                                    value={currentItem.test_item || ''}
+                                    onChange={(e) => setCurrentItem({ ...currentItem, test_item: e.target.value })}
+                                    style={{ flex: 1 }}
+                                />
+                                <Button variant="info" onClick={() => { fetchPrices(); setShowPriceModal(true); }}>
+                                    选择项目
+                                </Button>
+                            </div>
                         </Form.Group>
                         <Form.Group controlId="formTestMethod">
                             <Form.Label>检测方法</Form.Label>
@@ -3341,22 +3422,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 onChange={(e) => setCurrentItem({ ...currentItem, deadline: e.target.value })}
                             />
                         </Form.Group>
-                        <Form.Group controlId="formStartTime">
-                            <Form.Label>设备使用开始时间</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={formatDateToLocal(currentItem.start_time)}
-                                onChange={(e) => setCurrentItem({ ...currentItem, start_time: e.target.value })}
-                            />
-                        </Form.Group>
-                        <Form.Group controlId="formEndTime">
-                            <Form.Label>设备使用结束时间</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={formatDateToLocal(currentItem.end_time)}
-                                onChange={(e) => setCurrentItem({ ...currentItem, end_time: e.target.value })}
-                            />
-                        </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
@@ -3393,11 +3458,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         <Form.Group controlId="formTestItem">
                             <Form.Label>检测项目<span style={{ color: 'red' }}>*</span></Form.Label>
 
-                            <Form.Control
+                            {/* <Form.Control
                                 type="text"
                                 value={addData.test_item}
                                 onChange={(e) => setAddData({ ...addData, test_item: e.target.value })}
-                            />
+                            /> */}
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <Form.Control
+                                    type="text"
+                                    value={addData.test_item}
+                                    onChange={(e) => setAddData({ ...addData, test_item: e.target.value })}
+                                    style={{ flex: 1 }}
+                                />
+                                <Button variant="info" onClick={() => { fetchPrices(); setShowPriceModal(true); }}>
+                                    选择项目
+                                </Button>
+                            </div>
                         </Form.Group>
                         <Form.Group controlId="formTestMethod">
                             <Form.Label>检测方法</Form.Label>
@@ -3470,6 +3546,45 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             </Modal>
 
 
+            {showPriceModal && (
+                <Modal show={showPriceModal} onHide={() => setShowPriceModal(false)} size='xl'>
+                    <Modal.Header closeButton>
+                        <Modal.Title>选择检测项目</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <div className='search-box'>
+                            <input type="text" value={searchTestItem} onChange={(e) => setSearchTestItem(e.target.value)} placeholder="输入检测项目名称" />
+                            <input type="text" value={searchTestCondition} onChange={(e) => setSearchTestCondition(e.target.value)} placeholder="输入检测条件" />
+                            <Button onClick={fetchPrices}>搜索</Button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>检测项目</th>
+                                    <th>检测条件</th>
+                                    <th>单价</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {priceList.map(item => (
+                                    <tr key={item.price_id}>
+                                        <td>{item.price_id}</td>
+                                        <td>{item.test_item_name}</td>
+                                        <td>{item.test_condition}</td>
+                                        <td>{item.unit_price} 元</td>
+                                        <td><Button onClick={() => handlePriceSelect(item)}>选择</Button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowPriceModal(false)}>关闭</Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
 
             {/* 编辑样品 */}
             <Modal show={showSampleModal} onHide={() => setShowSampleModal(false)}>
@@ -4613,8 +4728,32 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             ))}
                         </Form.Control>
                     </Form.Group>
-
+                    {/* 选择检测项目（支持搜索） */}
                     <Form.Group controlId="formAssignmentInfo">
+                        <Form.Label>选择检测项目：</Form.Label>
+                        {filteredData && (
+                            <Select
+                                options={filteredData.map(item => ({
+                                    value: item.test_item_id,
+                                    label: `${item.test_item} (${item.order_num})`
+                                }))}
+                                value={reserveData.test_item_id
+                                    ? {
+                                        value: String(reserveData.test_item_id),
+                                        label: `${filteredData.find(item => String(item.test_item_id) === String(reserveData.test_item_id))?.test_item || "未知检测项目"} 
+                                        (${filteredData.find(item => String(item.test_item_id) === String(reserveData.test_item_id))?.order_num || "无订单号"})`
+                                    }
+                                    : null
+                                }
+                                onChange={(selectedOption) =>
+                                    setReserveData({ ...reserveData, test_item_id: selectedOption ? selectedOption.value : null })
+                                }
+                                placeholder="输入关键字搜索检测项目..."
+                                isClearable
+                            />
+                        )}
+                    </Form.Group>
+                    {/* <Form.Group controlId="formAssignmentInfo">
                         <Form.Label>选择检测项目：<span style={{ color: 'red' }}>*</span></Form.Label>
                         <Form.Control
                             as="select"
@@ -4633,7 +4772,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 </>
                             )}
                         </Form.Control>
-                    </Form.Group>
+                    </Form.Group> */}
 
 
                     {/* 设备使用开始时间 */}

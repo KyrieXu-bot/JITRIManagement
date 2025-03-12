@@ -74,14 +74,10 @@ const Sidebar = ({ onSelect, selected, role }) => {
                                 </li>
                             </ul>
                         )}
+                        <li className={selected === 'dataStatistics' ? 'active' : ''} onClick={() => onSelect('dataStatistics')}>数据统计</li>
                         <li className={selected === 'getSamples' ? 'active' : ''} onClick={() => onSelect('getSamples')}>样品管理</li>
                         <li className={selected === 'getTests' ? 'active' : ''} onClick={() => onSelect('getTests')}>检测管理</li>
                         <li className={selected === 'getReports' ? 'active' : ''} onClick={() => onSelect('getReports')}>报告管理</li>
-
-
-
-
-
                     </>
                 )}
                 {role === 'leader' && (

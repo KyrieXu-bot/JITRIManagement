@@ -276,12 +276,12 @@ router.patch('/:testItemId', async (req, res) => {
     const { testItemId } = req.params;
     const updatedFields = req.body;
     // 过滤掉不需要更新的字段
-    const allowedFields = ['original_no', 'test_item', 'test_method', 'size', 'quantity', 'order_num', 'note', 'status', 'machine_hours', 'work_hours', 'listed_price', 'discounted_price', 'check_note', 'create_time', 'deadline', 'department_id', 'start_time', 'end_time'];
+    const allowedFields = ['original_no', 'test_item', 'test_method', 'size', 'quantity', 'order_num', 'note', 'status', 'machine_hours', 'work_hours', 'listed_price', 'discounted_price', 'check_note', 'create_time', 'deadline', 'department_id', 'price_id'];
     const filteredFields = {};
     for (const key in updatedFields) {
         if (allowedFields.includes(key)) {
             // 检查是否是日期字段并转换格式
-            if (['create_time', 'start_time', 'end_time'].includes(key) && updatedFields[key]) {
+            if (['create_time'].includes(key) && updatedFields[key]) {
                 filteredFields[key] = formatDateForMySQL(updatedFields[key]);
             } else {
                 filteredFields[key] = updatedFields[key];
@@ -434,5 +434,14 @@ router.post('/exportTestDataForSales', async (req, res) => {
     }
 });
 
+router.get('/prices', async (req, res) => {
+    try {
+        const { searchTestItem, searchTestCondition } = req.query;
+        const results = await db.getPrices(searchTestItem, searchTestCondition);
+        res.json(results);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 module.exports = router;

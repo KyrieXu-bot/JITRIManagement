@@ -879,6 +879,14 @@ async function getAssignedTestsByUser(userId, status, month, customerName, order
         JOIN users ua ON ua.account = aa.account
         WHERE aa.test_item_id = t.test_item_id
         ) AS sales_names,
+        CASE 
+            WHEN EXISTS (
+                SELECT 1 
+                FROM project_files f 
+                WHERE f.test_item_id = t.test_item_id
+            ) THEN 1
+            ELSE 0
+        END AS hasAttachments,
         c.customer_name,
         c.contact_name
     FROM 
@@ -1677,9 +1685,8 @@ async function updateSamples(orderNum, updatedFields) {
 async function addTestItem(addedFields) {
     const connection = await db.getConnection(); // 假设你使用的是连接池
     try {
-        await connection.beginTransaction(); // 开始事务
         // 过滤掉不在 test_items 表中的字段
-        const testItemFields = ['order_num', 'original_no', 'test_item', 'test_method', 'size', 'quantity', 'deadline', 'note', 'department_id', 'status']; // test_items 表中的字段
+        const testItemFields = ['order_num', 'original_no', 'test_item', 'test_method', 'size', 'quantity', 'deadline', 'note', 'department_id', 'status', 'price_id']; // test_items 表中的字段
         const filteredFields = {};
         for (let field of testItemFields) {
             if (addedFields[field] !== undefined) {
@@ -1700,16 +1707,19 @@ async function addTestItem(addedFields) {
             VALUES (${placeholders});
         `;
 
+        await connection.beginTransaction(); // 开始事务
         // 执行查询
-        const [result] = await db.query(query, values);
+        const [result] = await connection.query(query, values);
         const testItemId = result.insertId;
         // 将 test_item_id 和 account 插入到 assignments 表中
-        const insertAssignmentQuery = `
+        if(addedFields.account){
+            const insertAssignmentQuery = `
             INSERT INTO assignments (test_item_id, account, is_assigned)
             VALUES (?, ?, 1);
         `;
-        const account = addedFields.account; // 假设 `account` 存在于 addedFields 中
-        await connection.query(insertAssignmentQuery, [testItemId, account]);
+            const account = addedFields.account; // 假设 `account` 存在于 addedFields 中
+            await connection.query(insertAssignmentQuery, [testItemId, account]);
+        }
         await connection.commit();
         return result; // 返回执行结果
     } catch (error) {
@@ -2365,7 +2375,7 @@ async function deliverTest(testItemId, status) {
 
 // 获取检测项目的详细信息
 async function getTestItemById(testItemId) {
-    const query = `SELECT original_no, test_item, test_method, size, quantity, note, status, department_id, deadline,order_num
+    const query = `SELECT original_no, test_item, test_method, size, quantity, note, status, department_id, deadline,order_num, price_id
                    FROM test_items WHERE test_item_id = ?`;
     const [results] = await db.query(query, [testItemId]);
     return results[0];
@@ -2424,8 +2434,9 @@ async function duplicateTestItem(testItemData) {
             create_time, 
             equipment_id,
             assign_time,
-            appoint_time
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(),NOW())`;
+            appoint_time,
+            price_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(),NOW(), ?)`;
     
         const params = [
             testItemData.order_num,
@@ -2439,6 +2450,7 @@ async function duplicateTestItem(testItemData) {
             testItemData.department_id,
             testItemData.deadline,
             testItemData.equipment_id,
+            testItemData.price_id
         ];
     
         const [result] = await db.query(query, params);
@@ -2495,7 +2507,7 @@ async function createReservation(equipment_id, start_time, end_time, equip_user,
         INSERT INTO reservation (equipment_id, start_time, end_time, equip_user, test_item_id, operator)
         VALUES (?, ?, ?, ?, ?, ?);
     `;
-    const [result] = await db.query(query, [equipment_id, start_time, end_time, equip_user, test_item_id, operator]);
+    const [result] = await db.query(query, [equipment_id, start_time, end_time, equip_user, test_item_id || null, operator]);
     return result; // 返回插入结果
 }
 
@@ -2517,7 +2529,7 @@ async function getMyReservation(account) {
         FROM reservation r
         JOIN equipment e ON r.equipment_id = e.equipment_id
         JOIN users u ON u.account = r.equip_user
-        JOIN test_items t ON t.test_item_id = r.test_item_id
+        LEFT JOIN test_items t ON t.test_item_id = r.test_item_id
         WHERE r.operator = ?;
     `;
     const [result] = await db.query(query, [account]);
@@ -2583,6 +2595,30 @@ async function updateAppointTime(testItemId) {
         throw new Error("Error updating appoint_time");
     }
 }
+
+async function getPrices(testItemName, testCondition) {
+    const connection = await db.getConnection();
+    try {
+        let query = 'SELECT * FROM price WHERE 1=1';
+        let params = [];
+
+        if (testItemName) {
+            query += ' AND test_item_name LIKE ?';
+            params.push(`%${testItemName}%`);
+        }
+
+        if (testCondition) {
+            query += ' AND test_condition LIKE ?';
+            params.push(`%${testCondition}%`);
+        }
+        
+        const [results] = await connection.query(query, params);
+        return results;
+    } finally {
+        connection.release();
+    }
+}
+
 module.exports = {
     getConnection,
     findUserByAccount,
@@ -2660,5 +2696,6 @@ module.exports = {
     getYearlyListedPrice,
     getAllMonths,
     getAllQuarters,
-    getAllYears
+    getAllYears,
+    getPrices
 };
