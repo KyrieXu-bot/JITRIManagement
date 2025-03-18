@@ -89,7 +89,7 @@ const Sidebar = ({ onSelect, selected, role }) => {
 
                     </>
                 )}
-                {role !== 'admin' && role !== 'leader' && (
+                {role !== 'admin' && role !== 'leader' && role !== 'viewer' && (
                     <>
                         <li className={selected === 'handleTests' ? 'active' : ''} onClick={() => onSelect('handleTests')}>检测项目处理</li>
                         <li className={selected === 'getCommission' ? 'active' : ''} onClick={() => onSelect('getCommission')}>委托单</li>
@@ -98,11 +98,20 @@ const Sidebar = ({ onSelect, selected, role }) => {
                     </>
                 )}
 
+                {role === 'viewer' && (
+                    <>
+                        <li className={selected === 'getTests' ? 'active' : ''} onClick={() => onSelect('getTests')}>检测项目处理</li>
+                        <li className={selected === 'getCommission' ? 'active' : ''} onClick={() => onSelect('getCommission')}>委托单</li>
+                    </>
+                )}
+
                 {/* 设备预约一级菜单 */}
-                <li className={`menu-item ${isReservationsMenuOpen ? 'expanded' : ''}`} onClick={toggleReservationsMenu}>
+                {role !== 'viewer' && (
+                    <li className={`menu-item ${isReservationsMenuOpen ? 'expanded' : ''}`} onClick={toggleReservationsMenu}>
                     设备预约
                     <span className="arrow">{isReservationsMenuOpen ? '▼' : '▶'}</span>
-                </li>
+                    </li>
+                )}
 
                 {/* 设备预约的二级菜单 */}
                 {isReservationsMenuOpen && (

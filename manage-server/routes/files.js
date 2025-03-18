@@ -3,8 +3,10 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const db = require('../models/database'); // 确保数据库模块正确导入
+const QRCode = require('qrcode');
 
 const router = express.Router();
+const BASE_URL = "https://jicuijiance.mat-jitri.cn"; // 使用环境变量或默认值
 
 // 设置存储配置
 const storage = multer.diskStorage({
@@ -159,4 +161,22 @@ router.delete('/delete/:projectId', async (req, res) => {
     }
 });
 
+
+router.get('/qrcode/:filename', async (req, res) => {
+    try {
+        const filename = req.params.filename;
+        const fileUrl = `${BASE_URL}/uploads/${encodeURIComponent(filename)}`;
+
+        // 生成二维码
+        QRCode.toDataURL(fileUrl, (err, url) => {
+            if (err) {
+                res.status(500).send({ message: "Failed to generate QR code." });
+            } else {
+                res.json({ qrcode: url });
+            }
+        });
+    } catch (error) {
+        res.status(500).send({ message: "Internal Server Error" });
+    }
+});
 module.exports = router;

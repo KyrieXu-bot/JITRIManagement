@@ -5,6 +5,10 @@ import '../css/FileUpload.css'; // 引入CSS文件
 import { Modal, Button } from 'react-bootstrap'; // 引入 Modal 组件
 
 const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
+
+    const [qrcode, setQrcode] = useState('');
+
+
     const [files, setFiles] = useState({
         commissionFiles: [],   // 委托单附件
         rawDataFiles: [],      // 实验数据原始文件/记录
@@ -50,6 +54,14 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
         }
     }, []);
 
+    const generateQRCode = async (filename) => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/files/qrcode/${filename}`);
+            setQrcode(response.data.qrcode);
+        } catch (error) {
+            console.error('Error generating QR Code:', error);
+        }
+    };
 
     // 页面加载时获取已上传的文件
     useEffect(() => {
@@ -289,10 +301,13 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                                 <span className="file-name">{file.filename}</span>
                                 <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
                                 <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
+                                <button className="qrcode-button" onClick={() => generateQRCode(file.filename)}>生成二维码</button>
+
                             </li>
                         ))}
                     </ul>
                 )}
+                {qrcode && <img src={qrcode} alt="QR Code" />}
             </div>
             {/* {uploadStatus && <p>{uploadStatus.message}</p>} */}
 

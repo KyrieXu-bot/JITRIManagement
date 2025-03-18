@@ -481,7 +481,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
             orders o ON t.order_num = o.order_num
         LEFT JOIN
             customers c ON o.customer_id = c.customer_id
-        LEFT JOIN 
+        LEFT JOIN  
             assignments a ON t.test_item_id = a.test_item_id
         LEFT JOIN 
             equipment e ON e.equipment_id = t.equipment_id
@@ -507,10 +507,19 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
         params.push(departmentId);
     }
 
-    if (status !== undefined && status !== '') {
+    // 处理 status 过滤逻辑
+    if (status === 'notAssigned') {
+        query += ` AND t.test_item_id NOT IN (SELECT DISTINCT test_item_id FROM test_items WHERE appoint_time IS NOT NULL)
+            AND t.status = 1
+            `;
+    } else if (status !== undefined && status !== '') {
         query += ' AND t.status = ?';
         params.push(status);
     }
+    // if (status !== undefined && status !== '') {
+    //     query += ' AND t.status = ?';
+    //     params.push(status);
+    // }
 
     if (month !== undefined && month !== '') {
         const [year, monthPart] = month.split('-');
@@ -536,6 +545,121 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
     return results;
 }
 
+
+// async function getAllTestItems(status, departmentId, month, customerName, orderNum, role) {
+//     let query = `
+//         SELECT 
+//             t.test_item_id,
+//             t.original_no,
+//             t.test_item,
+//             t.test_method,
+//             t.size,
+//             t.quantity,
+//             t.order_num,
+//             t.note,
+//             t.status,
+//             t.machine_hours,
+//             t.work_hours,
+//             t.listed_price,
+//             t.discounted_price,
+//             t.equipment_id,
+//             t.check_note,
+//             t.test_note,
+//             t.create_time,
+//             t.deadline,
+//             t.department_id,
+//             t.appoint_time,
+//             IFNULL(e.equipment_name, '') AS equipment_name,
+//             e.model,
+//             p.unit_price,
+//             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+//              FROM assignments aa 
+//              JOIN users ua ON ua.account = aa.account
+//              WHERE aa.test_item_id = t.test_item_id 
+//                AND ua.role = 'supervisor'
+//                ) AS manager_names,
+//             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+//              FROM assignments aa 
+//              JOIN users ua ON ua.account = aa.account
+//              WHERE aa.test_item_id = t.test_item_id 
+//                 AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
+//                ) AS team_names,
+//             (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
+//              FROM assignments aa 
+//              JOIN users ua ON ua.account = aa.account
+//              WHERE aa.test_item_id = t.test_item_id
+//              ) AS sales_names,
+//              CASE 
+//                 WHEN EXISTS (
+//                     SELECT 1 
+//                     FROM project_files f 
+//                     WHERE f.test_item_id = t.test_item_id
+//                 ) THEN 1
+//                 ELSE 0
+//             END AS hasAttachments,
+//             c.customer_name,
+//             c.contact_name
+//         FROM
+//             test_items t
+//         LEFT JOIN
+//             orders o ON t.order_num = o.order_num
+//         LEFT JOIN
+//             customers c ON o.customer_id = c.customer_id
+//         LEFT JOIN
+//             assignments a ON t.test_item_id = a.test_item_id
+//         LEFT JOIN 
+//             equipment e ON e.equipment_id = t.equipment_id
+//         LEFT JOIN 
+//             users u ON u.account = a.account 
+//         LEFT JOIN
+//             price p ON p.price_id = t.price_id
+//     `;
+
+//     const params = [];
+//     let whereClauseAdded = false;
+//     // 动态添加 WHERE 条件
+//     if (departmentId !== undefined && departmentId !== '') {
+//         query += ' WHERE t.department_id = ?';
+//         params.push(departmentId);
+//         whereClauseAdded = true;
+//     }
+//     // 动态添加 WHERE 条件
+//     if (role !== undefined && role !== '') {
+//         query += ' WHERE u.role = ? && u.account != ?';
+//         params.push(role);
+//         params.push('YW001');
+
+//         whereClauseAdded = true;
+//     }
+//     if (status !== undefined && status !== '') {
+//         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.status = ?';
+//         params.push(status);
+//         whereClauseAdded = true;
+//     }
+
+//     if (month !== undefined && month !== '') {
+//         const [year, monthPart] = month.split('-');
+//         const monthComparison = `${year.slice(2)}${monthPart}`;
+//         query += (whereClauseAdded ? ' AND' : ' WHERE') + ` MID(t.order_num, 3, 4) = ?`;
+//         params.push(monthComparison); 
+//         whereClauseAdded = true;
+//     }
+
+//     if (orderNum !== undefined && orderNum !== '') {
+//         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.order_num LIKE ?';
+//         params.push(`%${orderNum}%`);
+//         whereClauseAdded = true;
+//     }
+//     if (customerName !== undefined && customerName !== '') {
+//         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' c.customer_name LIKE ?';
+//         params.push(`%${customerName}%`);
+//         whereClauseAdded = true;
+//     }
+//     // 按照 test_item_id 和 equipment_name 分组
+//     query += ` GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;`;
+//     const [results] = await db.query(query, params);
+//     return results;
+// }
 
 async function getAllTestItems(status, departmentId, month, customerName, orderNum, role) {
     let query = `
@@ -563,24 +687,10 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
             p.unit_price,
-            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-             FROM assignments aa 
-             JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id 
-               AND ua.role = 'supervisor'
-               ) AS manager_names,
-            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-             FROM assignments aa 
-             JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id 
-                AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
-               ) AS team_names,
-            (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
-             FROM assignments aa 
-             JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id
-             ) AS sales_names,
-             CASE 
+            manager_agg.manager_names,
+            team_agg.team_names,
+            sales_agg.sales_names,
+            CASE 
                 WHEN EXISTS (
                     SELECT 1 
                     FROM project_files f 
@@ -590,38 +700,47 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             END AS hasAttachments,
             c.customer_name,
             c.contact_name
-        FROM
-            test_items t
-        LEFT JOIN
-            orders o ON t.order_num = o.order_num
-        LEFT JOIN
-            customers c ON o.customer_id = c.customer_id
-        LEFT JOIN
-            assignments a ON t.test_item_id = a.test_item_id
-        LEFT JOIN 
-            equipment e ON e.equipment_id = t.equipment_id
-        LEFT JOIN 
-            users u ON u.account = a.account 
-        LEFT JOIN
-            price p ON p.price_id = t.price_id
+        FROM test_items t
+        LEFT JOIN orders o ON t.order_num = o.order_num
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN equipment e ON e.equipment_id = t.equipment_id
+        LEFT JOIN price p ON p.price_id = t.price_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS manager_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'supervisor'
+            GROUP BY aa.test_item_id
+        ) AS manager_agg ON t.test_item_id = manager_agg.test_item_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS team_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1)
+            GROUP BY aa.test_item_id
+        ) AS team_agg ON t.test_item_id = team_agg.test_item_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS sales_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'sales'
+            GROUP BY aa.test_item_id
+        ) AS sales_agg ON t.test_item_id = sales_agg.test_item_id
     `;
 
     const params = [];
     let whereClauseAdded = false;
-    // 动态添加 WHERE 条件
+
+    // **动态添加 WHERE 条件**
     if (departmentId !== undefined && departmentId !== '') {
         query += ' WHERE t.department_id = ?';
         params.push(departmentId);
         whereClauseAdded = true;
     }
-    // 动态添加 WHERE 条件
-    if (role !== undefined && role !== '') {
-        query += ' WHERE u.role = ? && u.account != ?';
-        params.push(role);
-        params.push('YW001');
 
-        whereClauseAdded = true;
-    }
     if (status !== undefined && status !== '') {
         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.status = ?';
         params.push(status);
@@ -632,7 +751,7 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
         const [year, monthPart] = month.split('-');
         const monthComparison = `${year.slice(2)}${monthPart}`;
         query += (whereClauseAdded ? ' AND' : ' WHERE') + ` MID(t.order_num, 3, 4) = ?`;
-        params.push(monthComparison); 
+        params.push(monthComparison);
         whereClauseAdded = true;
     }
 
@@ -641,16 +760,28 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
         params.push(`%${orderNum}%`);
         whereClauseAdded = true;
     }
+
     if (customerName !== undefined && customerName !== '') {
         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' c.customer_name LIKE ?';
         params.push(`%${customerName}%`);
         whereClauseAdded = true;
     }
-    // 按照 test_item_id 和 equipment_name 分组
-    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;`;
+
+    if (role !== undefined && role !== '') {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' u.role = ? AND u.account != ?';
+        params.push(role, 'YW001');
+        whereClauseAdded = true;
+    }
+
+    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name,
+    manager_agg.manager_names,
+    team_agg.team_names,
+    sales_agg.sales_names;`;
+
     const [results] = await db.query(query, params);
     return results;
 }
+
 
 async function assignTestToUser(testId, userId, equipment_id, role, isAssigned) {
     const connection = await db.getConnection();
@@ -787,10 +918,8 @@ async function rollbackTest(account, testItemId, note) {
 }
 
 
-
 async function updateTestItemStatus(finishData) {
     const connection = await db.getConnection();
-
     const query = `UPDATE 
                     test_items 
                         SET 

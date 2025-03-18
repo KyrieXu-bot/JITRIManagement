@@ -103,7 +103,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showAccountSuccessModal, setShowAccountSuccessModal] = useState(false); // 控制Toast显示的状态
     const [publicReserveModal, setPublicReserveModal] = useState(false); // 控制Toast显示的状态
 
-
     //分页
     const itemsCountPerPage = 50;
     const totalItemsCount = data.length;
@@ -174,6 +173,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         0: '待分配',
         1: '已分配待检测',
         2: '已检测待审批',
+        'notAssigned': '(组长)未指派',
         3: '审批通过',
         4: '审批失败',
         5: '已交付',
@@ -225,41 +225,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const areas = ['上海', '省内', '省外', '苏州', '相城'];
     const organizations = ['高校', '集萃体系', '企业', '研究所']
-
-
-
-    // const headerLabelFormats = {
-    //     yearShort: "YY年",
-    //     yearLong: "YYYY年",
-    //     monthShort: "MM月",
-    //     monthMedium: "YYYY年MM月",
-    //     monthMediumLong: "YYYY年MMM",
-    //     monthLong: "YYYY年MMMM",
-    //     dayShort: "MM/DD",
-    //     dayLong: "YYYY年MM月DD日",
-    //     hourShort: "HH点",
-    //     hourMedium: "HH点",
-    //     hourMediumLong: "YYYY年MM月DD日 HH点",
-    //     hourLong: "YYYY年MM月DD日 HH点",
-    //     time: "YYYY年MM月DD日 HH点mm分"
-    // };
-
-    // const subHeaderLabelFormats = {
-    //     yearShort: "YY",
-    //     yearLong: "YYYY",
-    //     monthShort: "MM",
-    //     monthMedium: "MMM",
-    //     monthLong: "MMMM",
-    //     dayShort: "D日",
-    //     dayMedium: "MM月D日",
-    //     dayMediumLong: "MM月DD日",
-    //     dayLong: "YYYY年MM月DD日",
-    //     hourShort: "HH时",
-    //     hourLong: "HH点mm分",
-    //     minuteShort: "mm分",
-    //     minuteLong: "HH点mm分"
-    // };
-
 
     // 获取委托单数据
     const fetchData = useCallback(async (endpoint) => {
@@ -733,7 +698,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchInvoices();
             }
         }
-        if (role !== "sales" && role !== "admin") {
+        if (role !== "sales" && role !== "admin" && role !== 'viewer') {
             fetchAssignableUsers();
         }
         fetchEquipments();
@@ -1519,7 +1484,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 定义点击设备预约后的模块
     const handleReserve = () => {
-        const filteredData = data.filter(item => 
+        const filteredData = data.filter(item =>
             item.status === '0' || item.status === '1');
         setFilteredData(filteredData);
         setPublicReserveModal(true);
@@ -2544,6 +2509,75 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             }
 
             return { headers, rows };
+        } else if (role === 'viewer') {
+            // 默认视图
+            switch (selected) {
+                case 'getCommission':
+                    headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "委托总金额", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "区域", "客户性质", "检测项目", "材料类型", "服务加急"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            <td>{highlightText(item.order_num, filterData)}</td>
+                            <td>{highlightText(item.customer_name, filterData)}</td>
+                            <td>{highlightText(item.contact_name, filterData)}</td>
+                            <td>{highlightText(item.contact_phone_num, filterData)}</td>
+                            <td>{orderStatusLabels[item.order_status]}</td>
+                            <td>{item.total_listed_price}</td>
+                            <td>{item.total_discounted_price}</td>
+                            <td>{highlightText(item.name, filterData)}</td>
+                            <td>{highlightText(item.contact_email, filterData)}</td>
+                            <td>{highlightText(item.payer_contact_name, filterData)}</td>
+                            <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
+                            <td>{highlightText(item.payer_address, filterData)}</td>
+                            <td>{highlightText(item.area, filterData)}</td>
+                            <td>{highlightText(item.organization, filterData)}</td>
+                            <td>{highlightText(item.test_items, filterData)}</td>
+                            <td>{highlightText(item.material, filterData)}</td>
+                            <td>{serviceTypeLabels[item.service_type]}</td>
+                            <td className='fixed-column'>
+                                暂无操作权限
+                            </td>
+                        </tr>
+                    ));
+                    break;
+                case 'getTests':
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "审批意见"];
+                    rows = currentItems.map((item, index) => (
+                        <tr key={index}>
+                            {/* 选择框 */}
+
+                            <td>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedOrders.includes(item.test_item_id)}
+                                    onChange={() => handleCheckboxChange(item.test_item_id)}
+                                />
+                            </td>
+                            <td>{item.order_num}</td>
+                            <td>{item.original_no}</td>
+                            <td>{item.test_item}</td>
+                            <td>{item.test_method}</td>
+                            <td>{item.customer_name}</td>
+                            <td>{item.contact_name}</td>
+                            <td>{item.machine_hours}</td>
+                            <td>{item.work_hours}</td>
+                            <td>{item.listed_price}</td>
+                            <td>{item.discounted_price}</td>
+                            <td>{statusLabels[item.status]}</td>
+                            <td>{item.team_names}</td>
+                            <td>{item.sales_names}</td>
+                            <td>{item.check_note}</td>
+                            <td className='fixed-column'>
+                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+                            </td>
+                        </tr>
+                    ));
+                    break;
+                default:
+                    headers = ["暂无数据"];
+                    rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
+                    break;
+            }
+            return { headers, rows };
         }
         else {
             // 默认视图
@@ -2675,7 +2709,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                                 <div className="action-btns">
                                                     {/* <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button> */}
                                                     <Button variant='secondary' onClick={() => handleRollbackAccount(invoice)}>回退</Button>
-
                                                     <Button onClick={() => handleAccount(invoice)}>入账</Button>
 
                                                 </div>
@@ -2735,7 +2768,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.team_names}</td>
                             <td>{item.sales_names}</td>
                             <td>{item.check_note}</td>
-
                             <td className='fixed-column'>
                                 {/* 当状态是待检测时，显示分配按钮 */}
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
@@ -2761,8 +2793,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td className='fixed-column'>
                                 <Button onClick={() => handleEditCustomer(item)}>修改</Button>
                                 <Button variant="danger" onClick={() => handleDelete(item.customer_id)}>删除</Button>
-
-
                             </td>
                         </tr>
                     ));
@@ -2875,7 +2905,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 selectedPeriod={selectedPeriod}
                             />
                         )}
-                        
+
                     </>
                 ) : selected === 'timeline' ? (
                     <EquipmentTimeline tasks={equipmentTimeline} equipments={equipments} /> // 显示设备时间线
@@ -2938,6 +2968,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         <option value="">全部状态</option>
                                         <option value="0">待分配</option>
                                         <option value="1">已分配待检测</option>
+                                        {role === 'supervisor' && (
+                                            <option value="notAssigned">(组长)未指派</option>
+                                        )}
                                         <option value="2">已检测待审批</option>
                                         <option value="3">审批通过</option>
                                         <option value="4">审批失败</option>
@@ -2971,7 +3004,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         onChange={(e) => setFilterCustomer(e.target.value)}
                                         placeholder="输入客户名称进行搜索"
                                     />
-                                    {(role === 'leader' || role === 'admin') && (
+                                    {(role === 'leader' || role === 'admin' || role === 'viewer') && (
                                         <>
                                             <span>表格：</span>
                                             <button onClick={handleExportTestData} disabled={loading}>
@@ -2993,17 +3026,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             ) : selected === 'getCommission' ? (
 
                                 <div className="searchBar">
-                                    {/* <div>
-                                        <span>筛选委托单号：</span>
-                                        <input
-                                            type="text"
-                                            value={filterOrderNum}
-                                            onChange={(e) => setFilterOrderNum(e.target.value)}
-                                            placeholder="输入委托单号进行搜索"
-                                        />
-                                        <button onClick={() => fetchData('orders')}>查询单号</button>
-                                    </div> */}
-
                                     <div>
                                         <span>页面搜索：</span>
                                         <input
@@ -3027,6 +3049,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             </button>
                                         </div>
                                     )}
+
 
                                 </div>
                             ) : selected === 'getChecked' ? (
@@ -3802,7 +3825,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     </Button>
                 </Modal.Footer>
             </Modal>
-
 
             {/* 转办按钮 */}
             <Modal show={showReassignmentModal} onHide={() => setShowReassignmentModal(false)}>

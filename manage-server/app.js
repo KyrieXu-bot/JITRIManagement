@@ -4,18 +4,34 @@ const cors = require('cors');
 const path = require('path');
 const app = express();
 
+// const allowedOrigins = ['http://192.168.9.46:3003', 'https://jicuijiance.mat-jitri.cn'];
+
+// app.use(cors({
+//     origin: function (origin, callback) {
+//         if (!origin || allowedOrigins.includes(origin)) {
+//             callback(null, true);
+//         } else {
+//             callback(new Error('Not allowed by CORS'));
+//         }
+//     },
+//     credentials: true,
+//     methods: ['GET', 'POST', 'OPTIONS', 'DELETE', 'PUT'],
+//     allowedHeaders: ['Authorization', 'Content-Type']
+// }));
+
+// app.options('*', cors());
+
 app.use(cors());
 app.use(bodyParser.json());
 // 提供静态文件（前端的build目录）
 app.use(express.static(path.join(__dirname, '../manage-app/build')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// app.use((req, res, next) => {
-//     res.removeHeader('Connection');
-//     res.removeHeader('X-Powered-By');
-//     next();
-// });
-// 定义路由
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');  // 防止 MIME 类型欺骗
+    res.removeHeader('X-Powered-By');  // 隐藏 Express.js 信息，避免暴露服务器类型
+    next();
+});
 
 const customersRoutes = require('./routes/customers');
 const payersRoutes = require('./routes/payers');
