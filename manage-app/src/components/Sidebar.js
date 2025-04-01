@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import '../css/Sidebar.css';
-const Sidebar = ({ onSelect, selected, role }) => {
+const Sidebar = ({ onSelect, selected, role, isLoading }) => {
+    console.log("fff", isLoading)
     const [isCustomersMenuOpen, setIsCustomersMenuOpen] = useState(false);
     const [isCommissionsMenuOpen, setIsCommissionsMenuOpen] = useState(false);
     const [isReservationsMenuOpen, setIsReservationsMenuOpen] = useState(false); // 新增的设备预约菜单状态
@@ -17,7 +18,7 @@ const Sidebar = ({ onSelect, selected, role }) => {
     return (
         <div className="sidebar">
             <div className="logo-container">
-                <img src='/JITRI-logo.png' alt='logo' className="sidebar-logo" onClick={() => onSelect('')}></img>
+                <img src='/JITRI-logo.png' alt='logo' className="sidebar-logo" onClick={() => {if (!isLoading) onSelect('')}}></img>
                 <div className="home-link">回到首页</div>
             </div>
             <ul>

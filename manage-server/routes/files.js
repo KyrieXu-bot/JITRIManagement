@@ -179,4 +179,46 @@ router.get('/qrcode/:filename', async (req, res) => {
         res.status(500).send({ message: "Internal Server Error" });
     }
 });
+
+
+// 文件预览路由
+router.get('/preview/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const directoryPath = path.resolve(__dirname, '../uploads');
+    const filePath = path.join(directoryPath, filename);
+
+    // 确保文件存在
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).send({ message: "File not found" });
+    }
+
+    // 读取文件 MIME 类型
+    const mimeType = getMimeType(filename);
+    res.setHeader('Content-Type', mimeType);
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+});
+
+// 获取 MIME 类型
+function getMimeType(filename) {
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.txt': 'text/plain',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xls': 'application/vnd.ms-excel',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.ppt': 'application/vnd.ms-powerpoint',
+        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    };
+
+    return mimeTypes[ext] || 'application/octet-stream';
+}
+
 module.exports = router;

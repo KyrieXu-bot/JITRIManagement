@@ -449,6 +449,10 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
             t.appoint_time,
             e.model,
             p.unit_price,
+            t.assign_time,
+            t.latest_finish_time,
+            t.check_time,
+            t.deliver_time,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
              FROM assignments aa 
              JOIN users ua ON ua.account = aa.account
@@ -684,6 +688,10 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             t.deadline,
             t.department_id,
             t.appoint_time,
+            t.assign_time,
+            t.latest_finish_time,
+            t.check_time,
+            t.deliver_time,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
             p.unit_price,
@@ -990,6 +998,10 @@ async function getAssignedTestsByUser(userId, status, month, customerName, order
         e.model,
         t.appoint_time,
         p.unit_price,
+        t.assign_time,
+        t.latest_finish_time,
+        t.check_time,
+        t.deliver_time,
         (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
             FROM assignments aa 
             JOIN users ua ON ua.account = aa.account
@@ -1107,6 +1119,18 @@ async function getAllEmployees(departmentId) {
     return results;
 }
 
+async function getAllSales() {
+    const query = `
+        SELECT 
+            u.name,
+            u.account
+        FROM users u
+        WHERE u.role = 'sales' AND u.account != 'YW001'
+
+    `;
+    const [results] = await db.query(query, []);
+    return results;
+}
 
 async function getUsersByGroupId(groupId) {
     const query = `
@@ -1233,7 +1257,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 CONCAT('20', MID(t.order_num, 3, 2)),
                 MID(t.order_num, 5, 2)
             ORDER BY 
-                year, month;
+                u.account ASC, year, month;
         `;
         queryParams.push(year, month);
     }
@@ -1288,7 +1312,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                     ELSE '第四季度'
                 END
             ORDER BY 
-                year, quarter;
+                u.account ASC, year, quarter;
         `;
         queryParams.push(year, quarter);
     }
@@ -1321,7 +1345,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2))
             ORDER BY 
-                year;
+                u.account ASC, year;
         `;
         queryParams.push(year);
     } else if (timePeriod === 'month') {
@@ -1353,7 +1377,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 CONCAT('20', MID(t.order_num, 3, 2)),
                 MID(t.order_num, 5, 2)
             ORDER BY 
-                year, month;
+                u.account ASC, year, month;
         `;
     } else if (timePeriod === 'quarter') {
         query = `
@@ -1393,7 +1417,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                     ELSE '-第四季度'
                 END
             ORDER BY 
-                year, quarter;
+                u.account ASC, year, quarter;
         `;
     } else if (timePeriod === 'year') {
         query = `
@@ -1421,7 +1445,7 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
                 u.account, u.name, 
                 CONCAT('20', MID(t.order_num, 3, 2))
             ORDER BY 
-                year;
+                u.account ASC, year;
         `;
     } else {
         throw new Error('Invalid time period');
@@ -1815,6 +1839,10 @@ async function addTestItem(addedFields) {
     const connection = await db.getConnection(); // 假设你使用的是连接池
     try {
         // 过滤掉不在 test_items 表中的字段
+        if (addedFields.role === 'supervisor') {
+            addedFields.status = '1';
+        }
+
         const testItemFields = ['order_num', 'original_no', 'test_item', 'test_method', 'size', 'quantity', 'deadline', 'note', 'department_id', 'status', 'price_id']; // test_items 表中的字段
         const filteredFields = {};
         for (let field of testItemFields) {
@@ -1836,6 +1864,7 @@ async function addTestItem(addedFields) {
             VALUES (${placeholders});
         `;
 
+
         await connection.beginTransaction(); // 开始事务
         // 执行查询
         const [result] = await connection.query(query, values);
@@ -1845,10 +1874,19 @@ async function addTestItem(addedFields) {
             const insertAssignmentQuery = `
             INSERT INTO assignments (test_item_id, account, is_assigned)
             VALUES (?, ?, 1);
-        `;
+            `;
             const account = addedFields.account; // 假设 `account` 存在于 addedFields 中
             await connection.query(insertAssignmentQuery, [testItemId, account]);
         }
+
+         if (addedFields.role === 'supervisor' && addedFields.supervisor_account) {
+            const insertSupervisorQuery = `
+                INSERT INTO assignments (test_item_id, account, is_assigned)
+                VALUES (?, ?, 0);
+            `;
+            await connection.query(insertSupervisorQuery, [testItemId, addedFields.supervisor_account]);
+        }
+
         await connection.commit();
         return result; // 返回执行结果
     } catch (error) {
@@ -2085,7 +2123,7 @@ async function makeDeposit(paymentId, amount, description) {
     }
 }
 
-async function handleCheckout( orderNums, checkoutTime ) {
+async function handleCheckout( orderNums, checkoutTime, invoiceNumber, amount ) {
     const connection = await db.getConnection(); 
     try {
         await connection.beginTransaction();
@@ -2133,10 +2171,10 @@ async function handleCheckout( orderNums, checkoutTime ) {
 
         // 在invoices表中插入一条记录（自增ID）
         query = `
-            INSERT INTO invoices (created_at, checkout_time)
-            VALUES (NOW(), ?)
+            INSERT INTO invoices (created_at, checkout_time, invoice_number, final_price)
+            VALUES (NOW(), ?, ?, ?)
         `;
-        const [invoiceResult] = await db.query(query, [checkoutTime]);
+        const [invoiceResult] = await db.query(query, [checkoutTime, invoiceNumber, amount]);
 
         // 获取新生成的发票ID
         const invoiceId = invoiceResult.insertId;
@@ -2826,5 +2864,6 @@ module.exports = {
     getAllMonths,
     getAllQuarters,
     getAllYears,
-    getPrices
+    getPrices,
+    getAllSales
 };

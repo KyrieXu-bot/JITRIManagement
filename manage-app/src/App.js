@@ -14,6 +14,7 @@ function App() {
   const [userDepartment, setUserDepartment] = useState('');
   const [userGroup, setUserGroup] = useState('');
   const [userName, setUserName] = useState('');
+  const [isLoading, setIsLoading] = useState(true); // 🔹 新增加载状态
 
 
   useEffect(() => {
@@ -51,16 +52,23 @@ function App() {
     localStorage.removeItem('userRole');
   };
 
+  const handleSelectWithLoading = (key) => {
+    setSelected(key);
+    setIsLoading(true); // 每次点击菜单都进入“加载中”状态
+  };
+
   return (
     <AuthProvider>
       {isLoggedIn ? (
         // 登录后显示的界面
         <div className="App">
             <Sidebar
-              onSelect={setSelected} selected={selected} 
+              onSelect={handleSelectWithLoading} 
+              selected={selected} 
               role={userRole} 
               account={userAccount} 
               departmentID={userDepartment}
+              isLoading={isLoading}
             />
             <ContentArea 
               selected={selected} 
@@ -70,6 +78,7 @@ function App() {
               groupId={userGroup}
               name={userName}
               onLogout={handleLogout}
+              setIsLoading={setIsLoading}
             />
         </div>
       ) : (

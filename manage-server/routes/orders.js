@@ -50,10 +50,10 @@ router.delete('/:orderNum', async (req, res) => {
 
 // 结算操作
 router.post('/checkout', async (req, res) => {
-    const { orderNums, checkoutTime } = req.body; // 接收前端传过来的订单号数组
+    const { orderNums, checkoutTime, invoiceNumber, amount } = req.body; // 接收前端传过来的订单号数组
     try {
         // 调用handleCheckout函数，检查是否有订单的discounted_price为空
-        const result = await db.handleCheckout(orderNums, checkoutTime);
+        const result = await db.handleCheckout(orderNums, checkoutTime, invoiceNumber, amount);
 
         if (result.success) {
             res.status(200).json({ success: true, message: '结算成功' });

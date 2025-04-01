@@ -7,8 +7,6 @@ import { Modal, Button } from 'react-bootstrap'; // 引入 Modal 组件
 const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
 
     const [qrcode, setQrcode] = useState('');
-
-
     const [files, setFiles] = useState({
         commissionFiles: [],   // 委托单附件
         rawDataFiles: [],      // 实验数据原始文件/记录
@@ -65,7 +63,7 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
 
     // 页面加载时获取已上传的文件
     useEffect(() => {
-        if(testItemId){
+        if (testItemId) {
             fetchUploadedFiles(testItemId);
         }
     }, [testItemId, fetchUploadedFiles]);
@@ -223,6 +221,13 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                         {uploadedFiles.commissionFiles.map((file) => (
                             <li key={file.filename} className="file-item">
                                 <span className="file-name">{file.filename}</span>
+                                {/* 预览按钮（仅支持特定文件类型） */}
+                                {/\.(pdf|png|jpg|jpeg|gif|docx|pptx|xlsx|txt)$/i.test(file.filename) && (
+                                    <a href={`${config.API_BASE_URL}/api/files/preview/${file.filename}`} target="_blank" rel="noopener noreferrer">
+                                        预览
+                                    </a>
+                                )}
+                                &nbsp;
                                 <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
                                 <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
                             </li>
@@ -261,6 +266,13 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                         {uploadedFiles.rawDataFiles.map((file) => (
                             <li key={file.filename} className="file-item">
                                 <span className="file-name">{file.filename}</span>
+                                {/* 预览按钮（仅支持特定文件类型） */}
+                                {/\.(pdf|png|jpg|jpeg|gif|docx|pptx|xlsx|txt)$/i.test(file.filename) && (
+                                    <a href={`${config.API_BASE_URL}/api/files/preview/${file.filename}`} target="_blank" rel="noopener noreferrer">
+                                        预览
+                                    </a>
+                                )}
+                                &nbsp;
                                 <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
                                 <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
                             </li>
@@ -299,6 +311,13 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                         {uploadedFiles.reportFiles.map((file) => (
                             <li key={file.filename} className="file-item">
                                 <span className="file-name">{file.filename}</span>
+                                {/* 预览按钮（仅支持特定文件类型） */}
+                                {/\.(pdf|png|jpg|jpeg|gif|docx|pptx|xlsx|txt)$/i.test(file.filename) && (
+                                    <a href={`${config.API_BASE_URL}/api/files/preview/${file.filename}`} target="_blank" rel="noopener noreferrer">
+                                        预览
+                                    </a>
+                                )}
+                                &nbsp;
                                 <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
                                 <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
                                 <button className="qrcode-button" onClick={() => generateQRCode(file.filename)}>生成二维码</button>
