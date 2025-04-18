@@ -21,6 +21,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [data, setData] = useState([]);
     const [testId, setTestId] = useState('');
     const [currentItem, setCurrentItem] = useState({});
+    // const [totalItemsCount, setTotalItemsCount] = useState(0);
+    const [totalItemsCountFromServer, setTotalItemsCountFromServer] = useState(0);
+    const [summaryItems, setSummaryItems] = useState([]); // 首页概览统计数据
+
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
     const [showFailureToast, setShowFailureToast] = useState(false); // 控制Toast显示的状态
@@ -103,17 +107,32 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showSingleReservationModal, setShowSingleReservationModal] = useState(false);
     const [showAccountSuccessModal, setShowAccountSuccessModal] = useState(false); // 控制Toast显示的状态
     const [publicReserveModal, setPublicReserveModal] = useState(false); // 控制Toast显示的状态
+    const [showLeaderCheckModal, setShowLeaderCheckModal] = useState(false);
+    const [reportCheckItem, setReportCheckItem] = useState(null);
+    const [reportNote, setReportNote] = useState('');
+    const [showBusinessCheckModal, setShowBusinessCheckModal] = useState(false);
+    const [businessCheckItem, setBusinessCheckItem] = useState(null);
+    const [businessNote, setBusinessNote] = useState('');
+    const [showArchiveModal, setShowArchiveModal] = useState(false);
+    const [archiveItem, setArchiveItem] = useState(null);
+    const [archiveNote, setArchiveNote] = useState('');
 
     //分页
     const itemsCountPerPage = 50;
-    const totalItemsCount = data.length;
     const indexOfLastItem = activePage * itemsCountPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsCountPerPage;
-    const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
+    const currentItems = (selected === 'getTests' || selected === 'handleTests')
+        ? data  // 后端已经分页，无需再处理
+        : data.slice(indexOfFirstItem, indexOfLastItem); // 前端分页用 slice
+
+    const totalItemsCount = (selected === 'getTests' || selected === 'handleTests')
+        ? totalItemsCountFromServer
+        : data.length;
 
     const totalReservationCount = myReservationInfo.length;
     const lastRes = activePage * itemsCountPerPage;
     const firstRes = lastRes - itemsCountPerPage
+
     const reservationPaging = myReservationInfo.slice(firstRes, lastRes);
 
     //领导点击分配时候的数据
@@ -179,8 +198,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         3: '审批通过',
         4: '审批失败',
         5: '已交付',
-        6: '客户驳回'
-
+        6: '客户驳回',
+        7: '报告通过',
+        8: '报告驳回',
+        9: '客户同意',
+        10: '已归档',
+        11: '归档驳回'
     };
 
     // 委托单服务类型标签
@@ -222,7 +245,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const departments = [
         { department_id: 1, department_name: '显微组织表征实验室' },
         { department_id: 2, department_name: '物化性能测试实验室' },
-        { department_id: 3, department_name: '力学性能测试实验室' }
+        { department_id: 3, department_name: '力学性能测试实验室' },
+        { department_id: 4, department_name: '委外' }
     ];
 
     const areas = ['上海', '省内', '省外', '苏州', '相城'];
@@ -233,6 +257,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         try {
             setLoading(true);
             const params = new URLSearchParams();
+            if (endpoint === 'tests') {
+                console.log("count", itemsCountPerPage)
+                params.append('limit', itemsCountPerPage);
+                params.append('offset', (activePage - 1) * itemsCountPerPage);
+            }
             if (filterStatus) {
                 params.append('status', filterStatus);
             }
@@ -268,13 +297,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } finally {
             setLoading(false); // 数据加载完成
         }
-    }, [setError, setIsLoading, filterStatus, selectedMonth, filterCustomer, filterOrderNum, departmentID, filterData]);
+    }, [setError, activePage, setIsLoading, filterStatus, selectedMonth, filterCustomer, filterOrderNum, departmentID, filterData]);
+
 
     //拉取工程师显示数据
     const fetchDataForEmployee = useCallback(async (account) => {
         try {
             setLoading(true);
             const params = new URLSearchParams();
+            params.append('limit', itemsCountPerPage);
+            params.append('offset', (activePage - 1) * itemsCountPerPage);
             if (filterStatus) {
                 params.append('status', filterStatus);
             }
@@ -300,7 +332,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } finally {
             setLoading(false); // 数据加载完成
         }
-    }, [setIsLoading, filterStatus, selectedMonth, filterCustomer, filterOrderNum]);
+    }, [setIsLoading, activePage, filterStatus, selectedMonth, filterCustomer, filterOrderNum]);
 
     //拉取组长显示数据
     const fetchDataForSupervisor = useCallback(async (departmentId) => {
@@ -308,6 +340,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setLoading(true);
 
             const params = new URLSearchParams();
+            params.append('limit', itemsCountPerPage);
+            params.append('offset', (activePage - 1) * itemsCountPerPage);
             if (filterStatus) params.append('status', filterStatus);
             if (departmentId) params.append('departmentId', departmentId);  // 添加部门ID到请求参数
             if (selectedMonth) {
@@ -340,7 +374,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } finally {
             setLoading(false); // 数据加载完成
         }
-    }, [setIsLoading, role, account, filterStatus, setError, selectedMonth, filterCustomer, filterOrderNum]);
+    }, [setIsLoading, activePage, role, account, filterStatus, setError, selectedMonth, filterCustomer, filterOrderNum]);
 
     //拉取发票信息
     const fetchInvoices = useCallback(async () => {
@@ -385,7 +419,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 endpoint = `/api/users/supervisors?departmentId=${departmentID}`;
             } else if (role === 'supervisor' || role === 'employee') {
                 endpoint = `/api/users/employees?departmentId=${departmentID}`;
-            } else if (role === 'sales'){
+            } else if (role === 'sales') {
                 endpoint = `/api/users/sales`;
             }
             const response = await axios.get(`${config.API_BASE_URL}${endpoint}`);
@@ -649,6 +683,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     };
 
+    const fetchSummaryItems = useCallback(async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/api/tests/summary`, {
+                params: { account, role, departmentId: departmentID }
+            });
+            setSummaryItems(response.data);
+        } catch (error) {
+            console.error("获取首页统计数据失败:", error);
+        }
+    }, [account, role, departmentID]);
+
     useEffect(() => {
         if ((role === 'employee')) {
             if (selected === 'timeline') {
@@ -713,9 +758,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         if (role !== "admin" && role !== 'viewer') {
             fetchAssignableUsers();
         }
-        if (selected === 'myReservation'){
-            fetchMyReservation();
-        }
+        fetchMyReservation();
         fetchEquipments();
         fetchEquipmentSchedule(); // 拉取新的预约数据
         setTimelineKey((prevKey) => prevKey + 1);
@@ -730,6 +773,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         role,
         groupId,
         timeStatus,
+        activePage,
         fetchData,
         fetchDataForEmployee,
         fetchDataForSupervisor,
@@ -755,6 +799,42 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             fetchTimePeriods(timeStatus)
         }
     }, [selectedDepartmentId, timeStatus, fetchStatistics, fetchTimePeriods]);
+
+    // 用于获取页数
+    useEffect(() => {
+        const fetchTotalCount = async () => {
+            const params = new URLSearchParams();
+            if (filterStatus) params.append('status', filterStatus);
+            if (selectedMonth) params.append('month', selectedMonth);
+            if (filterCustomer) params.append('customerName', filterCustomer);
+            if (filterOrderNum) params.append('orderNum', filterOrderNum);
+            if (departmentID) params.append('departmentId', departmentID);
+
+            // ✅ 角色决定额外参数
+            if (role === 'supervisor') {
+                params.append('account', account);  // 组长（带 account 查）
+            } else if (role === 'sales' || role === 'employee') {
+                params.append('account', account);  // 员工或销售
+                params.append('role', role);        // 销售可能有特殊 role 过滤
+            } else if (role === 'admin' || role === 'leader') {
+                if (role === 'sales') params.append('role', role);  // 如果你有过滤 YW001，也传进去
+            }
+
+            try {
+                const res = await axios.get(`${config.API_BASE_URL}/api/tests/count?${params}`);
+                setTotalItemsCountFromServer(res.data.total);
+            } catch (error) {
+                console.error('获取总数失败:', error);
+            }
+        };
+
+        fetchTotalCount();
+    }, [filterStatus, selectedMonth, filterCustomer, filterOrderNum, departmentID, account, role]);
+
+    // 首页展示组件
+    useEffect(() => {
+        fetchSummaryItems();
+    }, [fetchSummaryItems, selected, account, departmentID, role]);
 
     // 当用户选择标签时，直接更新筛选后的设备
     const handleLabelChange = (e) => {
@@ -829,8 +909,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             note: '',
             department_id: '',
             status: '0',
-            name: item.name,
-            account: item.account,
+            sales_names: item.sales_names,
+            account: item.sales_accounts,
             supervisor_account: account,
             role: role
         });
@@ -882,6 +962,24 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const handleCheck = (item) => {
         setCurrentItem(item); // 假设我们需要订单号来处理分配
         setShowCheckModal(true);
+    };
+
+    const handleLeaderCheck = (item) => {
+        setReportCheckItem(item);
+        setReportNote(item.report_note || '');  // 初始化备注
+        setShowLeaderCheckModal(true);
+    };
+
+    const handleBusinessCheck = (item) => {
+        setBusinessCheckItem(item);
+        setBusinessNote(item.business_note || '');
+        setShowBusinessCheckModal(true);
+    };
+
+    const handleArchive = (item) => {
+        setArchiveItem(item);
+        setArchiveNote(item.archive_note || '');
+        setShowArchiveModal(true);
     };
 
     const handleFinish = (item) => {
@@ -1322,6 +1420,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 查看事件处理函数
     const handleShowDetails = (item) => {
+        console.log(item)
         setSelectedDetails(item);
         setShowDetailsModal(true);
     };
@@ -1437,14 +1536,30 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     //处理检测项目全选按钮
-    const handleSelectAllTest = () => {
+    const handleSelectAllTest = async () => {
         if (isAllSelected) {
             setSelectedOrders([]);  // 如果已经全选，则取消全选
         } else {
-            setSelectedOrders(data.map(item => item.test_item_id));  // 全选所有委托单号
+            try {
+                const params = new URLSearchParams();
+                if (filterStatus) params.append('status', filterStatus);
+                if (selectedMonth) params.append('month', selectedMonth);
+                if (filterCustomer) params.append('customerName', filterCustomer);
+                if (filterOrderNum) params.append('orderNum', filterOrderNum);
+                if (departmentID !== 4) params.append('departmentId', departmentID);
+                if (role) params.append('role', role);
+                if (account) params.append('account', account);
+
+                const response = await axios.get(`${config.API_BASE_URL}/api/tests/ids?${params}`);
+                console.log(response.data)
+                setSelectedOrders(response.data); // 全选所有 test_item_id
+            } catch (error) {
+                console.error("获取所有检测项目ID失败", error);
+            }
         }
         setIsAllSelected(!isAllSelected);  // 切换全选状态
     };
+
     //处理发票全选按钮
     const handleSelectAllInvoices = () => {
         if (isAllSelectedInvoices) {
@@ -1550,6 +1665,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     const handleBlurOrSave = async (item, newValue) => {
+        if (editingRow === null) return; // 防止重复触发
+
         // 停止编辑模式
         setEditingRow(null);
 
@@ -1560,10 +1677,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         if (newValue && !isNaN(parseFloat(newValue))) {
             try {
                 await axios.patch(`${config.API_BASE_URL}/api/tests/${item.test_item_id}/discount`, { discountedPrice: newValue });
-                if(role === 'sales'){
-                    fetchDataForEmployee(account); // 重新获取数据以更新UI
-                } else if (role === 'admin'){
-                    fetchData('tests')
+                if (role === 'sales') {
+                    await fetchDataForEmployee(account); // 重新获取数据以更新UI
+                } else if (role === 'admin') {
+                    await fetchData('tests')
                 }
             } catch (error) {
                 console.error('Error updating price:', error);
@@ -1738,7 +1855,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             await axios.post(`${config.API_BASE_URL}/api/tests/reassign`, { testItemId: currentItem.testItemId, account, assignmentInfo });
             setShowReassignmentModal(false);
             // 根据 role 和 selected 的值直接调用相应的 fetchData 函数
-            if ((role === 'employee' || role === 'sales' )&& selected === 'handleTests') {
+            if ((role === 'employee' || role === 'sales') && selected === 'handleTests') {
                 fetchDataForEmployee(account); // 重新获取该员工分配的测试数据
             } else {
                 fetchData(selected); // 对于非 handleTests 的情况，根据 selected 重新获取数据
@@ -1821,6 +1938,92 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         };
         updateTestStatus(payload);
     };
+
+    // 室主任审批报告方法
+    const submitReportApproval = async (action) => {
+        if (action === 'approve' && !window.confirm('请再次确认此操作。点击通过后不可修改！')) {
+            return;  // 用户点击取消后，不执行任何操作
+        }
+        if (!reportCheckItem) return;
+        const reportStatus = action === 'approve' ? 7 : 8;
+        const payload = {
+            testItemId: reportCheckItem.test_item_id,
+            status: reportStatus,
+            reportNote: reportNote
+        };
+
+        try {
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/update-report-check`, payload);
+            if (response.status === 200) {
+                setShowLeaderCheckModal(false);
+                setShowSuccessToast(true);
+                setTimeout(() => setShowSuccessToast(false), 3000);
+                fetchData('tests');  // 或者 leader 的 fetch 函数
+            }
+        } catch (error) {
+            console.error('Error updating report check status:', error);
+            setError('报告审核失败');
+            setTimeout(() => setError(''), 3000);
+        }
+    };
+
+    // 业务给客户审查方法
+    const submitBusinessApproval = async (action) => {
+        if (action === 'approve' && !window.confirm('请再次确认此操作。点击通过后不可修改！')) {
+            return;  // 用户点击取消后，不执行任何操作
+        }
+        if (!businessCheckItem) return;
+
+        const newStatus = action === 'approve' ? 9 : 6; // 9: 客户同意，6: 驳回
+
+        try {
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/update-business-check`, {
+                testItemId: businessCheckItem.test_item_id,
+                status: newStatus,
+                businessNote: businessNote
+            });
+
+            if (response.status === 200) {
+                setShowBusinessCheckModal(false);
+                setShowSuccessToast(true);
+                fetchDataForEmployee(account); // 或 fetchData('tests')
+                setTimeout(() => setShowSuccessToast(false), 3000);
+            }
+        } catch (error) {
+            console.error('业务审查失败:', error);
+            setError('业务审查失败');
+            setTimeout(() => setError(''), 3000);
+        }
+    };
+
+    // 质量员归档方法
+    const submitArchive = async (action) => {
+        if (action === 'approve' && !window.confirm('请再次确认此操作。点击通过后不可修改！')) {
+            return;  // 用户点击取消后，不执行任何操作
+        }
+        if (!archiveItem) return;
+        const archiveStatus = action === 'approve' ? 10 : 11;
+
+        try {
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/update-archive`, {
+                testItemId: archiveItem.test_item_id,
+                status: archiveStatus,
+                archiveNote: archiveNote
+            });
+
+            if (response.status === 200) {
+                setShowArchiveModal(false);
+                setShowSuccessToast(true);
+                fetchDataForEmployee(account);  // 可替换成 fetchData('tests') 等
+                setTimeout(() => setShowSuccessToast(false), 3000);
+            }
+        } catch (error) {
+            console.error('归档失败:', error);
+            setError('归档处理失败');
+            setTimeout(() => setError(''), 3000);
+        }
+    };
+
 
     //交付
     const deliver = async (testItemId) => {
@@ -1961,7 +2164,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     //入账操作
     const submitAccount = async (invoiceId) => {
         try {
-           if (accountTime.length === 0) {
+            if (accountTime.length === 0) {
                 setAlertMessage("入账时间未填写！");
                 setShowAlert(true);
             } else {
@@ -2206,21 +2409,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             </tr>
                         ];
                     } else {
-                    rows = currentItems.map((item, index) => (
-                        <tr key={index}>
-                            <td>{highlightText(item.order_num, filterData)}</td>
-                            <td>{highlightText(item.customer_name, filterData)}</td>
-                            <td>{highlightText(item.contact_name, filterData)}</td>
-                            <td>{highlightText(item.contact_phone_num, filterData)}</td>
-                            <td>{highlightText(item.contact_email, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_name, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
-                            <td>{highlightText(item.payer_address, filterData)}</td>
-                            <td>{highlightText(item.test_items, filterData)}</td>
-                            <td>{highlightText(item.material, filterData)}</td>
-                            <td>{serviceTypeLabels[item.service_type]}</td>
-                        </tr>
-                    ));
+                        rows = currentItems.map((item, index) => (
+                            <tr key={index}>
+                                <td>{highlightText(item.order_num, filterData)}</td>
+                                <td>{highlightText(item.customer_name, filterData)}</td>
+                                <td>{highlightText(item.contact_name, filterData)}</td>
+                                <td>{highlightText(item.contact_phone_num, filterData)}</td>
+                                <td>{highlightText(item.contact_email, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_name, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
+                                <td>{highlightText(item.payer_address, filterData)}</td>
+                                <td>{highlightText(item.test_items, filterData)}</td>
+                                <td>{highlightText(item.material, filterData)}</td>
+                                <td>{serviceTypeLabels[item.service_type]}</td>
+                            </tr>
+                        ));
                     }
                     break;
                 case 'myReservation':
@@ -2333,24 +2536,44 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     break;
                 case 'getCommission':
                     headers = ["委托单号", "委托单位", "联系人", "联系电话", "联系人邮箱", "付款人", "付款人电话", "地址", "检测项目", "材料类型", "服务加急"];
-                    rows = currentItems.map((item, index) => (
-                        <tr key={index}>
-                            <td>{highlightText(item.order_num, filterData)}</td>
-                            <td>{highlightText(item.customer_name, filterData)}</td>
-                            <td>{highlightText(item.contact_name, filterData)}</td>
-                            <td>{highlightText(item.contact_phone_num, filterData)}</td>
-                            <td>{highlightText(item.contact_email, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_name, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
-                            <td>{highlightText(item.payer_address, filterData)}</td>
-                            <td>{highlightText(item.test_items, filterData)}</td>
-                            <td>{highlightText(item.material, filterData)}</td>
-                            <td>{serviceTypeLabels[item.service_type]}</td>
-                            <td className='fixed-column'>
-                                <Button onClick={() => handleAdd(item)}>添加检测</Button>
-                            </td>
-                        </tr>
-                    ));
+                    if (loading) {
+                        rows = [
+                            <tr key="loading">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" />
+                                    数据加载中，请稍候...
+                                </td>
+                            </tr>
+                        ];
+                    } else if (currentItems.length === 0) {
+                        rows = [
+                            <tr key="no-data">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    暂无数据
+                                </td>
+                            </tr>
+                        ];
+                    } else {
+                        console.log(currentItems)
+                        rows = currentItems.map((item, index) => (
+                            <tr key={index}>
+                                <td>{highlightText(item.order_num, filterData)}</td>
+                                <td>{highlightText(item.customer_name, filterData)}</td>
+                                <td>{highlightText(item.contact_name, filterData)}</td>
+                                <td>{highlightText(item.contact_phone_num, filterData)}</td>
+                                <td>{highlightText(item.contact_email, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_name, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
+                                <td>{highlightText(item.payer_address, filterData)}</td>
+                                <td>{highlightText(item.test_items, filterData)}</td>
+                                <td>{highlightText(item.material, filterData)}</td>
+                                <td>{serviceTypeLabels[item.service_type]}</td>
+                                <td className='fixed-column'>
+                                    <Button onClick={() => handleAdd(item)}>添加检测</Button>
+                                </td>
+                            </tr>
+                        ));
+                    }
                     break;
                 case 'myReservation':
                     headers = ["预约号", "委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
@@ -2372,11 +2595,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     ));
                     break;
                 default:
-
                     break;
-
             }
-
             return { headers, rows };
         } else if (role === 'leader') {
             switch (selected) {
@@ -2442,6 +2662,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     {item.status === '0' && (
                                         <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                                     )}
+                                    {(item.status === '3' || item.status === '8') && item.hasReports === 1 && (
+                                        <Button variant="warning" onClick={() => handleLeaderCheck(item)}>审报告</Button>
+                                    )}
 
                                 </td>
                             </tr>
@@ -2450,31 +2673,50 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     break;
                 case 'getCommission':
                     headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "委托总金额", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "区域", "客户性质", "检测项目", "材料类型", "服务加急"];
-                    rows = currentItems.map((item, index) => (
-                        <tr key={index}>
-                            <td>{highlightText(item.order_num, filterData)}</td>
-                            <td>{highlightText(item.customer_name, filterData)}</td>
-                            <td>{highlightText(item.contact_name, filterData)}</td>
-                            <td>{highlightText(item.contact_phone_num, filterData)}</td>
-                            <td>{orderStatusLabels[item.order_status]}</td>
-                            <td>{item.total_listed_price}</td>
-                            <td>{item.total_discounted_price}</td>
-                            <td>{highlightText(item.name, filterData)}</td>
-                            <td>{highlightText(item.contact_email, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_name, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
-                            <td>{highlightText(item.payer_address, filterData)}</td>
-                            <td>{highlightText(item.area, filterData)}</td>
-                            <td>{highlightText(item.organization, filterData)}</td>
-                            <td>{highlightText(item.test_items, filterData)}</td>
-                            <td>{highlightText(item.material, filterData)}</td>
-                            <td>{serviceTypeLabels[item.service_type]}</td>
-                            <td className='fixed-column'>
-                                <Button onClick={() => handleAdd(item)}>添加检测</Button>
-                                <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
-                            </td>
-                        </tr>
-                    ));
+                    if (loading) {
+                        rows = [
+                            <tr key="loading">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" />
+                                    数据加载中，请稍候...
+                                </td>
+                            </tr>
+                        ];
+                    } else if (currentItems.length === 0) {
+                        rows = [
+                            <tr key="no-data">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    暂无数据
+                                </td>
+                            </tr>
+                        ];
+                    } else {
+                        rows = currentItems.map((item, index) => (
+                            <tr key={index}>
+                                <td>{highlightText(item.order_num, filterData)}</td>
+                                <td>{highlightText(item.customer_name, filterData)}</td>
+                                <td>{highlightText(item.contact_name, filterData)}</td>
+                                <td>{highlightText(item.contact_phone_num, filterData)}</td>
+                                <td>{orderStatusLabels[item.order_status]}</td>
+                                <td>{item.total_listed_price}</td>
+                                <td>{item.total_discounted_price}</td>
+                                <td>{highlightText(item.sales_names, filterData)}</td>
+                                <td>{highlightText(item.contact_email, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_name, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
+                                <td>{highlightText(item.payer_address, filterData)}</td>
+                                <td>{highlightText(item.area, filterData)}</td>
+                                <td>{highlightText(item.organization, filterData)}</td>
+                                <td>{highlightText(item.test_items, filterData)}</td>
+                                <td>{highlightText(item.material, filterData)}</td>
+                                <td>{serviceTypeLabels[item.service_type]}</td>
+                                <td className='fixed-column'>
+                                    <Button onClick={() => handleAdd(item)}>添加检测</Button>
+                                    <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
+                                </td>
+                            </tr>
+                        ));
+                    }
                     break;
                 case 'myReservation':
                     headers = ["预约号", "委托单号", "检测项目", "设备名称", "设备型号", "操作员", "预约开始时间", "预约结束时间时间"];
@@ -2535,6 +2777,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         onBlur={() => handleBlurOrSave(item, editingValue)}
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") {
+                                                e.preventDefault(); // 防止触发 onBlur
                                                 handleBlurOrSave(item, editingValue);
                                             }
                                         }}
@@ -2562,10 +2805,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 {item.status !== '5' && (
                                     <Button onClick={() => handleReassignment(item.test_item_id)}>转办</Button>
                                 )}
-                                {item.status === '3' && (
+                                {item.status === '10' && (
                                     <Button variant="success" onClick={() => handleDeliver(item)}>交付</Button>
                                 )}
+                                {(item.status === '7' || item.status === '6') && (
+                                    <Button variant="warning" onClick={() => handleBusinessCheck(item)}>业务审查</Button>
+                                )}
                             </td>
+
                         </tr>
                     ));
                     break;
@@ -2616,65 +2863,106 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'getCommission':
                     headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "委托总金额", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "区域", "客户性质", "检测项目", "材料类型", "服务加急"];
-                    rows = currentItems.map((item, index) => (
-                        <tr key={index}>
-                            <td>{highlightText(item.order_num, filterData)}</td>
-                            <td>{highlightText(item.customer_name, filterData)}</td>
-                            <td>{highlightText(item.contact_name, filterData)}</td>
-                            <td>{highlightText(item.contact_phone_num, filterData)}</td>
-                            <td>{orderStatusLabels[item.order_status]}</td>
-                            <td>{item.total_listed_price}</td>
-                            <td>{item.total_discounted_price}</td>
-                            <td>{highlightText(item.name, filterData)}</td>
-                            <td>{highlightText(item.contact_email, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_name, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
-                            <td>{highlightText(item.payer_address, filterData)}</td>
-                            <td>{highlightText(item.area, filterData)}</td>
-                            <td>{highlightText(item.organization, filterData)}</td>
-                            <td>{highlightText(item.test_items, filterData)}</td>
-                            <td>{highlightText(item.material, filterData)}</td>
-                            <td>{serviceTypeLabels[item.service_type]}</td>
-                            <td className='fixed-column'>
-                                暂无操作权限
-                            </td>
-                        </tr>
-                    ));
+                    if (loading) {
+                        rows = [
+                            <tr key="loading">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" />
+                                    数据加载中，请稍候...
+                                </td>
+                            </tr>
+                        ];
+                    } else if (currentItems.length === 0) {
+                        rows = [
+                            <tr key="no-data">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    暂无数据
+                                </td>
+                            </tr>
+                        ];
+                    } else {
+                        rows = currentItems.map((item, index) => (
+                            <tr key={index}>
+                                <td>{highlightText(item.order_num, filterData)}</td>
+                                <td>{highlightText(item.customer_name, filterData)}</td>
+                                <td>{highlightText(item.contact_name, filterData)}</td>
+                                <td>{highlightText(item.contact_phone_num, filterData)}</td>
+                                <td>{orderStatusLabels[item.order_status]}</td>
+                                <td>{item.total_listed_price}</td>
+                                <td>{item.total_discounted_price}</td>
+                                <td>{highlightText(item.sales_names, filterData)}</td>
+                                <td>{highlightText(item.contact_email, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_name, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
+                                <td>{highlightText(item.payer_address, filterData)}</td>
+                                <td>{highlightText(item.area, filterData)}</td>
+                                <td>{highlightText(item.organization, filterData)}</td>
+                                <td>{highlightText(item.test_items, filterData)}</td>
+                                <td>{highlightText(item.material, filterData)}</td>
+                                <td>{serviceTypeLabels[item.service_type]}</td>
+                                <td className='fixed-column'>
+                                    暂无操作权限
+                                </td>
+                            </tr>
+                        ));
+                    }
                     break;
                 case 'getTests':
                     headers = ["委托单号", "样品原号", "检测项目", "方法", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "客户备注", "实验备注", "审批意见"];
-                    rows = currentItems.map((item, index) => (
-                        <tr key={index}>
-                            {/* 选择框 */}
+                    if (loading) {
+                        rows = [
+                            <tr key="loading">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" />
+                                    数据加载中，请稍候...
+                                </td>
+                            </tr>
+                        ];
+                    } else if (currentItems.length === 0) {
+                        rows = [
+                            <tr key="no-data">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    暂无数据
+                                </td>
+                            </tr>
+                        ];
+                    } else {
+                        rows = currentItems.map((item, index) => (
+                            <tr key={index}>
+                                {/* 选择框 */}
 
-                            <td>
-                                <input
-                                    type="checkbox"
-                                    checked={selectedOrders.includes(item.test_item_id)}
-                                    onChange={() => handleCheckboxChange(item.test_item_id)}
-                                />
-                            </td>
-                            <td>{item.order_num}</td>
-                            <td>{item.original_no}</td>
-                            <td>{item.test_item}</td>
-                            <td>{item.test_method}</td>
-                            <td>{item.customer_name}</td>
-                            <td>{item.contact_name}</td>
-                            <td>{item.machine_hours}</td>
-                            <td>{item.work_hours}</td>
-                            <td>{item.listed_price}</td>
-                            <td>{item.discounted_price}</td>
-                            <td>{statusLabels[item.status]}</td>
-                            <td>{item.team_names}</td>
-                            <td>{item.sales_names}</td>
-                            <td>{item.note}</td>
-                            <td>{item.test_note}</td>
-                            <td>{item.check_note}</td>
-                            <td className='fixed-column'>
-                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                            </td>
-                        </tr>
-                    ));
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedOrders.includes(item.test_item_id)}
+                                        onChange={() => handleCheckboxChange(item.test_item_id)}
+                                    />
+                                </td>
+                                <td>{item.order_num}</td>
+                                <td>{item.original_no}</td>
+                                <td>{item.test_item}</td>
+                                <td>{item.test_method}</td>
+                                <td>{item.customer_name}</td>
+                                <td>{item.contact_name}</td>
+                                <td>{item.machine_hours}</td>
+                                <td>{item.work_hours}</td>
+                                <td>{item.listed_price}</td>
+                                <td>{item.discounted_price}</td>
+                                <td>{statusLabels[item.status]}</td>
+                                <td>{item.team_names}</td>
+                                <td>{item.sales_names}</td>
+                                <td>{item.note}</td>
+                                <td>{item.test_note}</td>
+                                <td>{item.check_note}</td>
+                                <td className='fixed-column'>
+                                    <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+                                    {(item.status === '9' || item.status === '11' ) && account === 'ZL003' && (
+                                        <Button variant="dark" onClick={() => handleArchive(item)}>归档</Button>
+                                    )}
+                                </td>
+                            </tr>
+                        ));
+                    }
                     break;
                 default:
                     headers = ["暂无数据"];
@@ -2688,44 +2976,63 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'getCommission':
                     headers = ["委托单号", "委托单位", "联系人", "联系电话", "结算状态", "委托总金额", "交易总价", "业务员", "联系人邮箱", "付款人", "付款人电话", "地址", "区域", "客户性质", "检测项目", "材料类型", "服务加急"];
-                    rows = currentItems.map((item, index) => (
-                        <tr key={index}>
-                            {/* 选择框 */}
-                            {role === 'admin' && (
-                                <>
-                                    <td>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedOrders.includes(item.order_num)}
-                                            onChange={() => handleCheckboxChange(item.order_num)}
-                                        />
-                                    </td>
-                                    
-                                </>
-                            )}
-                            <td>{highlightText(item.order_num, filterData)}</td>
-                            <td>{highlightText(item.customer_name, filterData)}</td>
-                            <td>{highlightText(item.contact_name, filterData)}</td>
-                            <td>{highlightText(item.contact_phone_num, filterData)}</td>
-                            <td>{orderStatusLabels[item.order_status]}</td>
-                            <td>{item.total_listed_price}</td>
-                            <td>{item.total_discounted_price}</td>
-                            <td>{highlightText(item.name, filterData)}</td>
-                            <td>{highlightText(item.contact_email, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_name, filterData)}</td>
-                            <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
-                            <td>{highlightText(item.payer_address, filterData)}</td>
-                            <td>{highlightText(item.area, filterData)}</td>
-                            <td>{highlightText(item.organization, filterData)}</td>
-                            <td>{highlightText(item.test_items, filterData)}</td>
-                            <td>{highlightText(item.material, filterData)}</td>
-                            <td>{serviceTypeLabels[item.service_type]}</td>
-                            <td className='fixed-column'>
-                                <Button onClick={() => handleAdd(item)}>添加检测</Button>
-                                <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
-                            </td>
-                        </tr>
-                    ));
+                    if (loading) {
+                        rows = [
+                            <tr key="loading">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" />
+                                    数据加载中，请稍候...
+                                </td>
+                            </tr>
+                        ];
+                    } else if (currentItems.length === 0) {
+                        rows = [
+                            <tr key="no-data">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    暂无数据
+                                </td>
+                            </tr>
+                        ];
+                    } else {
+                        rows = currentItems.map((item, index) => (
+                            <tr key={index}>
+                                {/* 选择框 */}
+                                {role === 'admin' && (
+                                    <>
+                                        <td>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedOrders.includes(item.order_num)}
+                                                onChange={() => handleCheckboxChange(item.order_num)}
+                                            />
+                                        </td>
+
+                                    </>
+                                )}
+                                <td>{highlightText(item.order_num, filterData)}</td>
+                                <td>{highlightText(item.customer_name, filterData)}</td>
+                                <td>{highlightText(item.contact_name, filterData)}</td>
+                                <td>{highlightText(item.contact_phone_num, filterData)}</td>
+                                <td>{orderStatusLabels[item.order_status]}</td>
+                                <td>{item.total_listed_price}</td>
+                                <td>{item.total_discounted_price}</td>
+                                <td>{highlightText(item.sales_names, filterData)}</td>
+                                <td>{highlightText(item.contact_email, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_name, filterData)}</td>
+                                <td>{highlightText(item.payer_contact_phone_num, filterData)}</td>
+                                <td>{highlightText(item.payer_address, filterData)}</td>
+                                <td>{highlightText(item.area, filterData)}</td>
+                                <td>{highlightText(item.organization, filterData)}</td>
+                                <td>{highlightText(item.test_items, filterData)}</td>
+                                <td>{highlightText(item.material, filterData)}</td>
+                                <td>{serviceTypeLabels[item.service_type]}</td>
+                                <td className='fixed-column'>
+                                    <Button onClick={() => handleAdd(item)}>添加检测</Button>
+                                    <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
+                                </td>
+                            </tr>
+                        ));
+                    }
                     break;
                 case 'getChecked':
                     headers = ["发票号", "开票时间", "委托单号", "客户名称", "联系人", "联系电话", "付款方", "付款联系人", "业务员", "检测项目", "开票价", "创建时间"];
@@ -2842,65 +3149,84 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     break;
                 case 'getTests':
                     headers = ["委托单号", "样品原号", "检测项目", "方法", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "客户备注", "实验备注", "审批意见"];
-                    rows = currentItems.map((item, index) => (
-                        <tr key={index}>
-                            {/* 选择框 */}
-                            {role === 'admin' && (
-                                <td>
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedOrders.includes(item.test_item_id)}
-                                        onChange={() => handleCheckboxChange(item.test_item_id)}
-                                    />
+                    if (loading) {
+                        rows = [
+                            <tr key="loading">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" />
+                                    数据加载中，请稍候...
                                 </td>
-                            )}
-                            <td>{item.order_num}</td>
-                            <td>{item.original_no}</td>
-                            <td>{item.test_item}</td>
-                            <td>{item.test_method}</td>
-                            <td>{item.customer_name}</td>
-                            <td>{item.contact_name}</td>
-                            <td>{item.machine_hours}</td>
-                            <td>{item.work_hours}</td>
-                            <td>{item.listed_price}</td>
-                            {/* 双击编辑逻辑 */}
-                            <td
-                                onDoubleClick={() => handleDoubleClick(index, item.discounted_price)}
-                            >
-                                {editingRow === index ? (
-                                    <input
-                                        type="text"
-                                        value={editingValue}
-                                        onChange={(e) => setEditingValue(e.target.value)}
-                                        onBlur={() => handleBlurOrSave(item, editingValue)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                                handleBlurOrSave(item, editingValue);
-                                            }
-                                        }}
-                                        autoFocus
-                                    />
-                                ) : (
-                                    item.discounted_price
+                            </tr>
+                        ];
+                    } else if (currentItems.length === 0) {
+                        rows = [
+                            <tr key="no-data">
+                                <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                    暂无数据
+                                </td>
+                            </tr>
+                        ];
+                    } else {
+                        rows = currentItems.map((item, index) => (
+                            <tr key={index}>
+                                {/* 选择框 */}
+                                {role === 'admin' && (
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedOrders.includes(item.test_item_id)}
+                                            onChange={() => handleCheckboxChange(item.test_item_id)}
+                                        />
+                                    </td>
                                 )}
-                            </td>
-                            <td>{statusLabels[item.status]}</td>
-                            <td>{item.team_names}</td>
-                            <td>{item.sales_names}</td>
-                            <td>{item.note}</td>
-                            <td>{item.test_note}</td>
-                            <td>{item.check_note}</td>
-                            <td className='fixed-column'>
-                                {/* 当状态是待检测时，显示分配按钮 */}
-                                <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
-                                {/* {item.status === '0' && (
-                                    <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
-                                )} */}
-                                <Button onClick={() => handleEdit(item)}>修改</Button>
-                                <Button variant="danger" onClick={() => handleDelete(item.test_item_id)}>删除</Button>
-                            </td>
-                        </tr>
-                    ));
+                                <td>{item.order_num}</td>
+                                <td>{item.original_no}</td>
+                                <td>{item.test_item}</td>
+                                <td>{item.test_method}</td>
+                                <td>{item.customer_name}</td>
+                                <td>{item.contact_name}</td>
+                                <td>{item.machine_hours}</td>
+                                <td>{item.work_hours}</td>
+                                <td>{item.listed_price}</td>
+                                {/* 双击编辑逻辑 */}
+                                <td
+                                    onDoubleClick={() => handleDoubleClick(index, item.discounted_price)}
+                                >
+                                    {editingRow === index ? (
+                                        <input
+                                            type="text"
+                                            value={editingValue}
+                                            onChange={(e) => setEditingValue(e.target.value)}
+                                            onBlur={() => handleBlurOrSave(item, editingValue)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                    handleBlurOrSave(item, editingValue);
+                                                }
+                                            }}
+                                            autoFocus
+                                        />
+                                    ) : (
+                                        item.discounted_price
+                                    )}
+                                </td>
+                                <td>{statusLabels[item.status]}</td>
+                                <td>{item.team_names}</td>
+                                <td>{item.sales_names}</td>
+                                <td>{item.note}</td>
+                                <td>{item.test_note}</td>
+                                <td>{item.check_note}</td>
+                                <td className='fixed-column'>
+                                    {/* 当状态是待检测时，显示分配按钮 */}
+                                    <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
+                                    {/* {item.status === '0' && (
+                                        <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
+                                    )} */}
+                                    <Button onClick={() => handleEdit(item)}>修改</Button>
+                                    <Button variant="danger" onClick={() => handleDelete(item.test_item_id)}>删除</Button>
+                                </td>
+                            </tr>
+                        ));
+                    }
                     break;
                 case 'customerInfo':
                     headers = ["ID", "客户/单位名称", "地址", "联系人名称", "联系人手机号", "邮箱"];
@@ -3096,7 +3422,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         <option value="2">已检测待审批</option>
                                         <option value="3">审批通过</option>
                                         <option value="4">审批失败</option>
+                                        <option value="7">报告通过</option>
+                                        <option value="8">报告驳回</option>
+                                        <option value="9">客户同意</option>
+                                        <option value="6">客户驳回</option>
+                                        <option value="10">已归档</option>
+                                        <option value="11">归档驳回</option>
                                         <option value="5">已交付</option>
+
                                     </select>&nbsp;&nbsp;&nbsp;
                                     <span>月份：</span>
                                     {periodOptions && (
@@ -3189,9 +3522,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             <button onClick={handleExportCheckedData} disabled={loading}>
                                                 {loading ? '正在加载...' : '一键导出'}
                                             </button>
-
                                         </div>
-
                                     </div>
                                 </div>
                             ) : selected === 'customerInfo' ? (
@@ -3382,7 +3713,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 <div>
                     <HomePage
                         role={role}
-                        assignedNotTestedOrders={data}
+                        summaryData={summaryItems}
                         onShowAssignment={showAssignmentModalHandler}
                         onShowCheck={handleCheck}
                         onShowFinish={handleFinish}
@@ -3496,7 +3827,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <option value="3">已审批</option>
                                 <option value="4">审批失败</option>
                                 <option value="5">已交付</option>
-
+                                <option value="6">客户驳回</option>
+                                <option value="7">报告通过</option>
+                                <option value="8">报告驳回</option>
                             </Form.Control>
                         </Form.Group>
                         <Form.Group controlId="formMachineHours">
@@ -3676,7 +4009,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <Form.Label>业务员</Form.Label>
                                 <Form.Control
                                     type="text"
-                                    value={addData.name}
+                                    value={addData.sales_names}
                                     disabled
                                 />
                             </Form.Group>
@@ -4134,6 +4467,101 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
+            {/* 授权签字人审查Modal */}
+            <Modal show={showLeaderCheckModal} onHide={() => setShowLeaderCheckModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>报告审核</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {reportCheckItem && (
+                        <>
+                            <p>委托单号：<strong>{reportCheckItem.order_num}</strong></p>
+                            <p>检测项目：<strong>{reportCheckItem.test_item}</strong></p>
+                            <p>客户单位：<strong>{reportCheckItem.customer_name}</strong></p>
+                            <p>实验备注：<strong>{reportCheckItem.test_note}</strong></p>
+                            <p>检测人员：<strong>{reportCheckItem.team_names}</strong></p>
+                            <p>报告状态：<strong>{reportCheckItem.hasReports === 1 ? '已上传' : '无'}</strong></p>
+                            <Form.Group controlId="formReportNote">
+                                <Form.Label>审核备注（选填）</Form.Label>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="请输入审核备注"
+                                    value={reportNote}
+                                    onChange={(e) => setReportNote(e.target.value)}
+                                />
+                            </Form.Group>
+                            <hr />
+                            <p>请确认报告内容是否齐全、准确。</p>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowLeaderCheckModal(false)}>取消</Button>
+                    <Button variant="danger" onClick={() => submitReportApproval('reject')}>报告驳回</Button>
+                    <Button variant="success" onClick={() => submitReportApproval('approve')}>报告通过</Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* 客户审查Modal */}
+            <Modal show={showBusinessCheckModal} onHide={() => setShowBusinessCheckModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>业务审查</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {businessCheckItem && (
+                        <>
+                            <p>委托单号：<strong>{businessCheckItem.order_num}</strong></p>
+                            <p>检测项目：<strong>{businessCheckItem.test_item}</strong></p>
+                            <p>客户名称：<strong>{businessCheckItem.customer_name}</strong></p>
+                            <p>报告状态：<strong>报告已通过审核</strong></p>
+                            <Form.Group>
+                                <Form.Label>业务备注</Form.Label>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="可填写客户反馈等备注"
+                                    value={businessNote}
+                                    onChange={(e) => setBusinessNote(e.target.value)}
+                                />
+                            </Form.Group>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowBusinessCheckModal(false)}>取消</Button>
+                    <Button variant="danger" onClick={() => submitBusinessApproval('reject')}>客户驳回</Button>
+                    <Button variant="success" onClick={() => submitBusinessApproval('approve')}>客户同意</Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* 归档Modal */}
+            <Modal show={showArchiveModal} onHide={() => setShowArchiveModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>质量归档</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {archiveItem && (
+                        <>
+                            <p>委托单号：<strong>{archiveItem.order_num}</strong></p>
+                            <p>检测项目：<strong>{archiveItem.test_item}</strong></p>
+                            <p>客户名称：<strong>{archiveItem.customer_name}</strong></p>
+                            <Form.Group>
+                                <Form.Label>归档备注</Form.Label>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="可填写归档相关说明"
+                                    value={archiveNote}
+                                    onChange={(e) => setArchiveNote(e.target.value)}
+                                />
+                            </Form.Group>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowArchiveModal(false)}>取消</Button>
+                    <Button variant="danger" onClick={() => submitArchive('reject')}>归档驳回</Button>
+                    <Button variant="success" onClick={() => submitArchive('approve')}>确认归档</Button>
+                </Modal.Footer>
+            </Modal>
 
             {/* 完成按钮modal */}
             <Modal show={showFinishModal} onHide={handleCloseFinishModal} size='lg'>
@@ -4370,13 +4798,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         </div>
                     </div>
                     <p>实验备注：<span>{selectedDetails.test_note}</span></p>
-                    <p>审批意见：<span>{selectedDetails.check_note}</span></p>
                     <p>创建时间：
                         <span>
                             {selectedDetails.create_time ? new Date(selectedDetails.create_time).toLocaleString() : ''}
                         </span>
                     </p>
-                    <p>剩余天数：{renderDeadlineStatus(selectedDetails.deadline, selectedDetails.appoint_time)}</p>
+                    <p>剩余天数：{(selectedDetails.status === '1' || selectedDetails.status === '2') ? renderDeadlineStatus(selectedDetails.deadline, selectedDetails.appoint_time) : ''}</p>
                     <TestItemFlow selectedDetails={selectedDetails} />
                     <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh} />
                 </Modal.Body>
@@ -4651,17 +5078,17 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         />
                     </Form.Group>
                     <Form.Group>
-                            <Form.Label>请输入发票号(必填)</Form.Label>
-                            <Form.Control
-                                type="number"
-                                onChange={(e) => setInvoiceNumber(e.target.value)}>
-                            </Form.Control>
-                            <Form.Label>请输入最终开票价格(必填)</Form.Label>
-                            <Form.Control
-                                type="number"
-                                onChange={(e) => setFinalPrice(e.target.value)}>
-                            </Form.Control>
-                        </Form.Group>
+                        <Form.Label>请输入发票号(必填)</Form.Label>
+                        <Form.Control
+                            type="number"
+                            onChange={(e) => setInvoiceNumber(e.target.value)}>
+                        </Form.Control>
+                        <Form.Label>请输入最终开票价格(必填)</Form.Label>
+                        <Form.Control
+                            type="number"
+                            onChange={(e) => setFinalPrice(e.target.value)}>
+                        </Form.Control>
+                    </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowCheckoutModal(false)}>取消</Button>

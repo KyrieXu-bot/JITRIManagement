@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import '../css/Sidebar.css';
 const Sidebar = ({ onSelect, selected, role, isLoading }) => {
-    console.log("fff", isLoading)
     const [isCustomersMenuOpen, setIsCustomersMenuOpen] = useState(false);
     const [isCommissionsMenuOpen, setIsCommissionsMenuOpen] = useState(false);
     const [isReservationsMenuOpen, setIsReservationsMenuOpen] = useState(false); // 新增的设备预约菜单状态

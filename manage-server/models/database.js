@@ -29,26 +29,26 @@ async function getAllOrders(orderNum, departmentId, filterData) {
             p.payer_address,
             p.area,
             p.organization,
-            GROUP_CONCAT(t.test_item SEPARATOR ', ') AS test_items,
+            IFNULL(GROUP_CONCAT(t.test_item SEPARATOR ', '), '') AS test_items,
             s.material,
             o.service_type,
             o.order_status,
-            SUM(t.discounted_price) AS total_discounted_price,
-            SUM(t.listed_price) AS total_listed_price,
-            a.account,
-            u.name
+            IFNULL(SUM(t.discounted_price), 0) AS total_discounted_price,
+            IFNULL(SUM(t.listed_price), 0) AS total_listed_price,
+            IFNULL(GROUP_CONCAT(DISTINCT u.name ORDER BY u.name SEPARATOR ', '), '') AS sales_names,
+            IFNULL(GROUP_CONCAT(DISTINCT u.account ORDER BY u.name SEPARATOR ', '), '') AS sales_accounts
         FROM orders o
         JOIN customers c ON o.customer_id = c.customer_id
         AND o.customer_id IS NOT NULL
         JOIN payments p ON o.payment_id = p.payment_id
         AND o.payment_id IS NOT NULL
-        JOIN test_items t ON o.order_num = t.order_num
+        LEFT JOIN test_items t ON o.order_num = t.order_num
         JOIN samples s ON o.order_num = s.order_num
         LEFT JOIN assignments a ON t.test_item_id = a.test_item_id
-        LEFT JOIN users u ON a.account = u.account
+        LEFT JOIN users u ON a.account = u.account and u.role = 'sales'
     `;
     const params = [];
-    query += `WHERE c.category = '1' AND p.category = '1' and u.role = 'sales'`;
+    query += `WHERE c.category = '1' AND p.category = '1'`;
     if (orderNum !== undefined && orderNum !== '') {
         query += ' AND o.order_num LIKE ?';
         params.push(`%${orderNum}%`);
@@ -80,7 +80,7 @@ async function getAllOrders(orderNum, departmentId, filterData) {
     }
     query += ` GROUP BY o.order_num, c.customer_name, c.contact_name, c.contact_phone_num, 
                 c.contact_email, p.payer_contact_name, p.payer_contact_phone_num, 
-                p.payer_address, o.service_type, o.order_status, a.account, u.name, p.area, p.organization`;
+                p.payer_address, o.service_type, o.order_status, p.area, p.organization`;
 
 
     const [results] = await db.query(query, params);
@@ -424,249 +424,71 @@ async function getAllSamples() {
 }
 
 
-async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum) {
-    let query = `
-        SELECT 
-            t.test_item_id,
-            t.original_no,
-            t.test_item,
-            t.test_method,
-            t.order_num,
-            t.status,
-            t.note,
-            t.machine_hours,
-            t.work_hours,
-            t.listed_price,
-            t.discounted_price,
-            t.equipment_id,
-            t.check_note,
-            t.create_time,
-            t.deadline,
-            t.test_note,
-            t.size,
-            t.quantity,
-            IFNULL(e.equipment_name, '') AS equipment_name,
-            t.appoint_time,
-            e.model,
-            p.unit_price,
-            t.assign_time,
-            t.latest_finish_time,
-            t.check_time,
-            t.deliver_time,
-            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-             FROM assignments aa 
-             JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id 
-               AND ua.role = 'supervisor') AS manager_names,
-            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-             FROM assignments aa 
-             JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id
-               AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
-               ) AS team_names,
-            (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
-             FROM assignments aa 
-             JOIN users ua ON ua.account = aa.account
-             WHERE aa.test_item_id = t.test_item_id
-             ) AS sales_names,
-             CASE 
-                WHEN EXISTS (
-                    SELECT 1 
-                    FROM project_files f 
-                    WHERE f.test_item_id = t.test_item_id
-                ) THEN 1
-                ELSE 0
-            END AS hasAttachments,
-            c.customer_name,
-            c.contact_name
-        FROM 
-            test_items t
-        LEFT JOIN
-            orders o ON t.order_num = o.order_num
-        LEFT JOIN
-            customers c ON o.customer_id = c.customer_id
-        LEFT JOIN  
-            assignments a ON t.test_item_id = a.test_item_id
-        LEFT JOIN 
-            equipment e ON e.equipment_id = t.equipment_id
-        JOIN 
-	        users u ON u.account = a.account
-        LEFT JOIN 
-            reservation r ON r.test_item_id = t.test_item_id
-        LEFT JOIN
-            price p ON p.price_id = t.price_id
-        WHERE 
-            EXISTS (
-                SELECT 1
-                FROM assignments suba
-                WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
-            )
-    `;
+async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, limit = 50, offset = 0) {
+    const idParams = [];
+    let idWhereClause = 'WHERE 1=1';
+    
+    // 必须包含当前用户的分配记录
+    idWhereClause += ' AND EXISTS (SELECT 1 FROM assignments a WHERE a.test_item_id = t2.test_item_id AND a.account = ?)';
+    idParams.push(account);
 
-    const params = [account];  // 将 account 添加为第一个参数
-
-    // 动态构建 WHERE 子句
-    if (departmentId !== undefined && departmentId !== '') {
-        query += ' AND t.department_id = ?';
-        params.push(departmentId);
+    if (departmentId) {
+        idWhereClause += ' AND t2.department_id = ?';
+        idParams.push(departmentId);
     }
 
-    // 处理 status 过滤逻辑
     if (status === 'notAssigned') {
-        query += ` AND t.test_item_id NOT IN (SELECT DISTINCT test_item_id FROM test_items WHERE appoint_time IS NOT NULL)
-            AND t.status = 1
-            `;
-    } else if (status !== undefined && status !== '') {
-        query += ' AND t.status = ?';
-        params.push(status);
+        idWhereClause += ` AND t2.test_item_id NOT IN (
+            SELECT DISTINCT test_item_id FROM assignments WHERE appoint_time IS NOT NULL
+        ) AND t2.status = 1`;
+    } else if (status) {
+        idWhereClause += ' AND t2.status = ?';
+        idParams.push(status);
     }
-    // if (status !== undefined && status !== '') {
-    //     query += ' AND t.status = ?';
-    //     params.push(status);
-    // }
 
-    if (month !== undefined && month !== '') {
+    if (month) {
         const [year, monthPart] = month.split('-');
         const monthComparison = `${year.slice(2)}${monthPart}`;
-        query += ' AND MID(t.order_num, 3, 4) = ?';
-        params.push(monthComparison); 
+        idWhereClause += ' AND MID(t2.order_num, 3, 4) = ?';
+        idParams.push(monthComparison);
     }
 
-    if (orderNum !== undefined && orderNum !== '') {
-        query += ' AND t.order_num LIKE ?';
-        params.push(`%${orderNum}%`);
-        whereClauseAdded = true;
+    if (orderNum) {
+        idWhereClause += ' AND t2.order_num LIKE ?';
+        idParams.push(`%${orderNum}%`);
     }
-    if (customerName !== undefined && customerName !== '') {
-        query += ' AND c.customer_name LIKE ?';
-        params.push(`%${customerName}%`);
-        whereClauseAdded = true;
+
+    if (customerName) {
+        idWhereClause += ' AND EXISTS (SELECT 1 FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_num = t2.order_num AND c.customer_name LIKE ?)';
+        idParams.push(`%${customerName}%`);
     }
-    // 按 test_item_id 进行分组
-    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;`;
 
-    const [results] = await db.query(query, params);
-    return results;
-}
+    // Step 1: 使用子查询分页获取 test_item_id
+    const idQuery = `
+        SELECT t.test_item_id
+        FROM test_items t
+        WHERE t.test_item_id IN (
+            SELECT DISTINCT t2.test_item_id
+            FROM test_items t2
+            LEFT JOIN orders o ON t2.order_num = o.order_num
+            LEFT JOIN customers c ON o.customer_id = c.customer_id
+            LEFT JOIN assignments a ON t2.test_item_id = a.test_item_id
+            LEFT JOIN users u ON u.account = a.account
+            ${idWhereClause}
+        )
+        ORDER BY t.order_num ASC
+        LIMIT ? OFFSET ?
+    `;
+    idParams.push(limit, offset);
 
+    const [idResults] = await db.query(idQuery, idParams);
+    const testItemIds = idResults.map(r => r.test_item_id);
 
-// async function getAllTestItems(status, departmentId, month, customerName, orderNum, role) {
-//     let query = `
-//         SELECT 
-//             t.test_item_id,
-//             t.original_no,
-//             t.test_item,
-//             t.test_method,
-//             t.size,
-//             t.quantity,
-//             t.order_num,
-//             t.note,
-//             t.status,
-//             t.machine_hours,
-//             t.work_hours,
-//             t.listed_price,
-//             t.discounted_price,
-//             t.equipment_id,
-//             t.check_note,
-//             t.test_note,
-//             t.create_time,
-//             t.deadline,
-//             t.department_id,
-//             t.appoint_time,
-//             IFNULL(e.equipment_name, '') AS equipment_name,
-//             e.model,
-//             p.unit_price,
-//             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-//              FROM assignments aa 
-//              JOIN users ua ON ua.account = aa.account
-//              WHERE aa.test_item_id = t.test_item_id 
-//                AND ua.role = 'supervisor'
-//                ) AS manager_names,
-//             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-//              FROM assignments aa 
-//              JOIN users ua ON ua.account = aa.account
-//              WHERE aa.test_item_id = t.test_item_id 
-//                 AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
-//                ) AS team_names,
-//             (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
-//              FROM assignments aa 
-//              JOIN users ua ON ua.account = aa.account
-//              WHERE aa.test_item_id = t.test_item_id
-//              ) AS sales_names,
-//              CASE 
-//                 WHEN EXISTS (
-//                     SELECT 1 
-//                     FROM project_files f 
-//                     WHERE f.test_item_id = t.test_item_id
-//                 ) THEN 1
-//                 ELSE 0
-//             END AS hasAttachments,
-//             c.customer_name,
-//             c.contact_name
-//         FROM
-//             test_items t
-//         LEFT JOIN
-//             orders o ON t.order_num = o.order_num
-//         LEFT JOIN
-//             customers c ON o.customer_id = c.customer_id
-//         LEFT JOIN
-//             assignments a ON t.test_item_id = a.test_item_id
-//         LEFT JOIN 
-//             equipment e ON e.equipment_id = t.equipment_id
-//         LEFT JOIN 
-//             users u ON u.account = a.account 
-//         LEFT JOIN
-//             price p ON p.price_id = t.price_id
-//     `;
+    if (testItemIds.length === 0) return [];
 
-//     const params = [];
-//     let whereClauseAdded = false;
-//     // 动态添加 WHERE 条件
-//     if (departmentId !== undefined && departmentId !== '') {
-//         query += ' WHERE t.department_id = ?';
-//         params.push(departmentId);
-//         whereClauseAdded = true;
-//     }
-//     // 动态添加 WHERE 条件
-//     if (role !== undefined && role !== '') {
-//         query += ' WHERE u.role = ? && u.account != ?';
-//         params.push(role);
-//         params.push('YW001');
-
-//         whereClauseAdded = true;
-//     }
-//     if (status !== undefined && status !== '') {
-//         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.status = ?';
-//         params.push(status);
-//         whereClauseAdded = true;
-//     }
-
-//     if (month !== undefined && month !== '') {
-//         const [year, monthPart] = month.split('-');
-//         const monthComparison = `${year.slice(2)}${monthPart}`;
-//         query += (whereClauseAdded ? ' AND' : ' WHERE') + ` MID(t.order_num, 3, 4) = ?`;
-//         params.push(monthComparison); 
-//         whereClauseAdded = true;
-//     }
-
-//     if (orderNum !== undefined && orderNum !== '') {
-//         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.order_num LIKE ?';
-//         params.push(`%${orderNum}%`);
-//         whereClauseAdded = true;
-//     }
-//     if (customerName !== undefined && customerName !== '') {
-//         query += (whereClauseAdded ? ' AND' : ' WHERE') + ' c.customer_name LIKE ?';
-//         params.push(`%${customerName}%`);
-//         whereClauseAdded = true;
-//     }
-//     // 按照 test_item_id 和 equipment_name 分组
-//     query += ` GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;`;
-//     const [results] = await db.query(query, params);
-//     return results;
-// }
-
-async function getAllTestItems(status, departmentId, month, customerName, orderNum, role) {
-    let query = `
+    // Step 2: 获取完整数据
+    const placeholders = testItemIds.map(() => '?').join(',');
+    const finalQuery = `
         SELECT 
             t.test_item_id,
             t.original_no,
@@ -698,13 +520,19 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             manager_agg.manager_names,
             team_agg.team_names,
             sales_agg.sales_names,
+            t.report_approved_time,
+            t.report_rejected_time,
+            t.report_note,
+            t.business_note,
+            t.cust_approve_time,
+            t.cust_reject_time,
+            t.archive_time,
+            t.archive_reject_time,
+            t.archive_note,
             CASE 
                 WHEN EXISTS (
-                    SELECT 1 
-                    FROM project_files f 
-                    WHERE f.test_item_id = t.test_item_id
-                ) THEN 1
-                ELSE 0
+                    SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
+                ) THEN 1 ELSE 0
             END AS hasAttachments,
             c.customer_name,
             c.contact_name
@@ -737,58 +565,183 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             WHERE ua.role = 'sales'
             GROUP BY aa.test_item_id
         ) AS sales_agg ON t.test_item_id = sales_agg.test_item_id
+        WHERE t.test_item_id IN (${placeholders})
+        GROUP BY 
+            t.test_item_id, 
+            e.equipment_name, e.model, 
+            c.customer_name, c.contact_name,
+            manager_agg.manager_names,
+            team_agg.team_names,
+            sales_agg.sales_names
+        ORDER BY t.order_num ASC
     `;
 
-    const params = [];
-    let whereClauseAdded = false;
-
-    // **动态添加 WHERE 条件**
-    if (departmentId !== undefined && departmentId !== '') {
-        query += ' WHERE t.department_id = ?';
-        params.push(departmentId);
-        whereClauseAdded = true;
-    }
-
-    if (status !== undefined && status !== '') {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.status = ?';
-        params.push(status);
-        whereClauseAdded = true;
-    }
-
-    if (month !== undefined && month !== '') {
-        const [year, monthPart] = month.split('-');
-        const monthComparison = `${year.slice(2)}${monthPart}`;
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ` MID(t.order_num, 3, 4) = ?`;
-        params.push(monthComparison);
-        whereClauseAdded = true;
-    }
-
-    if (orderNum !== undefined && orderNum !== '') {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.order_num LIKE ?';
-        params.push(`%${orderNum}%`);
-        whereClauseAdded = true;
-    }
-
-    if (customerName !== undefined && customerName !== '') {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' c.customer_name LIKE ?';
-        params.push(`%${customerName}%`);
-        whereClauseAdded = true;
-    }
-
-    if (role !== undefined && role !== '') {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' u.role = ? AND u.account != ?';
-        params.push(role, 'YW001');
-        whereClauseAdded = true;
-    }
-
-    query += ` GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name,
-    manager_agg.manager_names,
-    team_agg.team_names,
-    sales_agg.sales_names;`;
-
-    const [results] = await db.query(query, params);
+    const [results] = await db.query(finalQuery, testItemIds);
     return results;
 }
+
+async function getAllTestItems(status, departmentId, month, customerName, orderNum, role, limit = 50, offset = 0) {
+    const idParams = [];
+    let idWhereClause = 'WHERE 1=1';
+    
+    if (departmentId) {
+        idWhereClause += ' AND t.department_id = ?';
+        idParams.push(departmentId);
+    }
+
+    if (status) {
+        idWhereClause += ' AND t.status = ?';
+        idParams.push(status);
+    }
+
+    if (month) {
+        const [year, monthPart] = month.split('-');
+        const monthComparison = `${year.slice(2)}${monthPart}`;
+        idWhereClause += ' AND MID(t.order_num, 3, 4) = ?';
+        idParams.push(monthComparison);
+    }
+
+    if (orderNum) {
+        idWhereClause += ' AND t.order_num LIKE ?';
+        idParams.push(`%${orderNum}%`);
+    }
+
+    if (customerName) {
+        idWhereClause += ' AND c.customer_name LIKE ?';
+        idParams.push(`%${customerName}%`);
+    }
+
+    if (role) {
+        idWhereClause += ' AND u.role = ? AND u.account != ?';
+        idParams.push(role, 'YW001');
+    }
+
+    // Step 1: 分页获取 test_item_id
+    const idQuery = `
+    SELECT t.test_item_id
+    FROM test_items t
+    WHERE t.test_item_id IN (
+        SELECT DISTINCT t2.test_item_id
+        FROM test_items t2
+        LEFT JOIN orders o ON t2.order_num = o.order_num
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN assignments a ON t2.test_item_id = a.test_item_id
+        LEFT JOIN users u ON u.account = a.account
+        ${idWhereClause}
+    )
+    ORDER BY t.order_num ASC
+    LIMIT ? OFFSET ?
+`;
+    idParams.push(limit, offset);
+
+    const [idResults] = await db.query(idQuery, idParams);
+    const testItemIds = idResults.map(r => r.test_item_id);
+
+    if (testItemIds.length === 0) return [];
+
+    const placeholders = testItemIds.map(() => '?').join(',');
+    const finalQuery = `
+        SELECT 
+            t.test_item_id,
+            t.original_no,
+            t.test_item,
+            t.test_method,
+            t.size,
+            t.quantity,
+            t.order_num,
+            t.note,
+            t.status,
+            t.machine_hours,
+            t.work_hours,
+            t.listed_price,
+            t.discounted_price,
+            t.equipment_id,
+            t.check_note,
+            t.test_note,
+            t.create_time,
+            t.deadline,
+            t.department_id,
+            t.appoint_time,
+            t.assign_time,
+            t.latest_finish_time,
+            t.check_time,
+            t.deliver_time,
+            IFNULL(e.equipment_name, '') AS equipment_name,
+            e.model,
+            p.unit_price,
+            manager_agg.manager_names,
+            team_agg.team_names,
+            sales_agg.sales_names,
+            t.report_approved_time,
+            t.report_rejected_time,
+            t.report_note,
+            t.business_note,
+            t.cust_approve_time,
+            t.cust_reject_time,
+            t.archive_time,
+            t.archive_reject_time,
+            t.archive_note,
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
+                ) THEN 1 ELSE 0
+            END AS hasAttachments,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM project_files f
+                    WHERE f.test_item_id = t.test_item_id AND f.category = '文件报告'
+                ) THEN 1 ELSE 0
+            END AS hasReports,
+            c.customer_name,
+            c.contact_name
+        FROM test_items t
+        LEFT JOIN orders o ON t.order_num = o.order_num
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN equipment e ON e.equipment_id = t.equipment_id
+        LEFT JOIN price p ON p.price_id = t.price_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS manager_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'supervisor'
+            GROUP BY aa.test_item_id
+        ) AS manager_agg ON t.test_item_id = manager_agg.test_item_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS team_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1)
+            GROUP BY aa.test_item_id
+        ) AS team_agg ON t.test_item_id = team_agg.test_item_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS sales_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'sales'
+            GROUP BY aa.test_item_id
+        ) AS sales_agg ON t.test_item_id = sales_agg.test_item_id
+        WHERE t.test_item_id IN (${placeholders})
+        GROUP BY 
+            t.test_item_id, 
+            e.equipment_name, e.model, 
+            c.customer_name, c.contact_name,
+            manager_agg.manager_names,
+            team_agg.team_names,
+            sales_agg.sales_names
+        ORDER BY t.order_num ASC
+    `;
+
+    const [results] = await db.query(finalQuery, testItemIds);
+    const uniqueResults = Array.from(
+        new Map(results.map(item => [item.test_item_id, item])).values()
+    );
+    return uniqueResults;
+}
+
+
 
 
 async function assignTestToUser(testId, userId, equipment_id, role, isAssigned) {
@@ -973,111 +926,151 @@ async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPr
     }
 }
 
-async function getAssignedTestsByUser(userId, status, month, customerName, orderNum) {
-    let query = `
- SELECT 
-        t.test_item_id,
-        t.original_no,
-        t.test_item,
-        t.test_method,
-        t.order_num,
-        t.status,
-        t.machine_hours,
-        t.work_hours,
-        t.listed_price,
-        t.discounted_price,
-        t.size,
-        t.quantity,
-        t.note,
-        t.test_note,
-        t.equipment_id,
-        t.check_note,
-        t.create_time,
-        t.deadline,
-        IFNULL(e.equipment_name, '') AS equipment_name,
-        e.model,
-        t.appoint_time,
-        p.unit_price,
-        t.assign_time,
-        t.latest_finish_time,
-        t.check_time,
-        t.deliver_time,
-        (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-            FROM assignments aa 
-            JOIN users ua ON ua.account = aa.account
-            WHERE aa.test_item_id = t.test_item_id 
-            AND ua.role = 'supervisor'
-            ) AS manager_names,
-        (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
-            FROM assignments aa 
-            JOIN users ua ON ua.account = aa.account
-            WHERE aa.test_item_id = t.test_item_id 
-            AND (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))
-
-            ) AS team_names,
-        (SELECT COALESCE(GROUP_CONCAT(DISTINCT CASE WHEN ua.role = 'sales' THEN ua.name ELSE NULL END ORDER BY ua.name SEPARATOR ', '), '') 
-        FROM assignments aa 
-        JOIN users ua ON ua.account = aa.account
-        WHERE aa.test_item_id = t.test_item_id
-        ) AS sales_names,
-        CASE 
-            WHEN EXISTS (
-                SELECT 1 
-                FROM project_files f 
-                WHERE f.test_item_id = t.test_item_id
-            ) THEN 1
-            ELSE 0
-        END AS hasAttachments,
-        c.customer_name,
-        c.contact_name
-    FROM 
-        test_items t
-    LEFT JOIN
-        orders o ON t.order_num = o.order_num
-    LEFT JOIN
-        customers c ON o.customer_id = c.customer_id
-    LEFT JOIN 
-        equipment e ON e.equipment_id = t.equipment_id
-    JOIN 
-        assignments a ON t.test_item_id = a.test_item_id
-    JOIN 
-        users u ON u.account = a.account
-    LEFT JOIN 
-        price p ON p.price_id = t.price_id
-    WHERE 
-        EXISTS (
-            SELECT 1
-            FROM assignments suba
-            WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
-        )
-
-    `;
-
-    const params = [userId];
-
-    if (status !== undefined && status !== '') {
-        query += ' AND t.status = ?';
-        params.push(status);
+async function getAssignedTestsByUser(account, status, month, customerName, orderNum, limit = 50, offset = 0) {
+    const idParams = [account];
+    let idWhereClause = 'WHERE 1=1';
+    
+    // 必须包含当前用户的分配记录
+    idWhereClause += ' AND EXISTS (SELECT 1 FROM assignments a WHERE a.test_item_id = t2.test_item_id AND a.account = ?)';
+    
+    if (status) {
+        idWhereClause += ' AND t2.status = ?';
+        idParams.push(status);
     }
-    if (month !== undefined && month !== '') {
+
+    if (month) {
         const [year, monthPart] = month.split('-');
         const monthComparison = `${year.slice(2)}${monthPart}`;
-        query += ' AND MID(t.order_num, 3, 4) = ?';
-        params.push(monthComparison); 
+        idWhereClause += ' AND MID(t2.order_num, 3, 4) = ?';
+        idParams.push(monthComparison);
     }
-    if (orderNum !== undefined && orderNum !== '') {
-        query += ' AND t.order_num LIKE ?';
-        params.push(`%${orderNum}%`);
+
+    if (orderNum) {
+        idWhereClause += ' AND t2.order_num LIKE ?';
+        idParams.push(`%${orderNum}%`);
     }
-    if (customerName !== undefined && customerName !== '') {
-        query += ' AND c.customer_name LIKE ?';
-        params.push(`%${customerName}%`);
+
+    if (customerName) {
+        idWhereClause += ' AND EXISTS (SELECT 1 FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_num = t2.order_num AND c.customer_name LIKE ?)';
+        idParams.push(`%${customerName}%`);
     }
-    query += ' GROUP BY t.test_item_id, c.customer_name, c.contact_name';
-    const [results] = await db.query(query, params);
+
+    // Step 1: 使用子查询分页获取 test_item_id
+    const idQuery = `
+        SELECT t.test_item_id
+        FROM test_items t
+        WHERE t.test_item_id IN (
+            SELECT DISTINCT t2.test_item_id
+            FROM test_items t2
+            LEFT JOIN orders o ON t2.order_num = o.order_num
+            LEFT JOIN customers c ON o.customer_id = c.customer_id
+            LEFT JOIN assignments a ON t2.test_item_id = a.test_item_id
+            LEFT JOIN users u ON u.account = a.account
+            ${idWhereClause}
+        )
+        ORDER BY t.order_num ASC
+        LIMIT ? OFFSET ?
+    `;
+    idParams.push(limit, offset);
+
+    const [idResults] = await db.query(idQuery, idParams);
+    const testItemIds = idResults.map(r => r.test_item_id);
+
+    if (testItemIds.length === 0) return [];
+
+    // Step 2: 获取完整数据
+    const placeholders = testItemIds.map(() => '?').join(',');
+    const finalQuery = `
+        SELECT 
+            t.test_item_id,
+            t.original_no,
+            t.test_item,
+            t.test_method,
+            t.order_num,
+            t.status,
+            t.machine_hours,
+            t.work_hours,
+            t.listed_price,
+            t.discounted_price,
+            t.size,
+            t.quantity,
+            t.note,
+            t.test_note,
+            t.equipment_id,
+            t.check_note,
+            t.create_time,
+            t.deadline,
+            t.department_id,
+            IFNULL(e.equipment_name, '') AS equipment_name,
+            e.model,
+            t.appoint_time,
+            p.unit_price,
+            t.assign_time,
+            t.latest_finish_time,
+            t.check_time,
+            t.deliver_time,
+            manager_agg.manager_names,
+            team_agg.team_names,
+            sales_agg.sales_names,
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
+                ) THEN 1 ELSE 0
+            END AS hasAttachments,
+            c.customer_name,
+            c.contact_name,
+            t.report_approved_time,
+            t.report_rejected_time,
+            t.report_note,
+            t.business_note,
+            t.cust_approve_time,
+            t.cust_reject_time,
+            t.archive_time,
+            t.archive_reject_time,
+            t.archive_note
+        FROM test_items t
+        LEFT JOIN orders o ON t.order_num = o.order_num
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN equipment e ON e.equipment_id = t.equipment_id
+        LEFT JOIN price p ON p.price_id = t.price_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS manager_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'supervisor'
+            GROUP BY aa.test_item_id
+        ) AS manager_agg ON t.test_item_id = manager_agg.test_item_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS team_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1)
+            GROUP BY aa.test_item_id
+        ) AS team_agg ON t.test_item_id = team_agg.test_item_id
+        LEFT JOIN (
+            SELECT aa.test_item_id, 
+                   GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ') AS sales_names
+            FROM assignments aa
+            JOIN users ua ON ua.account = aa.account
+            WHERE ua.role = 'sales'
+            GROUP BY aa.test_item_id
+        ) AS sales_agg ON t.test_item_id = sales_agg.test_item_id
+        WHERE t.test_item_id IN (${placeholders})
+        GROUP BY 
+            t.test_item_id, 
+            e.equipment_name, e.model, 
+            c.customer_name, c.contact_name,
+            manager_agg.manager_names,
+            team_agg.team_names,
+            sales_agg.sales_names
+        ORDER BY t.order_num ASC
+    `;
+
+    const [results] = await db.query(finalQuery, testItemIds);
     return results;
 }
-
 
 async function updateTestItemPrice(testItemId, listedPrice) {
     const query = `UPDATE test_items SET listed_price = ? WHERE test_item_id = ?`;
@@ -1870,7 +1863,7 @@ async function addTestItem(addedFields) {
         const [result] = await connection.query(query, values);
         const testItemId = result.insertId;
         // 将 test_item_id 和 account 插入到 assignments 表中
-        if(addedFields.account){
+        if(addedFields.sales_names){
             const insertAssignmentQuery = `
             INSERT INTO assignments (test_item_id, account, is_assigned)
             VALUES (?, ?, 1);
@@ -2786,6 +2779,344 @@ async function getPrices(testItemName, testCondition) {
     }
 }
 
+async function getAllTestItemsCount(status, departmentId, month, customerName, orderNum, role) {
+    let query = `
+        SELECT COUNT(DISTINCT t.test_item_id) AS total
+        FROM test_items t
+        LEFT JOIN orders o ON t.order_num = o.order_num
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN assignments a ON t.test_item_id = a.test_item_id
+        LEFT JOIN users u ON u.account = a.account
+    `;
+
+    const params = [];
+    let whereClauseAdded = false;
+
+    if (departmentId) {
+        query += ' WHERE t.department_id = ?';
+        params.push(departmentId);
+        whereClauseAdded = true;
+    }
+
+    if (status) {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.status = ?';
+        params.push(status);
+        whereClauseAdded = true;
+    }
+
+    if (month) {
+        const [year, monthPart] = month.split('-');
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' MID(t.order_num, 3, 4) = ?';
+        params.push(`${year.slice(2)}${monthPart}`);
+        whereClauseAdded = true;
+    }
+
+    if (orderNum) {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.order_num LIKE ?';
+        params.push(`%${orderNum}%`);
+        whereClauseAdded = true;
+    }
+
+    if (customerName) {
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' c.customer_name LIKE ?';
+        params.push(`%${customerName}%`);
+        whereClauseAdded = true;
+    }
+
+    if (role === 'sales') {
+        // 用于过滤掉YW001账号（sales 视图）
+        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' u.role = ? AND u.account != ?';
+        params.push(role, 'YW001');
+    }
+
+    const [rows] = await db.query(query, params);
+    return rows[0].total;
+}
+
+async function getEmployeeTestItemsCount(status, departmentId, account, month, customerName, orderNum) {
+    let query = `
+        SELECT COUNT(DISTINCT t.test_item_id) AS total
+        FROM test_items t
+        LEFT JOIN orders o ON t.order_num = o.order_num
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN assignments a ON t.test_item_id = a.test_item_id
+        JOIN users u ON u.account = a.account
+        WHERE EXISTS (
+            SELECT 1 FROM assignments suba WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
+        )
+    `;
+
+    const params = [account];
+
+    if (departmentId) {
+        query += ' AND t.department_id = ?';
+        params.push(departmentId);
+    }
+
+    if (status === 'notAssigned') {
+        query += ` AND t.test_item_id NOT IN (
+            SELECT DISTINCT test_item_id FROM test_items WHERE appoint_time IS NOT NULL
+        ) AND t.status = 1`;
+    } else if (status) {
+        query += ' AND t.status = ?';
+        params.push(status);
+    }
+
+    if (month) {
+        const [year, monthPart] = month.split('-');
+        query += ' AND MID(t.order_num, 3, 4) = ?';
+        params.push(`${year.slice(2)}${monthPart}`);
+    }
+
+    if (orderNum) {
+        query += ' AND t.order_num LIKE ?';
+        params.push(`%${orderNum}%`);
+    }
+
+    if (customerName) {
+        query += ' AND c.customer_name LIKE ?';
+        params.push(`%${customerName}%`);
+    }
+
+    const [rows] = await db.query(query, params);
+    return rows[0].total;
+}
+
+async function getAssignedTestsCountByUser(account, status, month, customerName, orderNum) {
+    let query = `
+        SELECT COUNT(DISTINCT t.test_item_id) AS total
+        FROM test_items t
+        LEFT JOIN orders o ON t.order_num = o.order_num
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        JOIN assignments a ON t.test_item_id = a.test_item_id
+        JOIN users u ON u.account = a.account
+        WHERE EXISTS (
+            SELECT 1 FROM assignments suba WHERE suba.test_item_id = t.test_item_id AND suba.account = ?
+        )
+    `;
+
+    const params = [account];
+
+    if (status) {
+        query += ' AND t.status = ?';
+        params.push(status);
+    }
+
+    if (month) {
+        const [year, monthPart] = month.split('-');
+        query += ' AND MID(t.order_num, 3, 4) = ?';
+        params.push(`${year.slice(2)}${monthPart}`);
+    }
+
+    if (orderNum) {
+        query += ' AND t.order_num LIKE ?';
+        params.push(`%${orderNum}%`);
+    }
+
+    if (customerName) {
+        query += ' AND c.customer_name LIKE ?';
+        params.push(`%${customerName}%`);
+    }
+
+    const [rows] = await db.query(query, params);
+    return rows[0].total;
+}
+
+async function getAllTestItemIds(status, departmentId, month, customerName, orderNum, role, account) {
+    let query = `SELECT t.test_item_id FROM test_items t
+                 LEFT JOIN orders o ON t.order_num = o.order_num
+                 LEFT JOIN customers c ON o.customer_id = c.customer_id`;
+    const params = [];
+
+    if (role === 'sales' && account !== 'YW001') {
+        query += `
+            JOIN assignments a ON t.test_item_id = a.test_item_id AND a.account = ?
+        `;
+        params.push(account);
+    }
+
+    query += ` WHERE 1=1`;
+
+    if (departmentId && role !== 'viewer' && role !== 'admin') {
+        query += ' AND t.department_id = ?';
+        params.push(departmentId);
+    }
+    if (status) {
+        query += ' AND t.status = ?';
+        params.push(status);
+    }
+    if (month) {
+        const [year, monthPart] = month.split('-');
+        const monthComparison = `${year.slice(2)}${monthPart}`;
+        query += ' AND MID(t.order_num, 3, 4) = ?';
+        params.push(monthComparison);
+    }
+    if (orderNum) {
+        query += ' AND t.order_num LIKE ?';
+        params.push(`%${orderNum}%`);
+    }
+    if (customerName) {
+        query += ' AND c.customer_name LIKE ?';
+        params.push(`%${customerName}%`);
+    }
+    const [rows] = await db.query(query, params);
+    return [...new Set(rows.map(r => r.test_item_id))];
+}
+
+async function updateReportCheckStatus(testItemId, status, reportNote) {
+    console.log(reportNote)
+    console.log(status)
+    console.log(testItemId)
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        let query = `
+            UPDATE test_items
+            SET status = ?, 
+                ${status === '7' ? 'report_approved_time = NOW()' : 'report_rejected_time = NOW()'},
+                report_note = ?
+            WHERE test_item_id = ?
+        `;
+        await connection.query(query, [status, reportNote, testItemId]);
+
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+}
+
+async function updateBusinessCheckStatus(testItemId, status, businessNote) {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const updateFields = `
+            status = ?, 
+            business_note = ?, 
+            ${status === 9 ? 'cust_approve_time = NOW()' : 'cust_reject_time = NOW()'}
+        `;
+
+        const query = `UPDATE test_items SET ${updateFields} WHERE test_item_id = ?`;
+
+        await connection.query(query, [status, businessNote, testItemId]);
+
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+}
+
+async function updateArchiveStatus(testItemId, status, archiveNote) {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const query = `
+            UPDATE test_items
+            SET status = ?, 
+                archive_note = ?,
+                ${status === 10 ? 'archive_time = NOW()' : 'archive_reject_time = NOW()'}
+            WHERE test_item_id = ?
+        `;
+        await connection.query(query, [status, archiveNote, testItemId]);
+
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+}
+
+async function getTestItemSummary(role, account, departmentId) {
+    let query = `
+        SELECT 
+            t.test_item_id,
+            t.original_no,
+            t.test_item,
+            t.test_method,
+            t.order_num,
+            t.status,
+            t.machine_hours,
+            t.work_hours,
+            t.listed_price,
+            t.discounted_price,
+            t.size,
+            t.quantity,
+            t.note,
+            t.test_note,
+            t.equipment_id,
+            t.check_note,
+            t.create_time,
+            t.deadline,
+            IFNULL(e.equipment_name, '') AS equipment_name,
+            e.model,
+            t.appoint_time,
+            t.assign_time,
+            t.latest_finish_time,
+            t.check_time,
+            t.deliver_time,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+                FROM assignments aa 
+                JOIN users ua ON ua.account = aa.account
+                WHERE aa.test_item_id = t.test_item_id AND ua.role = 'supervisor') AS manager_names,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.account ORDER BY ua.account SEPARATOR ', '), '') 
+                FROM assignments aa 
+                JOIN users ua ON ua.account = aa.account
+                WHERE aa.test_item_id = t.test_item_id AND ua.role = 'supervisor') AS manager_accounts,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+                FROM assignments aa 
+                JOIN users ua ON ua.account = aa.account
+                WHERE aa.test_item_id = t.test_item_id AND 
+                      (ua.role = 'employee' OR (ua.role = 'supervisor' AND aa.is_assigned = 1))) AS team_names,
+            (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
+                FROM assignments aa 
+                JOIN users ua ON ua.account = aa.account
+                WHERE aa.test_item_id = t.test_item_id AND ua.role = 'sales') AS sales_names,
+            c.customer_name,
+            c.contact_name
+        FROM test_items t
+        LEFT JOIN orders o ON t.order_num = o.order_num
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN equipment e ON e.equipment_id = t.equipment_id
+    `;
+
+    const params = [];
+
+    // 按角色添加条件
+    if (role === 'sales' || role === 'employee' || role === 'supervisor') {
+        query += `
+            JOIN assignments a ON t.test_item_id = a.test_item_id
+            WHERE a.account = ?
+        `;
+        params.push(account);
+    } else if (role === 'leader') {
+        query += `
+            WHERE t.department_id = ?
+        `;
+        params.push(departmentId);
+    } else {
+        // admin：不加任何限制
+    }
+
+    query += `
+        GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name
+        ORDER BY t.order_num ASC
+    `;
+
+    const [rows] = await db.query(query, params);
+    return rows;
+}
+
+
 module.exports = {
     getConnection,
     findUserByAccount,
@@ -2865,5 +3196,13 @@ module.exports = {
     getAllQuarters,
     getAllYears,
     getPrices,
-    getAllSales
+    getAllSales,
+    getAllTestItemsCount,
+    getEmployeeTestItemsCount,
+    getAssignedTestsCountByUser,
+    getAllTestItemIds,
+    updateReportCheckStatus,
+    updateBusinessCheckStatus,
+    updateArchiveStatus,
+    getTestItemSummary
 };
