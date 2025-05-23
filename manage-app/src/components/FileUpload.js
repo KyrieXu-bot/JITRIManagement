@@ -190,6 +190,19 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
         }
     };
 
+    const formatDateTime = (isoString) => {
+        const d = new Date(isoString);
+        return d.toLocaleString('zh-CN', {
+          year:   'numeric',
+          month:  '2-digit',
+          day:    '2-digit',
+          hour:   '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      };
+
+      
     return (
         <div className="file-upload-container">
             <h5>委托单附件：</h5>
@@ -221,6 +234,11 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                         {uploadedFiles.commissionFiles.map((file) => (
                             <li key={file.filename} className="file-item">
                                 <span className="file-name">{file.filename}</span>
+                                <span
+                                    className="upload-time"
+                                >
+                                    (上传于{formatDateTime(file.upload_time)})
+                                </span>
                                 {/* 预览按钮（仅支持特定文件类型） */}
                                 {/\.(pdf|png|jpg|jpeg|gif|docx|pptx|xlsx|txt)$/i.test(file.filename) && (
                                     <a href={`${config.API_BASE_URL}/api/files/preview/${file.filename}`} target="_blank" rel="noopener noreferrer">
@@ -266,6 +284,11 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                         {uploadedFiles.rawDataFiles.map((file) => (
                             <li key={file.filename} className="file-item">
                                 <span className="file-name">{file.filename}</span>
+                                <span
+                                    className="upload-time"
+                                >
+                                    (上传于{formatDateTime(file.upload_time)})
+                                </span>
                                 {/* 预览按钮（仅支持特定文件类型） */}
                                 {/\.(pdf|png|jpg|jpeg|gif|docx|pptx|xlsx|txt)$/i.test(file.filename) && (
                                     <a href={`${config.API_BASE_URL}/api/files/preview/${file.filename}`} target="_blank" rel="noopener noreferrer">
@@ -311,6 +334,11 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                         {uploadedFiles.reportFiles.map((file) => (
                             <li key={file.filename} className="file-item">
                                 <span className="file-name">{file.filename}</span>
+                                <span
+                                    className="upload-time"
+                                >
+                                    (上传于{formatDateTime(file.upload_time)})
+                                </span>
                                 {/* 预览按钮（仅支持特定文件类型） */}
                                 {/\.(pdf|png|jpg|jpeg|gif|docx|pptx|xlsx|txt)$/i.test(file.filename) && (
                                     <a href={`${config.API_BASE_URL}/api/files/preview/${file.filename}`} target="_blank" rel="noopener noreferrer">

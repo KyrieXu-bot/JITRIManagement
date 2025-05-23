@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import axios from 'axios';
 import { Modal, Button, Form, Toast, Row, Col } from 'react-bootstrap'; // 使用React Bootstrap进行模态弹窗和表单处理
 import '../css/ContentArea.css'
@@ -16,6 +16,10 @@ import TestItemFlow from '../components/TestItemFlow';
 import Select from 'react-select';
 
 const ContentArea = ({ departmentID, account, selected, role, groupId, name, onLogout, setIsLoading }) => {
+    // 这个 ref 用来拿到真正滚动的 div
+    const contentRef = useRef(null);
+    // 这个 ref 用来保存上一次的 scrollTop
+    const savedScrollTop = useRef(0);
     const [selectedDepartmentId, setSelectedDepartmentId] = useState(departmentID || null);
     const isAssignedToMeRef = useRef(false); // Use useRef to persist state across renders
     const [data, setData] = useState([]);
@@ -42,11 +46,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [equipmentTimeline, setEquipmentTimeline] = useState([]);
     const [accountTime, setAccountTime] = useState([]);
     const [checkoutTime, setCheckoutTime] = useState([]);
-    const [filterCustomer, setFilterCustomer] = useState('');
-    const [filterOrderNum, setFilterOrderNum] = useState('');
     const [invoiceNumber, setInvoiceNumber] = useState('');
     const [description, setDescription] = useState('');
     const [filterData, setFilterData] = useState('');
+    const [filterTestData, setFilterTestData] = useState('');
+
     const [activePage, setActivePage] = useState(1);
     const [finalPrice, setFinalPrice] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('');
@@ -116,6 +120,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showArchiveModal, setShowArchiveModal] = useState(false);
     const [archiveItem, setArchiveItem] = useState(null);
     const [archiveNote, setArchiveNote] = useState('');
+
+    // —— 新增用于导出报告的 state —— 
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [currentReportItem, setCurrentReportItem] = useState(null);
+    const [reportType, setReportType] = useState('WH');
 
     //分页
     const itemsCountPerPage = 50;
@@ -249,6 +258,49 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         { department_id: 4, department_name: '委外' }
     ];
 
+      // 在组件外定义选项映射
+    const hazardOptions = [
+        { key: 'Safety',      label: '无危险性' },
+        { key: 'Flammability',label: '易燃易爆' },
+        { key: 'Irritation',  label: '刺激性' },
+        { key: 'Volatility',  label: '易挥发' },
+        { key: 'Fragile',     label: '易碎' },
+        { key: 'Other',     label: '其他' }
+    
+    ];
+    
+    const magnetismOptions = [
+        { key: 'Non-magnetic',   label: '无磁' },
+        { key: 'Weak-magnetic',  label: '弱磁' },
+        { key: 'Strong-magnetic',label: '强磁' },
+        { key: 'Unknown',        label: '未知' }
+    ];
+    
+    const conductivityOptions = [
+        { key: 'Conductor',      label: '导体' },
+        { key: 'Semiconductor',  label: '半导体' },
+        { key: 'Insulator',      label: '绝缘体' },
+        { key: 'Unknown',        label: '未知' }
+    ];
+
+    // 在组件外部构建映射表
+    const hazardMap = Object.fromEntries(
+        hazardOptions.map(({ key, label }) => [key, label])
+    );
+    const magnetismMap = Object.fromEntries(
+        magnetismOptions.map(({ key, label }) => [key, label])
+    );
+    const conductivityMap = Object.fromEntries(
+        conductivityOptions.map(({ key, label }) => [key, label])
+    );
+    
+    // 辅助函数：给一组 key 数组和映射表，返回中文 label 的拼接字符串
+    function mapKeysToLabels(keys = [], map) {
+        return keys
+        .map(k => map[k] || k)     // 找不到就 fallback 显示原 key
+        .join('，');               // 用顿号分隔
+    }
+    
     const areas = ['上海', '省内', '省外', '苏州', '相城'];
     const organizations = ['高校', '集萃体系', '企业', '研究所']
 
@@ -258,7 +310,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setLoading(true);
             const params = new URLSearchParams();
             if (endpoint === 'tests') {
-                console.log("count", itemsCountPerPage)
                 params.append('limit', itemsCountPerPage);
                 params.append('offset', (activePage - 1) * itemsCountPerPage);
             }
@@ -268,17 +319,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (selectedMonth) {
                 params.append('month', selectedMonth);  // 添加月份到请求参数
             }
-            if (filterOrderNum) {
-                params.append('orderNum', filterOrderNum); // 添加员工名称到请求参数
-            }
-            if (filterCustomer) {
-                params.append('customerName', filterCustomer); // 添加员工名称到请求参数
-            }
             if (departmentID) {
                 params.append('departmentId', departmentID);
             }
             if (filterData) {
                 params.append('filterData', filterData);
+            }
+            if (filterTestData) {
+                params.append('filterTestData', filterTestData);
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
             if (response.data) {
@@ -297,7 +345,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } finally {
             setLoading(false); // 数据加载完成
         }
-    }, [setError, activePage, setIsLoading, filterStatus, selectedMonth, filterCustomer, filterOrderNum, departmentID, filterData]);
+    }, [setError, activePage, setIsLoading, filterStatus, selectedMonth, departmentID, filterData, filterTestData]);
 
 
     //拉取工程师显示数据
@@ -313,11 +361,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (selectedMonth) {
                 params.append('month', selectedMonth);  // 添加月份到请求参数
             }
-            if (filterOrderNum) {
-                params.append('orderNum', filterOrderNum); // 添加员工名称到请求参数
-            }
-            if (filterCustomer) {
-                params.append('customerName', filterCustomer); // 添加员工名称到请求参数
+            // if (filterOrderNum) {
+            //     params.append('orderNum', filterOrderNum);
+            // }
+            // if (filterCustomer) {
+            //     params.append('customerName', filterCustomer); 
+            // }
+            if (filterTestData) {
+                params.append('filterTestData', filterTestData);
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/tests/assignments/${account}?${params}`);
             setIsLoading(false);
@@ -332,7 +383,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } finally {
             setLoading(false); // 数据加载完成
         }
-    }, [setIsLoading, activePage, filterStatus, selectedMonth, filterCustomer, filterOrderNum]);
+    }, [setIsLoading, activePage, filterStatus, selectedMonth, filterTestData]);
 
     //拉取组长显示数据
     const fetchDataForSupervisor = useCallback(async (departmentId) => {
@@ -353,11 +404,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 params.append('role', role);
             }
 
-            if (filterOrderNum) {
-                params.append('orderNum', filterOrderNum); // 添加员工名称到请求参数
-            }
-            if (filterCustomer) {
-                params.append('customerName', filterCustomer); // 添加员工名称到请求参数
+            // if (filterOrderNum) {
+            //     params.append('orderNum', filterOrderNum);
+            // }
+            // if (filterCustomer) {
+            //     params.append('customerName', filterCustomer);
+            // }
+            if (filterTestData) {
+                params.append('filterTestData', filterTestData);
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/tests?${params}`);
             setIsLoading(false);
@@ -374,7 +428,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } finally {
             setLoading(false); // 数据加载完成
         }
-    }, [setIsLoading, activePage, role, account, filterStatus, setError, selectedMonth, filterCustomer, filterOrderNum]);
+    }, [setIsLoading, activePage, role, account, filterStatus, setError, selectedMonth, filterTestData]);
 
     //拉取发票信息
     const fetchInvoices = useCallback(async () => {
@@ -806,8 +860,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             const params = new URLSearchParams();
             if (filterStatus) params.append('status', filterStatus);
             if (selectedMonth) params.append('month', selectedMonth);
-            if (filterCustomer) params.append('customerName', filterCustomer);
-            if (filterOrderNum) params.append('orderNum', filterOrderNum);
+            // if (filterCustomer) params.append('customerName', filterCustomer);
+            // if (filterOrderNum) params.append('orderNum', filterOrderNum);
+            if (filterTestData) params.append('filterTestData', filterTestData);
+
             if (departmentID) params.append('departmentId', departmentID);
 
             // ✅ 角色决定额外参数
@@ -829,12 +885,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         };
 
         fetchTotalCount();
-    }, [filterStatus, selectedMonth, filterCustomer, filterOrderNum, departmentID, account, role]);
+    }, [filterStatus, selectedMonth, filterTestData, departmentID, account, role]);
 
     // 首页展示组件
     useEffect(() => {
         fetchSummaryItems();
     }, [fetchSummaryItems, selected, account, departmentID, role]);
+
+
 
     // 当用户选择标签时，直接更新筛选后的设备
     const handleLabelChange = (e) => {
@@ -847,7 +905,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setFilteredEquipments([]);
         }
     };
-
 
     const handleEdit = (item) => {
         setCurrentItem(item);
@@ -1544,14 +1601,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 const params = new URLSearchParams();
                 if (filterStatus) params.append('status', filterStatus);
                 if (selectedMonth) params.append('month', selectedMonth);
-                if (filterCustomer) params.append('customerName', filterCustomer);
-                if (filterOrderNum) params.append('orderNum', filterOrderNum);
                 if (departmentID !== 4) params.append('departmentId', departmentID);
                 if (role) params.append('role', role);
                 if (account) params.append('account', account);
-
+                if (filterTestData) params.append('filterTestData', filterTestData);
                 const response = await axios.get(`${config.API_BASE_URL}/api/tests/ids?${params}`);
-                console.log(response.data)
                 setSelectedOrders(response.data); // 全选所有 test_item_id
             } catch (error) {
                 console.error("获取所有检测项目ID失败", error);
@@ -1691,6 +1745,51 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
 
+    const handleOpenReportModal = (item) => {
+        setCurrentReportItem(item);
+        setReportType('WH');
+        setShowReportModal(true);
+    };
+    const handleCloseReportModal = () => {
+        setShowReportModal(false);
+        setCurrentReportItem(null);
+    };
+
+
+    const handleGenerateReport = async () => {
+    if (!currentReportItem) return;
+    
+    try {
+        const res = await axios.post(`${config.API_BASE_URL}/api/documents`, {
+        order_num:  currentReportItem.order_num,
+        reportType,
+        departmentId: departmentID
+        }, {
+        responseType: 'blob',
+        });
+    
+        // 触发下载
+        const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
+        const url = window.URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href    = url;
+        a.download = `${reportType}_${currentReportItem.order_num}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    
+    } catch (err) {
+        console.error('生成报告失败', err);
+        alert('报告生成失败，请重试');
+    } finally {
+        handleCloseReportModal();
+    }
+    };
+
+
     const updateItem = async () => {
         try {
             if (selected === 'getTests') {
@@ -1809,6 +1908,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     const submitAssignment = async () => {
+        if (contentRef.current) {
+            savedScrollTop.current = contentRef.current.scrollTop;
+          }
         try {
 
             const payload = {
@@ -1849,6 +1951,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     };
 
+    useLayoutEffect(() => {
+        const el = contentRef.current;
+        if (el) {
+          el.scrollTop = savedScrollTop.current;
+        }
+      }, [data]);
+
+      
+      
     // 转办
     const submitReassignment = async () => {
         try {
@@ -2344,27 +2455,27 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <tr key={index}
                                 className={item.status === '5' ? 'row-delivered' : ''}
                             >
-                                <td className='order-num-fixed'>{item.order_num}</td>
-                                <td className='test-item-fixed'>{item.test_item}</td>
+                                <td className='order-num-fixed'>{highlightText(item.order_num, filterTestData)}</td>
+                                <td className='test-item-fixed'>{highlightText(item.test_item, filterTestData)}</td>
                                 <td>{statusLabels[item.status]}</td>
-                                <td>{item.customer_name}</td>
-                                <td>{item.contact_name}</td>
+                                <td>{highlightText(item.customer_name, filterTestData)}</td>
+                                <td>{highlightText(item.contact_name, filterTestData)}</td>
                                 <td>
-                                    {(item.status === '1' || item.status === '2') ? renderDeadlineStatus(item.deadline, item.appoint_time) : ''}
+                                    {(item.status === '1' || item.status === '2') ? highlightText(renderDeadlineStatus(item.deadline, item.appoint_time), filterTestData) : ''}
                                 </td>
                                 <td>
-                                    {item.manager_names ? `${item.manager_names}` : '暂未分配'}
+                                    {item.manager_names ? highlightText(item.manager_names, filterTestData) : '暂未分配'}
                                 </td>
-                                <td>{item.quantity}</td>
-                                <td>{item.machine_hours}</td>
-                                <td>{item.work_hours}</td>
-                                <td>{item.listed_price}</td>
+                                <td>{highlightText(item.quantity, filterTestData)}</td>
+                                <td>{highlightText(item.machine_hours, filterTestData)}</td>
+                                <td>{highlightText(item.work_hours, filterTestData)}</td>
+                                <td>{highlightText(item.listed_price, filterTestData)}</td>
                                 <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
                                 <td>{item.appoint_time ? new Date(item.appoint_time).toLocaleString() : ''}</td>
-                                <td>{item.original_no}</td>
-                                <td>{item.note}</td>
-                                <td>{item.test_note}</td>
-                                <td>{item.check_note}</td>
+                                <td>{highlightText(item.original_no, filterTestData)}</td>
+                                <td>{highlightText(item.note, filterTestData)}</td>
+                                <td>{highlightText(item.test_note, filterTestData)}</td>
+                                <td>{highlightText(item.check_note, filterTestData)}</td>
                                 <td className='fixed-column'>
                                     <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                                     {(item.status !== '3' && item.status !== '5') && (
@@ -2480,29 +2591,29 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <tr key={index}
                                 className={item.status === '5' ? 'row-delivered' : ''}
                             >
-                                <td className='order-num-fixed'>{item.order_num}</td>
-                                <td className='test-item-fixed'>{item.test_item}</td>
+                                <td className='order-num-fixed'>{highlightText(item.order_num, filterTestData)}</td>
+                                <td className='test-item-fixed'>{highlightText(item.test_item, filterTestData)}</td>
                                 <td>{statusLabels[item.status]}</td>
                                 <td>
-                                    {(item.status === '1' || item.status === '2') ? renderDeadlineStatus(item.deadline, item.appoint_time) : ''}
+                                    {(item.status === '1' || item.status === '2') ? highlightText(renderDeadlineStatus(item.deadline, item.appoint_time), filterTestData) : ''}
                                 </td>
-                                <td>{item.customer_name}</td>
-                                <td>{item.contact_name}</td>
+                                <td>{highlightText(item.customer_name, filterTestData)}</td>
+                                <td>{highlightText(item.contact_name, filterTestData)}</td>
                                 <td>
-                                    {item.team_names ? `${item.team_names}` : '暂未指派'}
+                                    {item.team_names ? highlightText(item.team_names, filterTestData) : '暂未指派'}
                                 </td>
                                 <td>
-                                    {item.sales_names ? `${item.sales_names}` : '暂未分配'}
+                                    {item.sales_names ? highlightText(item.sales_names, filterTestData) : '暂未分配'}
                                 </td>
                                 <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
-                                <td>{item.note}</td>
-                                <td>{item.test_note}</td>
-                                <td>{item.check_note}</td>
-                                <td>{item.quantity}</td>
-                                <td>{item.machine_hours}</td>
-                                <td>{item.work_hours}</td>
-                                <td>{item.listed_price}</td>
-                                <td>{item.original_no}</td>
+                                <td>{highlightText(item.note, filterTestData)}</td>
+                                <td>{highlightText(item.test_note, filterTestData)}</td>
+                                <td>{highlightText(item.check_note, filterTestData)}</td>
+                                <td>{highlightText(item.quantity, filterTestData)}</td>
+                                <td>{highlightText(item.machine_hours, filterTestData)}</td>
+                                <td>{highlightText(item.work_hours, filterTestData)}</td>
+                                <td>{highlightText(item.listed_price, filterTestData)}</td>
+                                <td>{highlightText(item.original_no, filterTestData)}</td>
                                 <td className='fixed-column'>
                                     <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                                     {item.team_names === item.manager_names && item.status !== '3' && item.status !== '5' && (
@@ -2630,31 +2741,31 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         onChange={() => handleCheckboxChange(item.test_item_id)}
                                     />
                                 </td>
-                                <td className='order-num-fixed'>{item.order_num}</td>
-                                <td className='test-item-fixed'>{item.test_item}</td>
+                                <td className='order-num-fixed'>{highlightText(item.order_num, filterTestData)}</td>
+                                <td className='test-item-fixed'>{highlightText(item.test_item, filterTestData)}</td>
                                 <td>{statusLabels[item.status]}</td>
                                 <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
-                                <td>{item.customer_name}</td>
-                                <td>{item.contact_name}</td>
-                                <td>{item.machine_hours}</td>
-                                <td>{item.work_hours}</td>
-                                <td>{item.listed_price}</td>
-                                <td>{item.discounted_price}</td>
+                                <td>{highlightText(item.customer_name, filterTestData)}</td>
+                                <td>{highlightText(item.contact_name, filterTestData)}</td>
+                                <td>{highlightText(item.machine_hours, filterTestData)}</td>
+                                <td>{highlightText(item.work_hours, filterTestData)}</td>
+                                <td>{highlightText(item.listed_price, filterTestData)}</td>
+                                <td>{highlightText(item.discounted_price, filterTestData)}</td>
                                 <td>
-                                    {item.manager_names ? `${item.manager_names}` : '暂未分配'}
+                                    {item.manager_names ? highlightText(item.manager_names, filterTestData) : '暂未分配'}
                                 </td>
                                 <td>
-                                    {item.team_names ? `${item.team_names}` : '暂未分配'}
+                                    {item.team_names ? highlightText(item.team_names, filterTestData) : '暂未分配'}
                                 </td>
                                 <td>
-                                    {item.sales_names ? `${item.sales_names}` : '暂未分配'}
+                                    {item.sales_names ? highlightText(item.sales_names, filterTestData) : '暂未分配'}
                                 </td>
-                                <td>{item.note}</td>
-                                <td>{item.test_note}</td>
-                                <td>{item.check_note}</td>
-                                <td>{item.original_no}</td>
+                                <td>{highlightText(item.note, filterTestData)}</td>
+                                <td>{highlightText(item.test_note, filterTestData)}</td>
+                                <td>{highlightText(item.check_note, filterTestData)}</td>
+                                <td>{highlightText(item.original_no, filterTestData)}</td>
                                 <td>
-                                    {(item.status === '1' || item.status === '2') ? renderDeadlineStatus(item.deadline, item.appoint_time) : ''}
+                                    {(item.status === '1' || item.status === '2') ? highlightText(renderDeadlineStatus(item.deadline, item.appoint_time), filterTestData) : ''}
                                 </td>
                                 <td className='fixed-column'>
                                     <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
@@ -2662,6 +2773,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     {item.status === '0' && (
                                         <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                                     )}
+                                    <Button variant="info" onClick={() => handleEdit(item)}>修改</Button>
+
                                     {(item.status === '3' || item.status === '8') && item.hasReports === 1 && (
                                         <Button variant="warning" onClick={() => handleLeaderCheck(item)}>审报告</Button>
                                     )}
@@ -2713,6 +2826,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td className='fixed-column'>
                                     <Button onClick={() => handleAdd(item)}>添加检测</Button>
                                     <Button variant="danger" onClick={() => handleDelete(item.order_num)}>删除</Button>
+                                    <Button variant="success" size="sm" onClick={() => handleOpenReportModal(item)}>出报告</Button>
                                 </td>
                             </tr>
                         ));
@@ -2747,7 +2861,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 case 'handleTests':
                     headers = ["委托单号", "检测项目", "客户名称", "联系人", "数量", "机时", "标准价格", "实收(含税)价", "附件", "状态", "样品原号", "检测人员", "业务人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
-                        <tr key={index}
+                        <tr key={item.test_item_id}
                             className={item.status === '5' ? 'row-delivered' : ''}
                         >
                             <td>
@@ -2757,13 +2871,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     onChange={() => handleCheckboxChange(item.test_item_id)}
                                 />
                             </td>
-                            <td className='order-num-fixed'>{item.order_num}</td>
-                            <td className='test-item-fixed'>{item.test_item}</td>
-                            <td>{item.customer_name}</td>
-                            <td>{item.contact_name}</td>
-                            <td>{item.quantity}</td>
-                            <td>{item.machine_hours}</td>
-                            <td>{item.listed_price}</td>
+                            <td className='order-num-fixed'>{highlightText(item.order_num, filterTestData)}</td>
+                            <td className='test-item-fixed'>{highlightText(item.test_item, filterTestData)}</td>
+                            <td>{highlightText(item.customer_name, filterTestData)}</td>
+                            <td>{highlightText(item.contact_name, filterTestData)}</td>
+                            <td>{highlightText(item.quantity, filterTestData)}</td>
+                            <td>{highlightText(item.machine_hours, filterTestData)}</td>
+                            <td>{highlightText(item.listed_price, filterTestData)}</td>
                             {/* <td>{item.discounted_price}</td> */}
                             {/* 双击编辑逻辑 */}
                             <td
@@ -2784,19 +2898,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         autoFocus
                                     />
                                 ) : (
-                                    item.discounted_price
+                                    highlightText(item.discounted_price, filterTestData)
                                 )}
                             </td>
                             <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
                             <td>{statusLabels[item.status]}</td>
-                            <td>{item.original_no}</td>
+                            <td>{highlightText(item.original_no, filterTestData)}</td>
                             <td>
-                                {item.team_names ? `${item.team_names}` : '暂未分配'}
+                                {item.team_names ? highlightText(item.team_names, filterTestData) : '暂未分配'}
                             </td>
                             <td>
-                                {item.sales_names ? `${item.sales_names}` : '暂未分配'}
+                                {item.sales_names ? highlightText(item.sales_names, filterTestData) : '暂未分配'}
                             </td>
-                            <td>{item.check_note}</td>
+                            <td>{highlightText(item.check_note, filterTestData)}</td>
                             <td className='fixed-column'>
                                 <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                                 {/* {item.status !== '3' && item.status !== '5' && (
@@ -2938,22 +3052,22 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         onChange={() => handleCheckboxChange(item.test_item_id)}
                                     />
                                 </td>
-                                <td>{item.order_num}</td>
-                                <td>{item.original_no}</td>
-                                <td>{item.test_item}</td>
-                                <td>{item.test_method}</td>
-                                <td>{item.customer_name}</td>
-                                <td>{item.contact_name}</td>
-                                <td>{item.machine_hours}</td>
-                                <td>{item.work_hours}</td>
-                                <td>{item.listed_price}</td>
-                                <td>{item.discounted_price}</td>
+                                <td>{highlightText(item.order_num, filterTestData)}</td>
+                                <td>{highlightText(item.original_no, filterTestData)}</td>
+                                <td>{highlightText(item.test_item, filterTestData)}</td>
+                                <td>{highlightText(item.test_method, filterTestData)}</td>
+                                <td>{highlightText(item.customer_name, filterTestData)}</td>
+                                <td>{highlightText(item.contact_name, filterTestData)}</td>
+                                <td>{highlightText(item.machine_hours, filterTestData)}</td>
+                                <td>{highlightText(item.work_hours, filterTestData)}</td>
+                                <td>{highlightText(item.listed_price, filterTestData)}</td>
+                                <td>{highlightText(item.discounted_price, filterTestData)}</td>
                                 <td>{statusLabels[item.status]}</td>
-                                <td>{item.team_names}</td>
-                                <td>{item.sales_names}</td>
-                                <td>{item.note}</td>
-                                <td>{item.test_note}</td>
-                                <td>{item.check_note}</td>
+                                <td>{highlightText(item.team_names, filterTestData)}</td>
+                                <td>{highlightText(item.sales_names, filterTestData)}</td>
+                                <td>{highlightText(item.note, filterTestData)}</td>
+                                <td>{highlightText(item.test_note, filterTestData)}</td>
+                                <td>{highlightText(item.check_note, filterTestData)}</td>
                                 <td className='fixed-column'>
                                     <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
                                     {(item.status === '9' || item.status === '11' ) && account === 'ZL003' && (
@@ -2972,6 +3086,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return { headers, rows };
         }
         else {
+
             // 默认视图
             switch (selected) {
                 case 'getCommission':
@@ -3129,23 +3244,48 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     });
                     break;
                 case 'getSamples':
-                    headers = ["样品名称", "材料", "货号", "材料规范", "样品处置", "材料类型", "订单编号"];
-                    rows = currentItems.map((item, index) => (
-                        <tr key={index}>
-                            <td>{item.sample_name}</td>
-                            <td>{item.material}</td>
-                            <td>{item.product_no}</td>
-                            <td>{item.material_spec}</td>
-                            <td>{sampleSolutionTypeLabels[item.sample_solution_type]}</td>
-                            <td>
-                                {sampleTypeLabels[formatSampleType(item.sample_type)]}
-                            </td>
+                    headers = ["订单编号", "样品处置", "危险特性", "其他危险说明", "磁性", "导电性", "是否可破坏", "是否孤品",];
+                    rows = currentItems.map((item, index) => {
+                        // 解析 hazards（可能是 JSON 字符串，也可能已经是数组）
+                        const hazardKeys = Array.isArray(item.hazards)
+                          ? item.hazards
+                          : JSON.parse(item.hazards || '[]');
+                    
+                        return (
+                          <tr key={index}>
                             <td>{item.order_num}</td>
-                            <td className='fixed-column'>
-                                <Button onClick={() => handleEditSamples(item)}>修改</Button>
+                            <td>{sampleSolutionTypeLabels[item.sample_solution_type]}</td>
+                            {/* 多选的 hazards，用 mapKeysToLabels 转成中文标签 */}
+                            <td>{mapKeysToLabels(hazardKeys, hazardMap)}</td>
+                    
+                            <td>{item.hazard_other || '—'}</td>
+                    
+                            {/* 单选字段直接查表 */}
+                            <td>{magnetismMap[item.magnetism] || item.magnetism || '—'}</td>
+                            <td>{conductivityMap[item.conductivity] || item.conductivity || '—'}</td>
+                    
+                            {/* 布尔型字段，根据 yes/no 渲染 */}
+                            <td>
+                              {item.breakable === 'yes' 
+                                ? '可破坏' 
+                                : item.breakable === 'no' 
+                                  ? '不可破坏' 
+                                  : '—'}
                             </td>
-                        </tr>
-                    ));
+                            <td>
+                              {item.brittle === 'yes' 
+                                ? '是' 
+                                : item.brittle === 'no' 
+                                  ? '否' 
+                                  : '—'}
+                            </td>
+                    
+                            <td className="fixed-column">
+                              <Button onClick={() => handleEditSamples(item)}>修改</Button>
+                            </td>
+                          </tr>
+                        );
+                      });
                     break;
                 case 'getTests':
                     headers = ["委托单号", "样品原号", "检测项目", "方法", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "客户备注", "实验备注", "审批意见"];
@@ -3179,15 +3319,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         />
                                     </td>
                                 )}
-                                <td>{item.order_num}</td>
-                                <td>{item.original_no}</td>
-                                <td>{item.test_item}</td>
-                                <td>{item.test_method}</td>
-                                <td>{item.customer_name}</td>
-                                <td>{item.contact_name}</td>
-                                <td>{item.machine_hours}</td>
-                                <td>{item.work_hours}</td>
-                                <td>{item.listed_price}</td>
+                                <td>{highlightText(item.order_num, filterTestData)}</td>
+                                <td>{highlightText(item.original_no, filterTestData)}</td>
+                                <td>{highlightText(item.test_item, filterTestData)}</td>
+                                <td>{highlightText(item.test_method, filterTestData)}</td>
+                                <td>{highlightText(item.customer_name, filterTestData)}</td>
+                                <td>{highlightText(item.contact_name, filterTestData)}</td>
+                                <td>{highlightText(item.machine_hours, filterTestData)}</td>
+                                <td>{highlightText(item.work_hours, filterTestData)}</td>
+                                <td>{highlightText(item.listed_price, filterTestData)}</td>
                                 {/* 双击编辑逻辑 */}
                                 <td
                                     onDoubleClick={() => handleDoubleClick(index, item.discounted_price)}
@@ -3206,15 +3346,15 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             autoFocus
                                         />
                                     ) : (
-                                        item.discounted_price
+                                        highlightText(item.discounted_price, filterTestData)
                                     )}
                                 </td>
                                 <td>{statusLabels[item.status]}</td>
-                                <td>{item.team_names}</td>
-                                <td>{item.sales_names}</td>
-                                <td>{item.note}</td>
-                                <td>{item.test_note}</td>
-                                <td>{item.check_note}</td>
+                                <td>{highlightText(item.team_names, filterTestData)}</td>
+                                <td>{highlightText(item.sales_names, filterTestData)}</td>
+                                <td>{highlightText(item.note, filterTestData)}</td>
+                                <td>{highlightText(item.test_note, filterTestData)}</td>
+                                <td>{highlightText(item.check_note, filterTestData)}</td>
                                 <td className='fixed-column'>
                                     {/* 当状态是待检测时，显示分配按钮 */}
                                     <Button variant="info" onClick={() => handleShowDetails(item)}>详情</Button>
@@ -3444,7 +3584,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             </select>&nbsp;&nbsp;&nbsp;
                                         </>
                                     )}
-                                    <span>委托单号：</span>
+
+                                    {/* <span>委托单号：</span>
                                     <input
                                         type="text"
                                         value={filterOrderNum}
@@ -3458,7 +3599,19 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         value={filterCustomer}
                                         onChange={(e) => setFilterCustomer(e.target.value)}
                                         placeholder="输入客户名称进行搜索"
-                                    />
+                                    /> */}
+
+                                    <div>
+                                        <span>页面搜索：</span>
+                                        <input
+                                            type="text"
+                                            value={filterTestData}
+                                            onChange={(e) => setFilterTestData(e.target.value)}
+                                            placeholder="搜索"
+                                        />
+
+                                    </div>
+
                                     {(role === 'leader' || role === 'admin' || role === 'viewer') && (
                                         <>
                                             <span>表格：</span>
@@ -3632,7 +3785,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 />
                             )}
                         </div>
-                        <div class='content'>
+                        <div ref={contentRef} class='content'>
                             {selected === 'getChecked' ? (
                                 <table className='invoice-table'>
                                     <thead>
@@ -5416,6 +5569,29 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
+            {/* —— 报告类型选择 Modal —— */}
+            <Modal show={showReportModal} onHide={handleCloseReportModal}>
+                <Modal.Header closeButton>
+                <Modal.Title>生成实验报告</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                <Form.Group>
+                    <Form.Label>报告种类</Form.Label>
+                    <Form.Control
+                    as="select"
+                    value={reportType}
+                    onChange={e => setReportType(e.target.value)}
+                    >
+                    <option value="WH">物化实验报告</option>
+                    {/* 以后可以扩展更多类型 */}
+                    </Form.Control>
+                </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                <Button variant="secondary" onClick={handleCloseReportModal}>取消</Button>
+                <Button variant="primary" onClick={handleGenerateReport}>生成</Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

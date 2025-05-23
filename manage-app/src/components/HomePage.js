@@ -8,11 +8,9 @@ const HomePage = ({ role, account, summaryData, onShowAssignment, onShowCheck, o
     let totalListedPrice = 0;
     let totalDiscountedPrice = 0;
     const salesStats = {};
-
     const notAssigned = [];
     const notTested = [];
     const notChecked = [];
-    console.log(summaryData)
     summaryData.forEach(order => {
         const status = order.status;
         if (statusCounts[status] !== undefined) {

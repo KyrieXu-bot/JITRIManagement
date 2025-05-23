@@ -32,7 +32,7 @@
     background-color: #fff;
     box-sizing: border-box;
     overflow-x: auto;
-    overflow-y: scroll;
+    overflow-y: auto;
     position: relative;
     flex-basis: auto;
 }

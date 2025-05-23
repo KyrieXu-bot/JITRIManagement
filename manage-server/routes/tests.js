@@ -10,15 +10,16 @@ router.get('/', async (req, res) => {
     let customerName = req.query.customerName
     let orderNum = req.query.orderNum
     let role = req.query.role
+    let filterTestData = req.query.filterTestData;
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
     try {
         //查询组长数据
         if (account != undefined && account != '') {
-            const results = await db.getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, limit, offset);
+            const results = await db.getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, filterTestData, limit, offset);
             res.json(results);
         } else {
-            const results = await db.getAllTestItems(status, departmentId, month, customerName, orderNum, role, limit, offset);
+            const results = await db.getAllTestItems(status, departmentId, month, customerName, orderNum, filterTestData, role, limit, offset);
             res.json(results);
         }
     } catch (error) {
@@ -26,6 +27,27 @@ router.get('/', async (req, res) => {
         res.status(500).send({ message: 'Failed to fetch data', error: error.message });
     }
 });
+
+// Get all test items assigned to a specific user
+router.get('/assignments/:userId', async (req, res) => {
+    let status = req.query.status; // 获取请求中的状态参数
+    let month = req.query.month;
+    let customerName = req.query.customerName
+    let orderNum = req.query.orderNum
+    let filterTestData = req.query.filterTestData;
+
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+
+    try {
+        const results = await db.getAssignedTestsByUser(req.params.userId, status, month, customerName, orderNum, filterTestData, limit, offset);
+        res.json(results);
+    } catch (error) {
+        console.error('Failed to fetch assignments:', error);
+        res.status(500).json({ success: false, message: "Failed to retrieve assignments", error: error.message });
+    }
+});
+
 
 router.get('/count', async (req, res) => {
     let status = req.query.status;
@@ -35,16 +57,18 @@ router.get('/count', async (req, res) => {
     let orderNum = req.query.orderNum;
     let role = req.query.role;
     let account = req.query.account;
+    let filterTestData = req.query.filterTestData;
     try {
         let total = 0;
         if (role === 'supervisor' && account) {
-            total = await db.getEmployeeTestItemsCount(status, departmentId, account, month, customerName, orderNum);
+            total = await db.getEmployeeTestItemsCount(status, departmentId, account, month, customerName, orderNum, filterTestData);
         } else if (role === 'sales' && account) {
-            total = await db.getAssignedTestsCountByUser(account, status, month, customerName, orderNum);
+            total = await db.getAssignedTestsCountByUser(account, status, month, customerName, orderNum, filterTestData);
         } else if (account) {
-            total = await db.getAssignedTestsCountByUser(account, status, month, customerName, orderNum);
+            total = await db.getAssignedTestsCountByUser(account, status, month, customerName, orderNum, filterTestData);
         } else {
-            total = await db.getAllTestItemsCount(status, departmentId, month, customerName, orderNum);
+            total = await db.getAllTestItemsCount(status, departmentId, month, customerName, orderNum, role, filterTestData);
+
         }
 
         res.json({ total });
@@ -259,26 +283,6 @@ router.post('/update-archive', async (req, res) => {
         res.status(500).send({ message: '归档状态更新失败', error: error.message });
     }
 });
-
-// Get all test items assigned to a specific user
-router.get('/assignments/:userId', async (req, res) => {
-    let status = req.query.status; // 获取请求中的状态参数
-    let month = req.query.month;
-    let customerName = req.query.customerName
-    let orderNum = req.query.orderNum
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
-
-
-    try {
-        const results = await db.getAssignedTestsByUser(req.params.userId, status, month, customerName, orderNum, limit, offset);
-        res.json(results);
-    } catch (error) {
-        console.error('Failed to fetch assignments:', error);
-        res.status(500).json({ success: false, message: "Failed to retrieve assignments", error: error.message });
-    }
-});
-
 
 // 更新检测项目的标准价格
 router.patch('/:testItemId/price', async (req, res) => {
@@ -515,9 +519,9 @@ router.get('/prices', async (req, res) => {
 
 // 查询所有的检测id(用于全选导出用)
 router.get('/ids', async (req, res) => {
-    const { status, departmentId, month, customerName, orderNum, role, account } = req.query;
+    const { status, departmentId, month, filterTestData, role, account } = req.query;
     try {
-        const ids = await db.getAllTestItemIds(status, departmentId, month, customerName, orderNum, role, account);
+        const ids = await db.getAllTestItemIds(status, departmentId, month, filterTestData, role, account);
         res.json(ids);
     } catch (error) {
         console.error('Failed to fetch all test item IDs:', error);

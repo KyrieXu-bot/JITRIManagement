@@ -410,12 +410,15 @@ async function deleteOrder(orderNum) {
 async function getAllSamples() {
     const query = `
         SELECT 
-            s.sample_name,
-            s.material,
-            s.product_no,
-            s.material_spec,
             s.sample_solution_type,
             s.sample_type,
+            s.order_num,
+            s.hazards,
+            s.hazard_other,
+            s.magnetism,
+            s.conductivity,
+            s.breakable,
+            s.brittle,
             s.order_num
         FROM samples s
     `;
@@ -424,7 +427,7 @@ async function getAllSamples() {
 }
 
 
-async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, limit = 50, offset = 0) {
+async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, filterTestData, limit = 50, offset = 0) {
     const idParams = [];
     let idWhereClause = 'WHERE 1=1';
     
@@ -461,6 +464,48 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
     if (customerName) {
         idWhereClause += ' AND EXISTS (SELECT 1 FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_num = t2.order_num AND c.customer_name LIKE ?)';
         idParams.push(`%${customerName}%`);
+    }
+
+    // 在 customerName 的过滤之后，添加：
+    if (filterTestData && filterTestData.trim().length > 0) {
+        idWhereClause += `
+            AND (
+                t2.order_num LIKE ? OR
+                t2.test_item LIKE ? OR
+                t2.deadline LIKE ? OR
+                c.customer_name LIKE ? OR
+                c.contact_name LIKE ? OR
+                EXISTS (
+                    SELECT 1
+                    FROM assignments aa
+                    JOIN users ua ON ua.account = aa.account
+                    WHERE aa.test_item_id = t2.test_item_id
+                    AND ua.role IN ('supervisor','employee')
+                    AND ua.name LIKE ?
+                ) OR
+                EXISTS (
+                    SELECT 1
+                    FROM assignments aa
+                    JOIN users ua ON ua.account = aa.account
+                    WHERE aa.test_item_id = t2.test_item_id
+                    AND ua.role = 'sales'
+                    AND ua.name LIKE ?
+                ) OR
+                (CASE WHEN EXISTS (
+                    SELECT 1 FROM project_files f WHERE f.test_item_id = t2.test_item_id
+                ) THEN '1' ELSE '0' END) LIKE ? OR
+                t2.note LIKE ? OR
+                t2.test_note LIKE ? OR
+                t2.check_note LIKE ? OR
+                t2.quantity LIKE ? OR
+                t2.machine_hours LIKE ? OR
+                t2.work_hours LIKE ? OR
+                t2.listed_price LIKE ? OR
+                t2.original_no LIKE ?
+            )
+        `;
+        // 一共 16 个 '?'，每个都用同一个 filterTestData
+        idParams.push(...Array(16).fill(`%${filterTestData}%`));
     }
 
     // Step 1: 使用子查询分页获取 test_item_id
@@ -580,7 +625,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
     return results;
 }
 
-async function getAllTestItems(status, departmentId, month, customerName, orderNum, role, limit = 50, offset = 0) {
+async function getAllTestItems(status, departmentId, month, customerName, orderNum, filterTestData, role, limit = 50, offset = 0) {
     const idParams = [];
     let idWhereClause = 'WHERE 1=1';
     
@@ -614,6 +659,45 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
     if (role) {
         idWhereClause += ' AND u.role = ? AND u.account != ?';
         idParams.push(role, 'YW001');
+    }
+
+    if (filterTestData && filterTestData.trim().length > 0) {
+        idWhereClause += `
+          AND (
+            t2.order_num         LIKE ? OR
+            t2.test_item         LIKE ? OR
+            t2.test_method       LIKE ? OR
+            c.customer_name      LIKE ? OR
+            c.contact_name       LIKE ? OR
+            CAST(t2.quantity     AS CHAR) LIKE ? OR
+            CAST(t2.machine_hours AS CHAR) LIKE ? OR
+            CAST(t2.listed_price AS CHAR) LIKE ? OR
+            CAST(t2.discounted_price AS CHAR) LIKE ? OR
+            t2.original_no       LIKE ? OR
+            t2.check_note        LIKE ? OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account = ua.account
+              WHERE aa.test_item_id = t2.test_item_id
+                AND ua.role IN ('employee','supervisor')
+                AND ua.name LIKE ?
+            ) OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account = ua.account
+              WHERE aa.test_item_id = t2.test_item_id
+                AND ua.role = 'sales'
+                AND ua.name LIKE ?
+            ) OR
+            (CASE WHEN EXISTS (
+               SELECT 1 FROM project_files f
+               WHERE f.test_item_id = t2.test_item_id
+             ) THEN '已上传' ELSE '无' END) LIKE ?
+          )
+        `
+        idParams.push(
+          ...Array(14).fill(`%${filterTestData}%`)
+        )
     }
 
     // Step 1: 分页获取 test_item_id
@@ -723,6 +807,7 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             WHERE ua.role = 'sales'
             GROUP BY aa.test_item_id
         ) AS sales_agg ON t.test_item_id = sales_agg.test_item_id
+         
         WHERE t.test_item_id IN (${placeholders})
         GROUP BY 
             t.test_item_id, 
@@ -926,7 +1011,7 @@ async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPr
     }
 }
 
-async function getAssignedTestsByUser(account, status, month, customerName, orderNum, limit = 50, offset = 0) {
+async function getAssignedTestsByUser(account, status, month, customerName, orderNum, filterTestData, limit = 50, offset = 0) {
     const idParams = [account];
     let idWhereClause = 'WHERE 1=1';
     
@@ -955,6 +1040,46 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
         idParams.push(`%${customerName}%`);
     }
 
+    if (filterTestData && filterTestData.trim()) {
+        idWhereClause += `
+          AND (
+            t2.order_num         LIKE ? OR
+            t2.test_item         LIKE ? OR
+            t2.test_method       LIKE ? OR
+            c.customer_name      LIKE ? OR
+            c.contact_name       LIKE ? OR
+            CAST(t2.quantity AS CHAR)     LIKE ? OR
+            CAST(t2.machine_hours AS CHAR) LIKE ? OR
+            CAST(t2.work_hours AS CHAR)    LIKE ? OR
+            CAST(t2.listed_price AS CHAR)  LIKE ? OR
+            CAST(t2.discounted_price AS CHAR) LIKE ? OR
+            t2.original_no       LIKE ? OR
+            t2.note              LIKE ? OR
+            t2.test_note         LIKE ? OR
+            t2.check_note        LIKE ? OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account = ua.account
+              WHERE aa.test_item_id = t2.test_item_id
+                AND ua.role IN ('employee','supervisor')
+                AND ua.name LIKE ?
+            ) OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account = ua.account
+              WHERE aa.test_item_id = t2.test_item_id
+                AND ua.role = 'sales'
+                AND ua.name LIKE ?
+            ) OR
+            (CASE WHEN EXISTS (
+               SELECT 1 FROM project_files f
+               WHERE f.test_item_id = t2.test_item_id
+             ) THEN '已上传' ELSE '无' END) LIKE ?
+          )
+           `
+        // 上面共 17 个 '?'，都用同一个 filterTestData
+        idParams.push(...Array(17).fill(`%${filterTestData}%`));
+    }  
     // Step 1: 使用子查询分页获取 test_item_id
     const idQuery = `
         SELECT t.test_item_id
@@ -1713,7 +1838,7 @@ async function getFilesByTestItemId(testItemId) {
     try {
         await connection.beginTransaction(); // 开始事务
 
-        const query = `SELECT filename, filepath, project_id, category FROM project_files WHERE test_item_id = ?`;
+        const query = `SELECT filename, filepath, project_id, category, upload_time FROM project_files WHERE test_item_id = ?`;
         const [results] = await connection.query(query, [testItemId]);
         return results;
     } catch (error) {
@@ -2779,7 +2904,7 @@ async function getPrices(testItemName, testCondition) {
     }
 }
 
-async function getAllTestItemsCount(status, departmentId, month, customerName, orderNum, role) {
+async function getAllTestItemsCount(status, departmentId, month, customerName, orderNum, role, filterTestData) {
     let query = `
         SELECT COUNT(DISTINCT t.test_item_id) AS total
         FROM test_items t
@@ -2829,11 +2954,50 @@ async function getAllTestItemsCount(status, departmentId, month, customerName, o
         params.push(role, 'YW001');
     }
 
+    if (filterTestData && filterTestData.trim()) {
+        const prefix = whereClauseAdded ? ' AND' : ' WHERE'
+        query += prefix + `
+          (
+            t.order_num        LIKE ? OR
+            t.test_item        LIKE ? OR
+            t.test_method      LIKE ? OR
+            c.customer_name    LIKE ? OR
+            c.contact_name     LIKE ? OR
+            CAST(t.quantity      AS CHAR) LIKE ? OR
+            CAST(t.machine_hours AS CHAR) LIKE ? OR
+            CAST(t.listed_price  AS CHAR) LIKE ? OR
+            CAST(t.discounted_price AS CHAR) LIKE ? OR
+            t.original_no      LIKE ? OR
+            t.check_note       LIKE ? OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account=ua.account
+              WHERE aa.test_item_id=t.test_item_id
+                AND ua.role IN ('employee','supervisor')
+                AND ua.name LIKE ?
+            ) OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account=ua.account
+              WHERE aa.test_item_id=t.test_item_id
+                AND ua.role='sales'
+                AND ua.name LIKE ?
+            ) OR
+            (CASE WHEN EXISTS (
+               SELECT 1 FROM project_files f
+               WHERE f.test_item_id=t.test_item_id
+            ) THEN '已上传' ELSE '无' END) LIKE ?
+          )
+        `
+        // 上面共 14 个问号
+        params.push(...Array(14).fill(`%${filterTestData}%`))
+        whereClauseAdded = true
+      }
     const [rows] = await db.query(query, params);
     return rows[0].total;
 }
 
-async function getEmployeeTestItemsCount(status, departmentId, account, month, customerName, orderNum) {
+async function getEmployeeTestItemsCount(status, departmentId, account, month, customerName, orderNum, filterTestData) {
     let query = `
         SELECT COUNT(DISTINCT t.test_item_id) AS total
         FROM test_items t
@@ -2878,11 +3042,48 @@ async function getEmployeeTestItemsCount(status, departmentId, account, month, c
         params.push(`%${customerName}%`);
     }
 
+    if (filterTestData && filterTestData.trim()) {
+        query += `
+          AND (
+            t.order_num        LIKE ? OR
+            t.test_item        LIKE ? OR
+            t.test_method      LIKE ? OR
+            c.customer_name    LIKE ? OR
+            c.contact_name     LIKE ? OR
+            CAST(t.quantity      AS CHAR) LIKE ? OR
+            CAST(t.machine_hours AS CHAR) LIKE ? OR
+            CAST(t.listed_price  AS CHAR) LIKE ? OR
+            CAST(t.discounted_price AS CHAR) LIKE ? OR
+            t.original_no      LIKE ? OR
+            t.check_note       LIKE ? OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account=ua.account
+              WHERE aa.test_item_id=t.test_item_id
+                AND ua.role IN ('employee','supervisor')
+                AND ua.name LIKE ?
+            ) OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account=ua.account
+              WHERE aa.test_item_id=t.test_item_id
+                AND ua.role='sales'
+                AND ua.name LIKE ?
+            ) OR
+            (CASE WHEN EXISTS (
+               SELECT 1 FROM project_files f
+               WHERE f.test_item_id=t.test_item_id
+            ) THEN '已上传' ELSE '无' END) LIKE ?
+          )
+        `
+        params.push(...Array(14).fill(`%${filterTestData}%`))
+      }
+
     const [rows] = await db.query(query, params);
     return rows[0].total;
 }
 
-async function getAssignedTestsCountByUser(account, status, month, customerName, orderNum) {
+async function getAssignedTestsCountByUser(account, status, month, customerName, orderNum, filterTestData) {
     let query = `
         SELECT COUNT(DISTINCT t.test_item_id) AS total
         FROM test_items t
@@ -2918,11 +3119,48 @@ async function getAssignedTestsCountByUser(account, status, month, customerName,
         params.push(`%${customerName}%`);
     }
 
+    if (filterTestData && filterTestData.trim()) {
+        query += `
+          AND (
+            t.order_num        LIKE ? OR
+            t.test_item        LIKE ? OR
+            t.test_method      LIKE ? OR
+            c.customer_name    LIKE ? OR
+            c.contact_name     LIKE ? OR
+            CAST(t.quantity      AS CHAR) LIKE ? OR
+            CAST(t.machine_hours AS CHAR) LIKE ? OR
+            CAST(t.listed_price  AS CHAR) LIKE ? OR
+            CAST(t.discounted_price AS CHAR) LIKE ? OR
+            t.original_no      LIKE ? OR
+            t.check_note       LIKE ? OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account=ua.account
+              WHERE aa.test_item_id=t.test_item_id
+                AND ua.role IN ('employee','supervisor')
+                AND ua.name LIKE ?
+            ) OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account=ua.account
+              WHERE aa.test_item_id=t.test_item_id
+                AND ua.role='sales'
+                AND ua.name LIKE ?
+            ) OR
+            (CASE WHEN EXISTS (
+               SELECT 1 FROM project_files f
+               WHERE f.test_item_id=t.test_item_id
+            ) THEN '已上传' ELSE '无' END) LIKE ?
+          )
+        `
+        params.push(...Array(14).fill(`%${filterTestData}%`))
+      }
+
     const [rows] = await db.query(query, params);
     return rows[0].total;
 }
 
-async function getAllTestItemIds(status, departmentId, month, customerName, orderNum, role, account) {
+async function getAllTestItemIds(status, departmentId, month, filterTestData, role, account) {
     let query = `SELECT t.test_item_id FROM test_items t
                  LEFT JOIN orders o ON t.order_num = o.order_num
                  LEFT JOIN customers c ON o.customer_id = c.customer_id`;
@@ -2951,22 +3189,48 @@ async function getAllTestItemIds(status, departmentId, month, customerName, orde
         query += ' AND MID(t.order_num, 3, 4) = ?';
         params.push(monthComparison);
     }
-    if (orderNum) {
-        query += ' AND t.order_num LIKE ?';
-        params.push(`%${orderNum}%`);
-    }
-    if (customerName) {
-        query += ' AND c.customer_name LIKE ?';
-        params.push(`%${customerName}%`);
-    }
+    if (filterTestData && filterTestData.trim()) {
+        query += `
+          AND (
+            t.order_num        LIKE ? OR
+            t.test_item        LIKE ? OR
+            t.test_method      LIKE ? OR
+            c.customer_name    LIKE ? OR
+            c.contact_name     LIKE ? OR
+            CAST(t.quantity      AS CHAR) LIKE ? OR
+            CAST(t.machine_hours AS CHAR) LIKE ? OR
+            CAST(t.listed_price  AS CHAR) LIKE ? OR
+            CAST(t.discounted_price AS CHAR) LIKE ? OR
+            t.original_no      LIKE ? OR
+            t.check_note       LIKE ? OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account=ua.account
+              WHERE aa.test_item_id=t.test_item_id
+                AND ua.role IN ('employee','supervisor')
+                AND ua.name LIKE ?
+            ) OR
+            EXISTS (
+              SELECT 1 FROM assignments aa
+              JOIN users ua ON aa.account=ua.account
+              WHERE aa.test_item_id=t.test_item_id
+                AND ua.role='sales'
+                AND ua.name LIKE ?
+            ) OR
+            (CASE WHEN EXISTS (
+               SELECT 1 FROM project_files f
+               WHERE f.test_item_id=t.test_item_id
+            ) THEN '已上传' ELSE '无' END) LIKE ?
+          )
+        `
+        params.push(...Array(14).fill(`%${filterTestData}%`))
+      }
+
     const [rows] = await db.query(query, params);
     return [...new Set(rows.map(r => r.test_item_id))];
 }
 
 async function updateReportCheckStatus(testItemId, status, reportNote) {
-    console.log(reportNote)
-    console.log(status)
-    console.log(testItemId)
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
