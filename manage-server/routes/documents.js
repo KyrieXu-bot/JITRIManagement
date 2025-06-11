@@ -54,6 +54,8 @@ router.post('/', async (req, res) => {
           e.model,
           e.parameters_and_accuracy,
           e.validity_period,
+          e.report_title,
+          e.equipment_no,
           ma.manager_accounts,
           ma.manager_names,
           te.team_accounts,
@@ -116,10 +118,12 @@ router.post('/', async (req, res) => {
         test_method: item.test_method || '',
         size: item.size || '',
         quantity: item.quantity != null ? item.quantity : '',
+        equipment_no: item.equipment_no || '',
         equipment_name: item.equipment_name || '',
         model: item.model || '',
         parameters_and_accuracy:  item.parameters_and_accuracy || '',  
-        validity_period:          item.validity_period || ''
+        validity_period:          item.validity_period || '',
+        report_title: item.report_title || ''
       }));
 
 
@@ -130,16 +134,18 @@ router.post('/', async (req, res) => {
           const key = `${item.equipment_name}||${item.model}`;
           if (!equipmentMap.has(key)) {
             equipmentMap.set(key, {
+              equipment_no: item.equipment_no,
               equipment_name: item.equipment_name,
               model: item.model,
               parameters_and_accuracy:  item.parameters_and_accuracy || '', 
-              validity_period:          item.validity_period || ''
+              validity_period:          item.validity_period || '',
+              report_title: item.report_title || ''
             });
           }
         }
       });
       const equipments = Array.from(equipmentMap.values());
-
+      
       const totalCount = testItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
       templateData = {
         report_title: '物化实验报告',

@@ -312,4 +312,23 @@ router.post('/rollbackAccount', async (req, res) => {
     }
 });
 
+router.patch('/:orderNum/price', async (req, res) => {
+    const { orderNum } = req.params;
+    const { totalPrice } = req.body;
+
+    // 简单校验：确保传了数值
+    if (totalPrice === undefined || isNaN(parseFloat(totalPrice))) {
+        return res.status(400).json({ success: false, message: '请输入有效的交易总价' });
+    }
+
+    try {
+        // 调用 db.updateOrder 更新 total_price 字段
+        await db.updateOrder(orderNum, { total_price: totalPrice });
+        res.json({ success: true, message: '订单总价更新成功' });
+    } catch (error) {
+        console.error('Failed to update order total_price:', error);
+        res.status(500).json({ success: false, message: '订单总价更新失败', error: error.message });
+    }
+});
+
 module.exports = router;

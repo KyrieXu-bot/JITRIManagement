@@ -16,7 +16,8 @@ import {
 const departments = [
     { department_id: 1, department_name: '显微组织表征实验室' },
     { department_id: 2, department_name: '物化性能测试实验室' },
-    { department_id: 3, department_name: '力学性能测试实验室' }
+    { department_id: 3, department_name: '力学性能测试实验室' },
+    { department_id: 5, department_name: '委外' }
 ];
 
 const TestItemFlow = ({ selectedDetails }) => {

@@ -1,6 +1,37 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../models/database'); // 确保数据库模块正确导入
+const multer = require('multer')
+const fs = require('fs');
+const path = require('path')
+const PizZip  = require('pizzip');
+const Docx    = require('docxtemplater');
+
+const ck = (cond) => (cond ? '☑' : '☐');
+
+// multer 配置
+const storage = multer.diskStorage({
+destination(req, file, cb) {
+    cb(null, path.join(__dirname, '../uploads'))
+},
+filename(req, file, cb) {
+    const uploadPath = path.join(__dirname, '../uploads/');
+    // 把 originalname 从 latin1 解码成 utf8，避免中文乱码
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    // 以时间戳+原始名为基础，避免同名冲突
+    let fileName = `${originalName}`;
+    let count = 0;
+    // 如已存在，则加序号
+    while (fs.existsSync(path.join(uploadPath, fileName))) {
+      count++;
+      const ext = path.extname(originalName);
+      const base = path.basename(originalName, ext);
+      fileName = `${base}(${count})${ext}`;
+    }
+    cb(null, fileName);
+  }
+})
+const upload = multer({ storage })
 
 router.get('/', async (req, res) => {
     let status = req.query.status; // 获取请求中的状态参数
@@ -509,8 +540,8 @@ router.post('/exportTestDataForSales', async (req, res) => {
 
 router.get('/prices', async (req, res) => {
     try {
-        const { searchTestItem, searchTestCondition } = req.query;
-        const results = await db.getPrices(searchTestItem, searchTestCondition);
+        const { searchTestCode, searchTestItem, searchTestCondition } = req.query;
+        const results = await db.getPrices(searchTestCode, searchTestItem, searchTestCondition);
         res.json(results);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -529,6 +560,25 @@ router.get('/ids', async (req, res) => {
     }
 });
 
+router.post('/getOrderNums', async (req, res) => {
+    const { ids } = req.body;  // array
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: '参数 ids 不能为空' });
+      }
+    
+      try {
+        const rows = await db.getSelectedOrderNums(ids);
+        if (!rows.length) {
+          return res.status(404).json({ message: '未找到对应记录' });
+        }
+        res.json(rows);   // [{ test_item_id, order_num }, ...]
+      } catch (err) {
+        console.error('getOrderNums 出错:', err);
+        res.status(500).json({ message: '服务器错误' });
+      }
+  });
+
+
 router.get('/summary', async (req, res) => {
     const { role, account, departmentId } = req.query;
     try {
@@ -539,4 +589,187 @@ router.get('/summary', async (req, res) => {
         res.status(500).json({ message: 'Failed to fetch homepage summary data', error: error.message });
     }
 });
+
+router.post(
+    '/importAttachments',
+    upload.single('file'),
+    async (req, res) => {
+      try {
+        // 解析前端传来的 testItemIds
+        let raw = req.body.testItemIds;
+        const testItemIds = typeof raw === 'string'
+          ? JSON.parse(raw)
+          : raw;
+  
+        if (!req.file) {
+          return res.status(400).json({ success: false, message: '未收到文件' });
+        }
+        if (!Array.isArray(testItemIds) || testItemIds.length === 0) {
+          return res.status(400).json({ success: false, message: '请先选择检测项目' });
+        }
+        const projectId = Date.now();
+        // 准备要插入的多条记录
+        const filePath = `/uploads/${req.file.filename}`; 
+        const details = testItemIds.map(id => ({
+          filename: req.file.filename,
+          filepath: filePath,
+          test_item_id: id,
+          category: '委托单附件',
+          project_id : projectId
+        }));
+  
+        // 调用你在 database.js 里写的 insertProjectFiles
+        await db.insertProjectFiles(details);
+  
+        res.json({ success: true, message: '附件上传并关联成功' });
+      } catch (err) {
+        console.error('importAttachments error:', err);
+        res.status(500).json({ success: false, message: '服务器错误' });
+      }
+    }
+  );
+
+  // POST /api/tests/exportCommissionWord
+router.post('/exportCommissionWord', async (req, res) => {
+    const { selectedOrders } = req.body;
+    /* ---------- 1. 参数/一致性校验 ---------- */
+    const rows = await db.getSelectedOrderNums(selectedOrders);
+    const uniq = [...new Set(rows.map(r => r.order_num))];
+    if (uniq.length !== 1) {
+      return res.status(400).json({ message: '请选择同一个委托单下的检测项目' });
+    }
+    const orderNum = uniq[0];
+    /* ---------- 2. 拉数据 ---------- */
+    const info = await db.getCommissionInfo(orderNum, selectedOrders);
+
+    if (!info) return res.status(404).send('委托单不存在');
+    const { order, report = {}, sample = {}, items } = info;
+  
+    /* ---------- 3. 拼装 templateData ---------- */
+    const hazardsArr = JSON.parse(sample.hazards || '[]');
+    const toArr = (s) => (s ? String(s).split(',') : []);
+  
+    const templateData = {
+      /* —— 订单信息 —— */
+      serviceType1Symbol: ck(order.service_type === '1'),
+      serviceType2Symbol: ck(order.service_type === '2'),
+      serviceType3Symbol: ck(order.service_type === '3'),
+      delivery_days_after_receipt: order.delivery_days_after_receipt || '',
+      sample_shipping_address:     order.sample_shipping_address     || '',
+      total_price:                 order.total_price                 || '',
+      order_num:                   order.order_num,
+      other_requirements:          order.other_requirements || '',
+      subcontractingNotAcceptedSymbol: ck(order.subcontracting_not_accepted),
+      /* 报告标识章 - 多选 */
+      reportSeals1Symbol: ck(toArr(order.report_seals).includes('normal')),
+      reportSeals2Symbol: ck(toArr(order.report_seals).includes('cnas')),
+      reportSeals3Symbol: ck(toArr(order.report_seals).includes('cma')),
+  
+      /* —— 增值税 / 报告信息 —— */
+      invoiceType1Symbol: ck(order.vat_type === '1'),
+      invoiceType2Symbol: ck(order.vat_type === '2'),
+  
+      reportContent1Symbol: ck(toArr(report.type).includes('1')),
+      reportContent2Symbol: ck(toArr(report.type).includes('2')),
+      reportContent3Symbol: ck(toArr(report.type).includes('3')),
+      reportContent4Symbol: ck(toArr(report.type).includes('4')),
+      reportContent5Symbol: ck(toArr(report.type).includes('5')),
+      reportContent6Symbol: ck(toArr(report.type).includes('6')),
+  
+      paperReportType1Symbol: ck(report.paper_report_shipping_type === '1'),
+      paperReportType2Symbol: ck(report.paper_report_shipping_type === '2'),
+      paperReportType3Symbol: ck(report.paper_report_shipping_type === '3'),
+  
+      headerType1Symbol: ck(report.header_type === 1),
+      headerType2Symbol: ck(report.header_type === 2),
+      header_additional_info: report.header_other || '',
+  
+      reportForm1Symbol: ck(report.format_type === 1),
+      reportForm2Symbol: ck(report.format_type === 2),
+      report_additional_info: report.report_additional_info || '',
+  
+      /* —— 样品处置 / 危险特性 —— */
+      sampleHandlingType1Symbol: ck(sample.sample_solution_type === '1'),
+      sampleHandlingType2Symbol: ck(sample.sample_solution_type === '2'),
+      sampleHandlingType3Symbol: ck(sample.sample_solution_type === '3'),
+      sampleHandlingType4Symbol: ck(sample.sample_solution_type === '4'),
+      returnOptionSameSymbol:  ck(sample.returnAddressOption === 'same'),
+      returnOptionOtherSymbol: ck(sample.returnAddressOption === 'other'),
+      return_address:          sample.returnAddress || '',
+  
+      hazardSafetySymbol:       ck(hazardsArr.includes('Safety')),
+      hazardFlammabilitySymbol: ck(hazardsArr.includes('Flammability')),
+      hazardIrritationSymbol:   ck(hazardsArr.includes('Irritation')),
+      hazardVolatilitySymbol:   ck(hazardsArr.includes('Volatility')),
+      hazardFragileSymbol:      ck(hazardsArr.includes('Fragile')),
+      hazardOtherSymbol:        ck(hazardsArr.includes('Other')),
+      hazard_other: sample.hazard_other || '',
+  
+      magnetismNonMagneticSymbol: ck(sample.magnetism === 'Non-magnetic'),
+      magnetismWeakMagneticSymbol: ck(sample.magnetism === 'Weak-magnetic'),
+      magnetismStrongMagneticSymbol: ck(sample.magnetism === 'Strong-magnetic'),
+      magnetismUnknownSymbol:      ck(sample.magnetism === 'Unknown'),
+  
+      conductivityConductorSymbol:    ck(sample.conductivity === 'Conductor'),
+      conductivitySemiconductorSymbol:ck(sample.conductivity === 'Semiconductor'),
+      conductivityInsulatorSymbol:    ck(sample.conductivity === 'Insulator'),
+      conductivityUnknownSymbol:      ck(sample.conductivity === 'Unknown'),
+  
+      breakableYesSymbol: ck(sample.breakable === 'yes'),
+      breakableNoSymbol:  ck(sample.breakable === 'no'),
+      brittleYesSymbol:   ck(sample.brittle === 'yes'),
+      brittleNoSymbol:    ck(sample.brittle === 'no'),
+  
+      /* —— 客户 —— */
+      customer_name:        order.customer_name,
+      customer_address:     order.customer_address,
+      customer_contactName: order.contact_name,
+      customer_contactEmail:order.contact_email,
+      customer_contactPhone:order.contact_phone_num,
+  
+      /* —— 付款方 —— */
+      payer_name:          order.payer_name,
+      payer_address:       order.payer_address,
+      payer_contactName:   order.payer_contact_name,
+      payer_contactEmail:  order.payer_contact_email,
+      payer_contactPhone:  order.payer_contact_phone_num,
+      payer_bankName:      order.bank_name,
+      payer_taxNumber:     order.tax_number,
+      payer_bankAccount:   order.bank_account,
+  
+      /* —— 测试项目 —— */
+      testItems: items.map(it => ({
+        ...it,
+        sampleTypeLabel: {1:'板材',2:'棒材',3:'粉末',4:'液体',5:'其他'}[it.sample_type] || '',
+        samplePrepYesSymbol: ck(it.sample_preparation === 1),
+        samplePrepNoSymbol:  ck(it.sample_preparation === 0),
+      })),
+    };
+  
+    /* ---------- 4. 渲染模板 ---------- */
+    const tpl = fs.readFileSync(path.resolve(__dirname, '../templates/order_template.docx'), 'binary');
+    const doc = new Docx(new PizZip(tpl), {
+      paragraphLoop: true,
+      linebreaks:    true,
+      nullGetter:      ()=>'',
+      undefinedGetter: ()=>'',
+    });
+    
+    console.log(order)
+    try {
+      doc.render(templateData);
+    } catch (e) {
+      console.error('渲染错误:', e);
+      return res.status(500).send('模板渲染失败');
+    }
+    const buf = doc.getZip().generate({ type: 'nodebuffer' });
+  
+    /* ---------- 5. 返回文件 ---------- */
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': `attachment; filename=${orderNum}-${templateData.customer_name}-${templateData.contact_name}.docx`,
+    });
+    res.end(buf);
+  });
+
 module.exports = router;

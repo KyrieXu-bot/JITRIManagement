@@ -464,7 +464,93 @@ nav {
     border: 2px solid #343a40; /* 深灰色边框 */
 }
 
-
+/* =============================================
+   1. price-table-wrapper 容器
+   - position: relative 保证子元素的 sticky 参照此容器
+   - max-height + overflow 控制表格内部滚动
+   ============================================= */
+   .price-table-wrapper {
+    position: relative;
+    max-height: 600px;      /* 按需自行调整，例如 70vh、500px 都可以 */
+    overflow-y: auto;       /* 垂直滚动 */
+    overflow-x: auto;       /* 水平滚动 */
+  }
+  
+  /* =============================================
+     2. 整个表头 (thead th) —— sticky 粘在 top: 0，置于最顶层
+     - background-color 保持和 .table-primary 一致
+     - z-index: 1000 确保覆盖所有行内容
+     ============================================= */
+  .price-table-wrapper thead th {
+    position: sticky;
+    top: 0;
+    background-color: #cfe2ff;  /* 对应 Bootstrap 的 .table-primary 背景 */
+    z-index: 1000;
+  }
+  
+  /* =============================================
+     3. “操作”列表头 (假设在第 7 列)
+     - position: sticky; right: 0 让它粘在右侧
+     - 背景色依旧 #cfe2ff，与其它表头保持一致
+     - z-index: 1100 保证它比普通表头更靠上，不会被普通表头覆盖
+     ============================================= */
+  /* nth-child(7) 意味着“操作”是第 7 列；若你调整了列顺序，这里记得改成对应的数字。 */
+  .price-table-wrapper thead th:nth-child(7) {
+    position: sticky;
+    right: 0;
+    background-color: #cfe2ff;
+    z-index: 1100;
+  }
+  
+  /* =============================================
+     4. 表体中 “操作” 列 (第 7 列)
+     - position: sticky; right: 0 让按钮列在水平滚动时固定
+     - background-color: #fff 让内容背景保持与表格行一致
+     - z-index: 1050 保证它在普通 td(1000 以下)与表头(1000/1100) 之间
+     ============================================= */
+  .price-table-wrapper tbody td:nth-child(7) {
+    position: sticky;
+    right: 0;
+    background-color: #fff;
+    z-index: 1050;
+  }
+  
+  /* =============================================
+     5. 普通的表体单元格 (其他 td)
+     - 给一个更底层的 z-index: 1000 以下，避免它们盖住“操作”列
+     ============================================= */
+  .price-table-wrapper tbody td {
+    z-index: 100;
+  }
+  
+  /* =============================================
+     6. 行 hover 高亮（可选，根据你喜好调整）
+     ============================================= */
+  .price-table-wrapper table tbody tr:hover {
+    background-color: #f1f7fc;
+  }
+  
+  /* =============================================
+     7. 搜索框区域（保留你原先的样式即可）
+     ============================================= */
+  .search-box {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .search-box input[type="text"] {
+    flex: 1 1 200px;
+    padding: 6px 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+  }
+  
+  .search-box button {
+    flex: 0 0 auto;
+  }
+  
 /* 基础样式调整，以适应移动设备 */
 @media (max-width: 768px) {
     .content {

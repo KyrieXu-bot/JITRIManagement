@@ -574,6 +574,10 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
             t.archive_time,
             t.archive_reject_time,
             t.archive_note,
+            t.sample_name,
+            t.material,
+            t.sample_type,
+            t.sample_preparation,
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
@@ -661,44 +665,67 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
         idParams.push(role, 'YW001');
     }
 
+    // if (filterTestData && filterTestData.trim().length > 0) {
+    //     idWhereClause += `
+    //       AND (
+    //         t2.order_num         LIKE ? OR
+    //         t2.test_item         LIKE ? OR
+    //         t2.test_method       LIKE ? OR
+    //         c.customer_name      LIKE ? OR
+    //         c.contact_name       LIKE ? OR
+    //         CAST(t2.quantity     AS CHAR) LIKE ? OR
+    //         CAST(t2.machine_hours AS CHAR) LIKE ? OR
+    //         CAST(t2.listed_price AS CHAR) LIKE ? OR
+    //         CAST(t2.discounted_price AS CHAR) LIKE ? OR
+    //         t2.original_no       LIKE ? OR
+    //         t2.check_note        LIKE ? OR
+    //         EXISTS (
+    //           SELECT 1 FROM assignments aa
+    //           JOIN users ua ON aa.account = ua.account
+    //           WHERE aa.test_item_id = t2.test_item_id
+    //             AND ua.role IN ('employee','supervisor')
+    //             AND ua.name LIKE ?
+    //         ) OR
+    //         EXISTS (
+    //           SELECT 1 FROM assignments aa
+    //           JOIN users ua ON aa.account = ua.account
+    //           WHERE aa.test_item_id = t2.test_item_id
+    //             AND ua.role = 'sales'
+    //             AND ua.name LIKE ?
+    //         ) OR
+    //         (CASE WHEN EXISTS (
+    //            SELECT 1 FROM project_files f
+    //            WHERE f.test_item_id = t2.test_item_id
+    //          ) THEN '已上传' ELSE '无' END) LIKE ?
+    //       )
+    //     `
+    //     idParams.push(
+    //       ...Array(14).fill(`%${filterTestData}%`)
+    //     )
+    // }
+
     if (filterTestData && filterTestData.trim().length > 0) {
+        // 构造 Boolean 模式查询，每个词前加 +，后加 * 支持前缀匹配
+        const terms = filterTestData
+          .trim()
+          .split(/\s+/)
+          .map(t => `+${t}*`)
+          .join(' ');
+      
         idWhereClause += `
           AND (
-            t2.order_num         LIKE ? OR
-            t2.test_item         LIKE ? OR
-            t2.test_method       LIKE ? OR
-            c.customer_name      LIKE ? OR
-            c.contact_name       LIKE ? OR
-            CAST(t2.quantity     AS CHAR) LIKE ? OR
-            CAST(t2.machine_hours AS CHAR) LIKE ? OR
-            CAST(t2.listed_price AS CHAR) LIKE ? OR
-            CAST(t2.discounted_price AS CHAR) LIKE ? OR
-            t2.original_no       LIKE ? OR
-            t2.check_note        LIKE ? OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account = ua.account
-              WHERE aa.test_item_id = t2.test_item_id
-                AND ua.role IN ('employee','supervisor')
-                AND ua.name LIKE ?
-            ) OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account = ua.account
-              WHERE aa.test_item_id = t2.test_item_id
-                AND ua.role = 'sales'
-                AND ua.name LIKE ?
-            ) OR
-            (CASE WHEN EXISTS (
-               SELECT 1 FROM project_files f
-               WHERE f.test_item_id = t2.test_item_id
-             ) THEN '已上传' ELSE '无' END) LIKE ?
+            /* 在 test_items 表的全文索引字段上查 */
+            MATCH(t2.order_num, t2.test_item, t2.test_method, t2.check_note)
+              AGAINST (? IN BOOLEAN MODE)
+            OR
+            /* 在 customers 表的全文索引字段上查 */
+            MATCH(c.customer_name, c.contact_name)
+              AGAINST (? IN BOOLEAN MODE)
           )
-        `
-        idParams.push(
-          ...Array(14).fill(`%${filterTestData}%`)
-        )
-    }
+        `;
+        // 两个问号，依次对应上面两条 AGAINST
+        idParams.push(terms, terms);
+      }
 
     // Step 1: 分页获取 test_item_id
     const idQuery = `
@@ -765,6 +792,10 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             t.archive_time,
             t.archive_reject_time,
             t.archive_note,
+            t.sample_name,
+            t.material,
+            t.sample_type,
+            t.sample_preparation,
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
@@ -1137,6 +1168,10 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
             manager_agg.manager_names,
             team_agg.team_names,
             sales_agg.sales_names,
+            t.sample_name,
+            t.material,
+            t.sample_type,
+            t.sample_preparation,
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
@@ -2881,12 +2916,16 @@ async function updateAppointTime(testItemId) {
     }
 }
 
-async function getPrices(testItemName, testCondition) {
+async function getPrices(testCode, testItemName, testCondition) {
     const connection = await db.getConnection();
     try {
         let query = 'SELECT * FROM price WHERE 1=1';
         let params = [];
 
+        if (testCode) {
+            query += ' AND test_code LIKE ?';
+            params.push(`%${testCode}%`);
+        }
         if (testItemName) {
             query += ' AND test_item_name LIKE ?';
             params.push(`%${testItemName}%`);
@@ -3166,7 +3205,7 @@ async function getAllTestItemIds(status, departmentId, month, filterTestData, ro
                  LEFT JOIN customers c ON o.customer_id = c.customer_id`;
     const params = [];
 
-    if (role === 'sales' && account !== 'YW001') {
+    if ((role === 'sales' && account !== 'YW001') || (role === 'supervisor') || (role === 'employee')) {
         query += `
             JOIN assignments a ON t.test_item_id = a.test_item_id AND a.account = ?
         `;
@@ -3229,6 +3268,21 @@ async function getAllTestItemIds(status, departmentId, month, filterTestData, ro
     const [rows] = await db.query(query, params);
     return [...new Set(rows.map(r => r.test_item_id))];
 }
+
+async function getSelectedOrderNums(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return [];
+    }
+  
+    // mysql2 会自动把数组展平成逗号分隔
+    const [rows] = await db.query(
+      `SELECT test_item_id, order_num
+         FROM test_items
+        WHERE test_item_id IN (?)`,
+      [ids]
+    );
+    return rows;
+  }
 
 async function updateReportCheckStatus(testItemId, status, reportNote) {
     const connection = await db.getConnection();
@@ -3380,6 +3434,93 @@ async function getTestItemSummary(role, account, departmentId) {
     return rows;
 }
 
+async function insertProjectFiles(fileDetails) {
+    if (!Array.isArray(fileDetails) || fileDetails.length === 0) return;
+    const placeholders = fileDetails.map(() => '(?, ?, ?, ?, ?)').join(',');
+    // 展平参数： [fn, fp, tid, cat, fn, fp, tid, cat, …]
+    const params = fileDetails.flatMap(f => [
+        f.project_id,
+        f.filename,
+        f.filepath,
+        f.test_item_id,
+        f.category
+    ]);
+    const sql = `
+        INSERT INTO project_files
+        (project_id, filename, filepath, test_item_id, category)
+        VALUES ${placeholders}
+    `;
+    await db.query(sql, params);
+}
+
+/**
+ * 拉取委托单所需的全部数据
+ * @param {string}  orderNum  - 订单编号
+ * @param {number[]} itemIds  - 只导出这些 test_item_id；为空则全取
+ * @returns {Promise<{order:Object, customer:Object, payer:Object,
+*                    report:Object|null, sample:Object|null, items:Array}>}
+*/
+async function getCommissionInfo(orderNum, itemIds = []) {
+ const conn = await db.getConnection();
+ try {
+   /* --- 1. 订单 + 客户 + 付款方 --- */
+   const [order] = await conn.execute(
+     `SELECT  o.*, 
+              c.customer_name,      c.customer_address,
+              c.contact_name,       c.contact_phone_num,  c.contact_email,
+              c.area               AS customer_area,
+              c.organization       AS customer_org,
+              p.vat_type,           p.payer_name,          p.payer_address,
+              p.payer_phone_num,    p.bank_name,           p.tax_number,
+              p.bank_account,       p.payer_contact_name,  p.payer_contact_phone_num,
+              p.payer_contact_email,
+              p.area               AS payer_area,
+              p.organization       AS payer_org
+        FROM orders   o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN payments  p ON o.payment_id  = p.payment_id
+       WHERE o.order_num = ?`,
+     [orderNum]
+   );
+
+   if (!order) return null;
+
+   /* --- 2. 报告信息（可为空） --- */
+   const [report] = await conn.execute(
+     `SELECT *
+        FROM reports
+       WHERE order_num = ?
+       LIMIT 1`,
+     [orderNum]
+   );
+
+   /* --- 3. 样品处置 / 危险特性等（samples 表一行） --- */
+   const [sample] = await conn.execute(
+     `SELECT *
+        FROM samples
+       WHERE order_num = ?
+       LIMIT 1`,
+     [orderNum]
+   );
+
+   /* --- 4. 测试项目列表 --- */
+   const itemsSql = `
+     SELECT  test_item_id, sample_name, material, sample_type,
+             original_no,  test_item,  test_method,
+             sample_preparation, quantity, department_id,
+             note
+       FROM test_items
+      WHERE order_num = ?
+        ${itemIds.length ? 'AND test_item_id IN (?)' : ''}
+      ORDER BY test_item_id`;
+   const [items] = await conn.execute(itemsSql, itemIds.length ? [orderNum, itemIds] : [orderNum]);
+
+   return { order, report, sample, items };
+ } finally {
+   conn.release();
+ }
+}
+
 
 module.exports = {
     getConnection,
@@ -3468,5 +3609,8 @@ module.exports = {
     updateReportCheckStatus,
     updateBusinessCheckStatus,
     updateArchiveStatus,
-    getTestItemSummary
+    getTestItemSummary,
+    insertProjectFiles,
+    getSelectedOrderNums,
+    getCommissionInfo
 };
