@@ -13,8 +13,13 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   const { order_num, departmentId, reportType } = req.body;
+  console.log(reportType)
   let connection;
-
+  const leaderMap = {
+    1: 'XW001',
+    2: 'WH001',
+    3: 'LX001',
+  };
   try {
     // 1. 获取连接并开启事务
     connection = await pool.getConnection();
@@ -94,11 +99,7 @@ router.post('/', async (req, res) => {
       const managerFirst = (first.manager_accounts || '').split(',')[0];
       const testerFirst  = (first.team_accounts    || '').split(',')[0];
 
-      const leaderMap = {
-        1: 'XW001',
-        2: 'WH001',
-        3: 'LX001',
-      };
+
       const leaderAccount = leaderMap[departmentId] || null;
 
       // 签名图片目录
@@ -160,7 +161,110 @@ router.post('/', async (req, res) => {
         signature_tester:  testerFirst  + '.png',
         signature_leader:  leaderAccount + '.png',
       };
-
+    } else if (reportType === 'XW') {          // ★ 新增显微
+      templateFile = 'XW_template.docx';
+    
+      // 2.1 订单 + 客户 ↓（与 WH 相同，可抽公共函数，这里直接复用）
+      const [[order]] = await connection.execute(
+        `SELECT o.order_num, o.create_time,
+                c.customer_name, c.customer_address
+           FROM orders o
+           JOIN customers c ON o.customer_id = c.customer_id
+          WHERE o.order_num = ?`,
+        [order_num]
+      );
+      if (!order) throw new Error('ORDER_NOT_FOUND');
+    
+      // 2.2 检测项目（多拿 3 个字段）
+      const [testItems] = await connection.execute(
+        `SELECT t.original_no, t.test_item, t.test_method,
+                t.size, t.quantity,
+                t.sample_type, t.material, t.sample_name,
+                e.equipment_name, e.model, e.parameters_and_accuracy,
+                e.validity_period, e.report_title, e.equipment_no,
+                ma.manager_accounts, ma.manager_names,
+                te.team_accounts,  te.team_names
+           FROM test_items t
+           LEFT JOIN equipment e ON t.equipment_id = e.equipment_id
+           LEFT JOIN (
+             SELECT aa.test_item_id,
+                    GROUP_CONCAT(DISTINCT ua.account) AS manager_accounts,
+                    GROUP_CONCAT(DISTINCT ua.name)    AS manager_names
+               FROM assignments aa
+               JOIN users ua ON ua.account = aa.account
+              WHERE ua.role = 'supervisor'
+              GROUP BY aa.test_item_id
+           ) ma  ON ma.test_item_id = t.test_item_id
+           LEFT JOIN (
+             SELECT aa.test_item_id,
+                    GROUP_CONCAT(DISTINCT ua.account) AS team_accounts,
+                    GROUP_CONCAT(DISTINCT ua.name)    AS team_names
+               FROM assignments aa
+               JOIN users ua ON ua.account = aa.account
+              WHERE ua.role = 'employee'
+              GROUP BY aa.test_item_id
+           ) te  ON te.test_item_id = t.test_item_id
+          WHERE t.order_num = ? AND t.department_id = 1
+          ORDER BY t.test_item_id`,
+        [order_num]
+      );
+    
+      const first = testItems[0] || {};
+      const managerFirst = (first.manager_accounts || '').split(',')[0];
+      const testerFirst  = (first.team_accounts    || '').split(',')[0];
+    
+      /* 2.3 整理 items，多出 3 个键 */
+      const sanitizedItems = testItems.map((it, idx) => ({
+        sample_name:     it.sample_name || `${order.order_num}-${idx + 1}`,
+        original_no:     it.original_no || '',
+        sample_type:     it.sample_type || '',
+        material:        it.material    || '',
+        test_item:       it.test_item   || '',
+        test_method:     it.test_method || '',
+        size:            it.size        || '',
+        quantity:        it.quantity ?? '',
+        equipment_no:    it.equipment_no || '',
+        equipment_name:  it.equipment_name || '',
+        model:           it.model || '',
+        parameters_and_accuracy: it.parameters_and_accuracy || '',
+        validity_period: it.validity_period || '',
+        report_title:    it.report_title || ''
+      }));
+    
+      /* 2.4 设备去重逻辑与 WH 理同，可直接复用 */
+      const equipmentMap = new Map();
+      sanitizedItems.forEach(it => {
+        if (it.equipment_name) {
+          const key = `${it.equipment_name}||${it.model}`;
+          if (!equipmentMap.has(key)) {
+            equipmentMap.set(key, {
+              equipment_no: it.equipment_no,
+              equipment_name: it.equipment_name,
+              model: it.model,
+              parameters_and_accuracy: it.parameters_and_accuracy,
+              validity_period: it.validity_period,
+              report_title: it.report_title
+            });
+          }
+        }
+      });
+      const equipments = [...equipmentMap.values()];
+      const totalCount = testItems.reduce((s, it) => s + (it.quantity || 0), 0);
+    
+      templateData = {
+        report_title: '显微实验报告',
+        order_num:     order.order_num,
+        create_time:   order.create_time.toISOString().slice(0, 10),
+        customer_name: order.customer_name,
+        customer_address: order.customer_address,
+        test_items:    sanitizedItems,   // ★ 带 sample_type/material/sample_name
+        total_count:   totalCount,
+        equipments,
+        signature_manager: managerFirst + '.png',
+        signature_tester:  testerFirst  + '.png',
+        signature_leader:  leaderMap[1] + '.png',
+      };
+    
     } else if (reportType === 'COMMISSION') {
       templateFile = 'commission_template.docx';
 

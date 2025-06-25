@@ -1,8 +1,9 @@
 import React from 'react';
 import '../css/HomePage.css';
 
-const HomePage = ({ role, account, summaryData, onShowAssignment, onShowCheck, onShowFinish, renderDeadlineStatus, loading }) => {
+const HomePage = ({ role, account, summaryData, deliveredData = [], onShowAssignment, onShowDetail, onShowCheck, onShowFinish, renderDeadlineStatus, loading, deliveredLoading }) => {
     const statusCounts = { '0': 0, '1': 0, '2': 0, '3': 0, '5': 0 };
+    console.log(deliveredLoading)
     let totalMachineHours = 0;
     let totalWorkHours = 0;
     let totalListedPrice = 0;
@@ -11,6 +12,7 @@ const HomePage = ({ role, account, summaryData, onShowAssignment, onShowCheck, o
     const notAssigned = [];
     const notTested = [];
     const notChecked = [];
+    const rawDataProjects = deliveredData.filter(d => d.has_raw_data);
     summaryData.forEach(order => {
         const status = order.status;
         if (statusCounts[status] !== undefined) {
@@ -227,6 +229,27 @@ const HomePage = ({ role, account, summaryData, onShowAssignment, onShowCheck, o
                                     </tbody>
                                 </table>
                             </div>
+                        )}
+
+                        {role === 'sales' && rawDataProjects.length > 0 && account !== 'YW001' && (
+                        <div className="block">
+                            <h3>已上传原始实验数据的项目：{rawDataProjects.length} 个</h3>
+
+                            {deliveredLoading ? (
+                                <p style={{opacity:.6}}>加载中…</p>
+                            ) : rawDataProjects.length === 0 ? (
+                                <p style={{opacity:.6}}>暂无数据</p>
+                            ) : (
+                                <ul>
+                                {rawDataProjects.map(item => (
+                                    <li key={item.test_item_id} className="order-item">
+                                    委托单号: {item.order_num} ｜ 检测项目: {item.test_item}
+                                    <button onClick={() => onShowDetail(item)}>详情</button>
+                                    </li>
+                                ))}
+                                </ul>
+                            )}
+                        </div>
                         )}
                     </>
                 )}

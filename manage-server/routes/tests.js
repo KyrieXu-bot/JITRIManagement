@@ -4,32 +4,47 @@ const db = require('../models/database'); // 确保数据库模块正确导入
 const multer = require('multer')
 const fs = require('fs');
 const path = require('path')
-const PizZip  = require('pizzip');
-const Docx    = require('docxtemplater');
+const PizZip = require('pizzip');
+const Docx = require('docxtemplater');
 
 const ck = (cond) => (cond ? '☑' : '☐');
 
+/**
+ * 保证拿到的是数组
+ * @param {any} v - 可能是 string / null / undefined / array
+ * @returns {Array}
+ */
+const toArray = (v) => {
+    if (!v) return [];                     // null / '' / undefined
+    if (Array.isArray(v)) return v;        // 已经是数组
+    try {
+        return JSON.parse(v);                // 字符串 → 解析
+    } catch {
+        return [];                           // 兜底
+    }
+};
+
 // multer 配置
 const storage = multer.diskStorage({
-destination(req, file, cb) {
-    cb(null, path.join(__dirname, '../uploads'))
-},
-filename(req, file, cb) {
-    const uploadPath = path.join(__dirname, '../uploads/');
-    // 把 originalname 从 latin1 解码成 utf8，避免中文乱码
-    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    // 以时间戳+原始名为基础，避免同名冲突
-    let fileName = `${originalName}`;
-    let count = 0;
-    // 如已存在，则加序号
-    while (fs.existsSync(path.join(uploadPath, fileName))) {
-      count++;
-      const ext = path.extname(originalName);
-      const base = path.basename(originalName, ext);
-      fileName = `${base}(${count})${ext}`;
+    destination(req, file, cb) {
+        cb(null, path.join(__dirname, '../uploads'))
+    },
+    filename(req, file, cb) {
+        const uploadPath = path.join(__dirname, '../uploads/');
+        // 把 originalname 从 latin1 解码成 utf8，避免中文乱码
+        const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+        // 以时间戳+原始名为基础，避免同名冲突
+        let fileName = `${originalName}`;
+        let count = 0;
+        // 如已存在，则加序号
+        while (fs.existsSync(path.join(uploadPath, fileName))) {
+            count++;
+            const ext = path.extname(originalName);
+            const base = path.basename(originalName, ext);
+            fileName = `${base}(${count})${ext}`;
+        }
+        cb(null, fileName);
     }
-    cb(null, fileName);
-  }
 })
 const upload = multer({ storage })
 
@@ -41,16 +56,26 @@ router.get('/', async (req, res) => {
     let customerName = req.query.customerName
     let orderNum = req.query.orderNum
     let role = req.query.role
-    let filterTestData = req.query.filterTestData;
+    // 自动解析传入字段
+    const allowedSearchFields = ['order_num', 'test_item', 'customer_name', 'contact_name', 'contact_name', 'team_names', 'manager_names', 'sales_names', 'note'];
+    let searchColumn = null;
+    let searchValue = null;
+    for (const key of allowedSearchFields) {
+        if (req.query[key]) {
+            searchColumn = key;
+            searchValue = req.query[key];
+            break;
+        }
+    }
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
     try {
         //查询组长数据
         if (account != undefined && account != '') {
-            const results = await db.getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, filterTestData, limit, offset);
+            const results = await db.getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, searchColumn, searchValue, limit, offset);
             res.json(results);
         } else {
-            const results = await db.getAllTestItems(status, departmentId, month, customerName, orderNum, filterTestData, role, limit, offset);
+            const results = await db.getAllTestItems(status, departmentId, month, customerName, orderNum, searchColumn, searchValue, role, limit, offset);
             res.json(results);
         }
     } catch (error) {
@@ -65,13 +90,23 @@ router.get('/assignments/:userId', async (req, res) => {
     let month = req.query.month;
     let customerName = req.query.customerName
     let orderNum = req.query.orderNum
-    let filterTestData = req.query.filterTestData;
+    // 自动解析搜索字段
+    const allowedSearchFields = ['order_num', 'test_item', 'customer_name', 'contact_name', 'employeeName'];
+    let searchColumn = null;
+    let searchValue = null;
+    for (const key of allowedSearchFields) {
+        if (req.query[key]) {
+            searchColumn = key;
+            searchValue = req.query[key];
+            break;
+        }
+    }
 
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
 
     try {
-        const results = await db.getAssignedTestsByUser(req.params.userId, status, month, customerName, orderNum, filterTestData, limit, offset);
+        const results = await db.getAssignedTestsByUser(req.params.userId, status, month, customerName, orderNum, searchColumn, searchValue, limit, offset);
         res.json(results);
     } catch (error) {
         console.error('Failed to fetch assignments:', error);
@@ -84,22 +119,37 @@ router.get('/count', async (req, res) => {
     let status = req.query.status;
     let departmentId = req.query.departmentId;
     let month = req.query.month;
-    let customerName = req.query.customerName;
-    let orderNum = req.query.orderNum;
     let role = req.query.role;
     let account = req.query.account;
-    let filterTestData = req.query.filterTestData;
+    const allowedSearchFields = [
+        'order_num',
+        'test_item',
+        'customer_name',
+        'contact_name',
+        'sales_names',
+        'manager_names',
+        'team_names',
+        'note'
+    ];
+    let searchColumn = null;
+    let searchValue = null;
+    for (const field of allowedSearchFields) {
+        if (req.query[field]) {
+            searchColumn = field;
+            searchValue = req.query[field];
+            break;
+        }
+    }
     try {
         let total = 0;
         if (role === 'supervisor' && account) {
-            total = await db.getEmployeeTestItemsCount(status, departmentId, account, month, customerName, orderNum, filterTestData);
+            total = await db.getEmployeeTestItemsCount(status, departmentId, account, month, searchColumn, searchValue);
         } else if (role === 'sales' && account) {
-            total = await db.getAssignedTestsCountByUser(account, status, month, customerName, orderNum, filterTestData);
+            total = await db.getAssignedTestsCountByUser(account, status, month, searchColumn, searchValue);
         } else if (account) {
-            total = await db.getAssignedTestsCountByUser(account, status, month, customerName, orderNum, filterTestData);
+            total = await db.getAssignedTestsCountByUser(account, status, month, searchColumn, searchValue);
         } else {
-            total = await db.getAllTestItemsCount(status, departmentId, month, customerName, orderNum, role, filterTestData);
-
+            total = await db.getAllTestItemsCount(status, departmentId, month, role, searchColumn, searchValue);
         }
 
         res.json({ total });
@@ -117,7 +167,6 @@ router.post('/assign', async (req, res) => {
         assignmentInfo,
         equipment_id,
     } = req.body;
-
     if (!assignmentInfo || assignmentInfo === '') {
         return res.status(409).json({ success: false, message: `提交错误：请选择分配人员！` });
 
@@ -174,7 +223,7 @@ router.post('/assign', async (req, res) => {
         // 如果是组长分配给别人（非自己），则复制检测项目
         if (role === 'supervisor') {
             const hasSupervisor = existingAssignments.some(a => a.is_assigned === 0);  // 是否已经有组长
-            const hasEmployee = existingAssignments.some(a => a.role === 'employee' && a.is_assigned === 1);  
+            const hasEmployee = existingAssignments.some(a => a.role === 'employee' && a.is_assigned === 1);
             const hasAssignedSupervisor = existingAssignments.some(a => a.role === 'supervisor' && a.is_assigned === 1);
 
             //两种情况：这个项目有不执行的组长+执行的组员；有自己执行的组长。
@@ -202,7 +251,7 @@ router.post('/assign', async (req, res) => {
                 }
 
                 if (salesAssignment) {
-                    await db.assignTestToUser(newTestItemId, salesAssignment.account, equipment_id,  'sales', 0); // 绑定业务员到新项目
+                    await db.assignTestToUser(newTestItemId, salesAssignment.account, equipment_id, 'sales', 0); // 绑定业务员到新项目
                 }
 
                 // 分配新检测项目给新用户
@@ -232,6 +281,81 @@ router.post('/assign', async (req, res) => {
     }
 });
 
+
+router.post('/batch-assign', async (req, res) => {
+    const {
+        testItemIds,
+        role,
+        assignmentInfo,
+        equipment_id,
+    } = req.body;
+
+    if (!Array.isArray(testItemIds) || testItemIds.length === 0) {
+        return res.status(400).json({ success: false, message: '未提供待分配的检测项目列表' });
+    }
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // ✅ 一次性检查所有 testItemIds 中是否有非业务员已分配
+        for (const id of testItemIds) {
+            const assignments = await db.getAssignmentsByTestItemId(id);
+            const nonSales = assignments.filter(a => !a.account.startsWith('YW'));
+            if (nonSales.length > 0) {
+                await connection.rollback();
+                return res.status(409).json({
+                    success: false,
+                    message: `检测项目编号 ${id} 已存在非业务员分配记录，无法进行一键分配`,
+                    invalidItemId: id
+                });
+            }
+        }
+
+        const successList = [];
+        const failureList = [];
+
+        for (const testItemId of testItemIds) {
+            try {
+                const alreadyAssigned = await db.getAssignmentsByTestItemId(testItemId);
+                const duplicate = alreadyAssigned.find(a => a.account === assignmentInfo);
+                if (duplicate) {
+                    if (role === 'leader') {
+                        failureList.push({ testItemId, reason: '项目已分配给该人员' });
+                        continue;
+                    }
+                }
+
+                const isAssignedFlag = role === 'leader' ? 0 : 1;
+                await db.assignTestToUser(testItemId, assignmentInfo, equipment_id, role, isAssignedFlag);
+                await db.updateAppointTime(testItemId);
+
+                successList.push(testItemId);
+            } catch (err) {
+                console.error(`批量分配失败，testItemId=${testItemId}`, err);
+                failureList.push({ testItemId, reason: err.message });
+            }
+        }
+
+        await connection.commit();
+        return res.status(200).json({
+            success: true,
+            message: '批量分配完成',
+            successCount: successList.length,
+            failureCount: failureList.length,
+            failures: failureList
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error('批量分配整体失败:', error);
+        return res.status(500).json({ success: false, message: '批量分配失败', error: error.message });
+    } finally {
+        connection.release();
+    }
+});
+
+
 // 在Node.js/Express后端，更新assignments表中的account字段
 router.post('/reassign', async (req, res) => {
     const { testItemId, account, assignmentInfo } = req.body;
@@ -243,6 +367,22 @@ router.post('/reassign', async (req, res) => {
         res.status(500).send({ message: 'Failed to reassign', error: error.message });
     }
 });
+
+router.post('/reassign-supervisor', async (req, res) => {
+      const { test_item_id, newAccount } = req.body;
+      if (!test_item_id || !newAccount) {
+        return res.status(400).json({ message: '参数不完整' });
+      }
+      try {
+        await db.reassignSupervisor(test_item_id, newAccount);
+        res.json({ message: 'ok' });
+      } catch (err) {
+        console.error('reassign-supervisor error:', err);
+        res.status(500).json({ message: '数据库错误' });
+      }
+    }
+  );
+
 
 router.post('/rollback', async (req, res) => {
     const { testItemId, note, account } = req.body;
@@ -358,7 +498,7 @@ router.patch('/:testItemId/deliver', async (req, res) => {
 // 添加检测项目
 router.patch('/add', async (req, res) => {
     const addedFields = req.body;
-    try {        
+    try {
 
         // 调用 db 方法进行数据库更新
         const result = await db.addTestItem(addedFields);
@@ -549,11 +689,41 @@ router.get('/prices', async (req, res) => {
 });
 
 // 查询所有的检测id(用于全选导出用)
-router.get('/ids', async (req, res) => {
-    const { status, departmentId, month, filterTestData, role, account } = req.query;
+router.post('/ids', async (req, res) => {
+    const { status, departmentId, month, role, account } = req.body;
+    const allowedSearchFields = [
+        'order_num',
+        'test_item',
+        'customer_name',
+        'contact_name',
+        'sales_names',
+        'manager_names',
+        'team_names',
+        'note'
+    ];
+
+    let searchColumn = null;
+    let searchValue = null;
+
+    for (const key of allowedSearchFields) {
+        if (req.body[key]) {
+            searchColumn = key;
+            searchValue = req.body[key];
+            break;
+        }
+    }
+
     try {
-        const ids = await db.getAllTestItemIds(status, departmentId, month, filterTestData, role, account);
-        res.json(ids);
+        const ids = await db.getAllTestItemIds(
+            status,
+            departmentId,
+            month,
+            searchColumn,
+            searchValue,
+            role,
+            account
+        );
+        res.json(ids); // e.g. [1123, 1124, 1125]
     } catch (error) {
         console.error('Failed to fetch all test item IDs:', error);
         res.status(500).json({ message: 'Failed to fetch IDs', error: error.message });
@@ -564,19 +734,19 @@ router.post('/getOrderNums', async (req, res) => {
     const { ids } = req.body;  // array
     if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ message: '参数 ids 不能为空' });
-      }
-    
-      try {
+    }
+
+    try {
         const rows = await db.getSelectedOrderNums(ids);
         if (!rows.length) {
-          return res.status(404).json({ message: '未找到对应记录' });
+            return res.status(404).json({ message: '未找到对应记录' });
         }
         res.json(rows);   // [{ test_item_id, order_num }, ...]
-      } catch (err) {
+    } catch (err) {
         console.error('getOrderNums 出错:', err);
         res.status(500).json({ message: '服务器错误' });
-      }
-  });
+    }
+});
 
 
 router.get('/summary', async (req, res) => {
@@ -594,182 +764,325 @@ router.post(
     '/importAttachments',
     upload.single('file'),
     async (req, res) => {
-      try {
-        // 解析前端传来的 testItemIds
-        let raw = req.body.testItemIds;
-        const testItemIds = typeof raw === 'string'
-          ? JSON.parse(raw)
-          : raw;
-  
-        if (!req.file) {
-          return res.status(400).json({ success: false, message: '未收到文件' });
-        }
-        if (!Array.isArray(testItemIds) || testItemIds.length === 0) {
-          return res.status(400).json({ success: false, message: '请先选择检测项目' });
-        }
-        const projectId = Date.now();
-        // 准备要插入的多条记录
-        const filePath = `/uploads/${req.file.filename}`; 
-        const details = testItemIds.map(id => ({
-          filename: req.file.filename,
-          filepath: filePath,
-          test_item_id: id,
-          category: '委托单附件',
-          project_id : projectId
-        }));
-  
-        // 调用你在 database.js 里写的 insertProjectFiles
-        await db.insertProjectFiles(details);
-  
-        res.json({ success: true, message: '附件上传并关联成功' });
-      } catch (err) {
-        console.error('importAttachments error:', err);
-        res.status(500).json({ success: false, message: '服务器错误' });
-      }
-    }
-  );
+        try {
+            // 解析前端传来的 testItemIds
+            let raw = req.body.testItemIds;
+            const testItemIds = typeof raw === 'string'
+                ? JSON.parse(raw)
+                : raw;
 
-  // POST /api/tests/exportCommissionWord
+            if (!req.file) {
+                return res.status(400).json({ success: false, message: '未收到文件' });
+            }
+            if (!Array.isArray(testItemIds) || testItemIds.length === 0) {
+                return res.status(400).json({ success: false, message: '请先选择检测项目' });
+            }
+            const projectId = Date.now();
+            // 准备要插入的多条记录
+            const filePath = `/uploads/${req.file.filename}`;
+            const details = testItemIds.map(id => ({
+                filename: req.file.filename,
+                filepath: filePath,
+                test_item_id: id,
+                category: '委托单附件',
+                project_id: projectId
+            }));
+
+            // 调用你在 database.js 里写的 insertProjectFiles
+            await db.insertProjectFiles(details);
+
+            res.json({ success: true, message: '附件上传并关联成功' });
+        } catch (err) {
+            console.error('importAttachments error:', err);
+            res.status(500).json({ success: false, message: '服务器错误' });
+        }
+    }
+);
+
+// POST /api/tests/exportCommissionWord
 router.post('/exportCommissionWord', async (req, res) => {
     const { selectedOrders } = req.body;
     /* ---------- 1. 参数/一致性校验 ---------- */
     const rows = await db.getSelectedOrderNums(selectedOrders);
     const uniq = [...new Set(rows.map(r => r.order_num))];
     if (uniq.length !== 1) {
-      return res.status(400).json({ message: '请选择同一个委托单下的检测项目' });
+        return res.status(400).json({ message: '请选择同一个委托单下的检测项目' });
     }
     const orderNum = uniq[0];
     /* ---------- 2. 拉数据 ---------- */
     const info = await db.getCommissionInfo(orderNum, selectedOrders);
-
+    console.log(info)
     if (!info) return res.status(404).send('委托单不存在');
-    const { order, report = {}, sample = {}, items } = info;
-  
+    const order = (info.order && info.order[0]) || {};
+    const report = (info.report && info.report[0]) || {};
+    const sample = (info.sample && info.sample[0]) || {};
+    const items = info.items || [];
+    const sales = info.sales || {};
     /* ---------- 3. 拼装 templateData ---------- */
-    const hazardsArr = JSON.parse(sample.hazards || '[]');
+    const hazardsArr = toArray(sample.hazards);
     const toArr = (s) => (s ? String(s).split(',') : []);
-  
+
     const templateData = {
-      /* —— 订单信息 —— */
-      serviceType1Symbol: ck(order.service_type === '1'),
-      serviceType2Symbol: ck(order.service_type === '2'),
-      serviceType3Symbol: ck(order.service_type === '3'),
-      delivery_days_after_receipt: order.delivery_days_after_receipt || '',
-      sample_shipping_address:     order.sample_shipping_address     || '',
-      total_price:                 order.total_price                 || '',
-      order_num:                   order.order_num,
-      other_requirements:          order.other_requirements || '',
-      subcontractingNotAcceptedSymbol: ck(order.subcontracting_not_accepted),
-      /* 报告标识章 - 多选 */
-      reportSeals1Symbol: ck(toArr(order.report_seals).includes('normal')),
-      reportSeals2Symbol: ck(toArr(order.report_seals).includes('cnas')),
-      reportSeals3Symbol: ck(toArr(order.report_seals).includes('cma')),
-  
-      /* —— 增值税 / 报告信息 —— */
-      invoiceType1Symbol: ck(order.vat_type === '1'),
-      invoiceType2Symbol: ck(order.vat_type === '2'),
-  
-      reportContent1Symbol: ck(toArr(report.type).includes('1')),
-      reportContent2Symbol: ck(toArr(report.type).includes('2')),
-      reportContent3Symbol: ck(toArr(report.type).includes('3')),
-      reportContent4Symbol: ck(toArr(report.type).includes('4')),
-      reportContent5Symbol: ck(toArr(report.type).includes('5')),
-      reportContent6Symbol: ck(toArr(report.type).includes('6')),
-  
-      paperReportType1Symbol: ck(report.paper_report_shipping_type === '1'),
-      paperReportType2Symbol: ck(report.paper_report_shipping_type === '2'),
-      paperReportType3Symbol: ck(report.paper_report_shipping_type === '3'),
-  
-      headerType1Symbol: ck(report.header_type === 1),
-      headerType2Symbol: ck(report.header_type === 2),
-      header_additional_info: report.header_other || '',
-  
-      reportForm1Symbol: ck(report.format_type === 1),
-      reportForm2Symbol: ck(report.format_type === 2),
-      report_additional_info: report.report_additional_info || '',
-  
-      /* —— 样品处置 / 危险特性 —— */
-      sampleHandlingType1Symbol: ck(sample.sample_solution_type === '1'),
-      sampleHandlingType2Symbol: ck(sample.sample_solution_type === '2'),
-      sampleHandlingType3Symbol: ck(sample.sample_solution_type === '3'),
-      sampleHandlingType4Symbol: ck(sample.sample_solution_type === '4'),
-      returnOptionSameSymbol:  ck(sample.returnAddressOption === 'same'),
-      returnOptionOtherSymbol: ck(sample.returnAddressOption === 'other'),
-      return_address:          sample.returnAddress || '',
-  
-      hazardSafetySymbol:       ck(hazardsArr.includes('Safety')),
-      hazardFlammabilitySymbol: ck(hazardsArr.includes('Flammability')),
-      hazardIrritationSymbol:   ck(hazardsArr.includes('Irritation')),
-      hazardVolatilitySymbol:   ck(hazardsArr.includes('Volatility')),
-      hazardFragileSymbol:      ck(hazardsArr.includes('Fragile')),
-      hazardOtherSymbol:        ck(hazardsArr.includes('Other')),
-      hazard_other: sample.hazard_other || '',
-  
-      magnetismNonMagneticSymbol: ck(sample.magnetism === 'Non-magnetic'),
-      magnetismWeakMagneticSymbol: ck(sample.magnetism === 'Weak-magnetic'),
-      magnetismStrongMagneticSymbol: ck(sample.magnetism === 'Strong-magnetic'),
-      magnetismUnknownSymbol:      ck(sample.magnetism === 'Unknown'),
-  
-      conductivityConductorSymbol:    ck(sample.conductivity === 'Conductor'),
-      conductivitySemiconductorSymbol:ck(sample.conductivity === 'Semiconductor'),
-      conductivityInsulatorSymbol:    ck(sample.conductivity === 'Insulator'),
-      conductivityUnknownSymbol:      ck(sample.conductivity === 'Unknown'),
-  
-      breakableYesSymbol: ck(sample.breakable === 'yes'),
-      breakableNoSymbol:  ck(sample.breakable === 'no'),
-      brittleYesSymbol:   ck(sample.brittle === 'yes'),
-      brittleNoSymbol:    ck(sample.brittle === 'no'),
-  
-      /* —— 客户 —— */
-      customer_name:        order.customer_name,
-      customer_address:     order.customer_address,
-      customer_contactName: order.contact_name,
-      customer_contactEmail:order.contact_email,
-      customer_contactPhone:order.contact_phone_num,
-  
-      /* —— 付款方 —— */
-      payer_name:          order.payer_name,
-      payer_address:       order.payer_address,
-      payer_contactName:   order.payer_contact_name,
-      payer_contactEmail:  order.payer_contact_email,
-      payer_contactPhone:  order.payer_contact_phone_num,
-      payer_bankName:      order.bank_name,
-      payer_taxNumber:     order.tax_number,
-      payer_bankAccount:   order.bank_account,
-  
-      /* —— 测试项目 —— */
-      testItems: items.map(it => ({
-        ...it,
-        sampleTypeLabel: {1:'板材',2:'棒材',3:'粉末',4:'液体',5:'其他'}[it.sample_type] || '',
-        samplePrepYesSymbol: ck(it.sample_preparation === 1),
-        samplePrepNoSymbol:  ck(it.sample_preparation === 0),
-      })),
+        /* —— 订单信息 —— */
+        serviceType1Symbol: ck(order.service_type === '1'),
+        serviceType2Symbol: ck(order.service_type === '2'),
+        serviceType3Symbol: ck(order.service_type === '3'),
+        delivery_days_after_receipt: order.delivery_days_after_receipt || '',
+        sample_shipping_address: order.sample_shipping_address || '',
+        total_price: order.total_price || '',
+        order_num: order.order_num,
+        other_requirements: order.other_requirements || '',
+        subcontractingNotAcceptedSymbol: ck(order.subcontracting_not_accepted),
+        /* 报告标识章 - 多选 */
+        reportSeals1Symbol: ck(order.report_seals.includes('normal')),
+        reportSeals2Symbol: ck(order.report_seals.includes('cnas')),
+        reportSeals3Symbol: ck(order.report_seals.includes('cma')),
+
+        /* —— 增值税 / 报告信息 —— */
+        invoiceType1Symbol: ck(order.vat_type === '1'),
+        invoiceType2Symbol: ck(order.vat_type === '2'),
+
+        reportContent1Symbol: ck(report.type.includes('1')),
+        reportContent2Symbol: ck(report.type.includes('2')),
+        reportContent3Symbol: ck(report.type.includes('3')),
+        reportContent4Symbol: ck(report.type.includes('4')),
+        reportContent5Symbol: ck(report.type.includes('5')),
+        reportContent6Symbol: ck(report.type.includes('6')),
+
+        paperReportType1Symbol: ck(report.paper_report_shipping_type === '1'),
+        paperReportType2Symbol: ck(report.paper_report_shipping_type === '2'),
+        paperReportType3Symbol: ck(report.paper_report_shipping_type === '3'),
+
+        headerType1Symbol: ck(report.header_type === 1),
+        headerType2Symbol: ck(report.header_type === 2),
+        header_additional_info: report.header_other || '',
+
+        reportForm1Symbol: ck(report.format_type === 1),
+        reportForm2Symbol: ck(report.format_type === 2),
+        report_additional_info: report.report_additional_info || '',
+
+        /* —— 样品处置 / 危险特性 —— */
+        sampleHandlingType1Symbol: ck(sample.sample_solution_type === '1'),
+        sampleHandlingType2Symbol: ck(sample.sample_solution_type === '2'),
+        sampleHandlingType3Symbol: ck(sample.sample_solution_type === '3'),
+        sampleHandlingType4Symbol: ck(sample.sample_solution_type === '4'),
+        returnOptionSameSymbol: ck(sample.returnAddressOption === 'same'),
+        returnOptionOtherSymbol: ck(sample.returnAddressOption === 'other'),
+        return_address: sample.returnAddress || '',
+
+        hazardSafetySymbol: ck(hazardsArr.includes('Safety')),
+        hazardFlammabilitySymbol: ck(hazardsArr.includes('Flammability')),
+        hazardIrritationSymbol: ck(hazardsArr.includes('Irritation')),
+        hazardVolatilitySymbol: ck(hazardsArr.includes('Volatility')),
+        hazardFragileSymbol: ck(hazardsArr.includes('Fragile')),
+        hazardOtherSymbol: ck(hazardsArr.includes('Other')),
+        hazard_other: sample.hazard_other || '',
+
+        magnetismNonMagneticSymbol: ck(sample.magnetism === 'Non-magnetic'),
+        magnetismWeakMagneticSymbol: ck(sample.magnetism === 'Weak-magnetic'),
+        magnetismStrongMagneticSymbol: ck(sample.magnetism === 'Strong-magnetic'),
+        magnetismUnknownSymbol: ck(sample.magnetism === 'Unknown'),
+
+        conductivityConductorSymbol: ck(sample.conductivity === 'Conductor'),
+        conductivitySemiconductorSymbol: ck(sample.conductivity === 'Semiconductor'),
+        conductivityInsulatorSymbol: ck(sample.conductivity === 'Insulator'),
+        conductivityUnknownSymbol: ck(sample.conductivity === 'Unknown'),
+
+        breakableYesSymbol: ck(sample.breakable === 'yes'),
+        breakableNoSymbol: ck(sample.breakable === 'no'),
+        brittleYesSymbol: ck(sample.brittle === 'yes'),
+        brittleNoSymbol: ck(sample.brittle === 'no'),
+
+        /* —— 客户 —— */
+        customer_name: order.customer_name,
+        customer_address: order.customer_address,
+        customer_contactName: order.contact_name,
+        customer_contactEmail: order.contact_email,
+        customer_contactPhone: order.contact_phone_num,
+
+        /* —— 付款方 —— */
+        payer_name: order.payer_name,
+        payer_address: order.payer_address,
+        payer_contactName: order.payer_contact_name,
+        payer_contactEmail: order.payer_contact_email,
+        payer_contactPhone: order.payer_contact_phone_num,
+        payer_bankName: order.bank_name,
+        payer_taxNumber: order.tax_number,
+        payer_bankAccount: order.bank_account,
+
+        /* —— 业务员 —— */
+
+        sales_name: sales.sales_name || '',
+        sales_email: sales.sales_email || '',
+        sales_phone: sales.sales_phone || '',
+
+        /* —— 测试项目 —— */
+        testItems: items.map(it => ({
+            ...it,
+            sampleTypeLabel: { 1: '板材', 2: '棒材', 3: '粉末', 4: '液体', 5: '其他' }[it.sample_type] || '',
+            samplePrepYesSymbol: ck(it.sample_preparation === 1),
+            samplePrepNoSymbol: ck(it.sample_preparation === 0),
+        })),
     };
-  
+
     /* ---------- 4. 渲染模板 ---------- */
     const tpl = fs.readFileSync(path.resolve(__dirname, '../templates/order_template.docx'), 'binary');
     const doc = new Docx(new PizZip(tpl), {
-      paragraphLoop: true,
-      linebreaks:    true,
-      nullGetter:      ()=>'',
-      undefinedGetter: ()=>'',
+        paragraphLoop: true,
+        linebreaks: true,
+        nullGetter: () => '',
+        undefinedGetter: () => '',
     });
-    
-    console.log(order)
+
+    console.log("templateConsole:", templateData)
     try {
-      doc.render(templateData);
+        doc.render(templateData);
     } catch (e) {
-      console.error('渲染错误:', e);
-      return res.status(500).send('模板渲染失败');
+        console.error('渲染错误:', e);
+        return res.status(500).send('模板渲染失败');
     }
     const buf = doc.getZip().generate({ type: 'nodebuffer' });
-  
+
     /* ---------- 5. 返回文件 ---------- */
+    const rawFile = `${orderNum}-${order.customer_name}-${order.contact_name}.docx`;
+    const file72 = encodeURIComponent(rawFile);           // UTF-8 → %E5%BC%A0%E4%B8%89 …
+
     res.set({
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': `attachment; filename=${orderNum}-${templateData.customer_name}-${templateData.contact_name}.docx`,
+        'Content-Type':
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        // filename*=UTF-8''... 规避所有非 Latin-1 字符
+        'Content-Disposition': `attachment; filename*=UTF-8''${file72}`,
     });
     res.end(buf);
+});
+
+
+
+/* ========= 流转单 Word ========= */
+router.post('/exportWorkflowWord', async (req, res) => {
+    const { selectedOrders } = req.body;
+
+    /* 1. 参数校验：必须同一 order_num */
+    const tmp = await db.getSelectedOrderNums(selectedOrders);
+    const uniqOrder = [...new Set(tmp.map(r => r.order_num))];
+    if (uniqOrder.length !== 1) {
+        return res.status(400).json({ message: '请选择同一个委托单下的检测项目' });
+    }
+    const orderNum = uniqOrder[0];
+
+    /* 2. 取委托单完整信息（只拿所选项目） */
+    const info = await db.getCommissionInfo(orderNum, selectedOrders);
+    if (!info) return res.status(404).send('委托单不存在');
+    const order = (info.order && info.order[0]) || {};
+    const report = (info.report && info.report[0]) || {};
+    const sample = (info.sample && info.sample[0]) || {};
+    const items = info.items || [];
+    /* 3. 分类整理 testItems */
+    const machiningItems = [], mechanicsItems = [], microItems = [], physchemItems = [];
+    items.forEach((it, idx) => {
+        // 分割 “测试名称 - 条件”
+        const [namePart = '', condPart = ''] = (it.test_item || '').split(' - ').map(s => s.trim());
+        const row = {
+            idx: idx + 1,
+            sample_code: `${orderNum} - ${String(idx + 1).padStart(3, '0')}`,
+            test_item: namePart,
+            project_code: it.test_code
+                ? (condPart ? `${it.test_code}-${condPart}` : it.test_code)
+                : '',
+            method: it.test_method,
+            quantity: it.quantity,
+            note: it.note || ''
+        };
+
+        // 机加工中心（test_code 以 LX 开头）
+        if (it.test_code && it.test_code.startsWith('LX')) {
+            machiningItems.push(row);
+        } else {
+            switch (String(it.department_id)) {
+                case '3': mechanicsItems.push(row); break;   // 力学
+                case '1': microItems.push(row); break;   // 显微
+                case '2': physchemItems.push(row); break;   // 物化
+                default: break;
+            }
+        }
+    });
+
+    const hasDept = depId => items.some(i => String(i.department_id) === String(depId));
+
+    /* 4. 组装 templateData（与前端保持一致） */
+    const today = new Date();
+    const receiptDate = today.toISOString().slice(0, 10);   // yyyy-mm-dd
+    const templateData = {
+        order_num: orderNum,
+
+        machiningCenterSymbol: machiningItems.length ? '☑' : '☐',
+        mechanicsSymbol: hasDept(3) ? '☑' : '☐',
+        microSymbol: hasDept(1) ? '☑' : '☐',
+        physchemSymbol: hasDept(2) ? '☑' : '☐',
+
+        sampleReceivedDate: receiptDate,
+
+        showMechanicsTable: hasDept(3),
+        showMicroTable: hasDept(1),
+        showPhyschemTable: hasDept(2),
+
+        /* 报告形式（多选） */
+        reportContent1Symbol: ck(report.type.includes('1')),
+        reportContent2Symbol: ck(report.type.includes('2')),
+        reportContent3Symbol: ck(report.type.includes('3')),
+        reportContent6Symbol: ck(report.type.includes('6')),
+
+        /* 测试时效（service_type） */
+        serviceType1Symbol: ck(order.service_type === '1'),
+        serviceType2Symbol: ck(order.service_type === '2'),
+        serviceType3Symbol: ck(order.service_type === '3'),
+        delivery_days_after_receipt: order.delivery_days_after_receipt || '',
+
+        /* 样品退回 */
+        returnNoSymbol: ck(sample.sample_solution_type === '1'),
+        returnPickupSymbol: ck(sample.sample_solution_type === '2'),
+        returnMailSymbol: ck(sample.sample_solution_type === '3'),
+        other_requirements: order.other_requirements || '',
+
+        projectLeader: '',   // 留空，后续手写
+
+        machiningItems,
+        mechanicsItems,
+        microItems,
+        physchemItems,
+    };
+
+    /* 5. 渲染 Word 模板 */
+    const tplPath = path.resolve(__dirname, '../templates/process_template.docx');
+    const zip = new PizZip(fs.readFileSync(tplPath, 'binary'));
+    const doc = new Docx(zip, { paragraphLoop: true, linebreaks: true });
+
+    try { doc.render(templateData); }
+    catch (e) {
+        console.error('渲染流转单失败:', e);
+        return res.status(500).send('模板渲染失败');
+    }
+
+    const buf = doc.getZip().generate({ type: 'nodebuffer' });
+
+    /* 6. 发送文件 */
+    const rawName = `${orderNum}_流转单.docx`;
+    res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition':
+            `attachment; filename=${orderNum}.docx; filename*=UTF-8''${encodeURIComponent(rawName)}`
+    });
+    res.end(buf);
+});
+
+router.get('/delivered/rawdata/:account', async (req, res) => {
+    try {
+      const rows = await db.getTestsWithRawData(req.params.account);
+      res.json(rows);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ message: '查询失败', error: e.message });
+    }
   });
 
 module.exports = router;

@@ -427,7 +427,7 @@ async function getAllSamples() {
 }
 
 
-async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, filterTestData, limit = 50, offset = 0) {
+async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, searchColumn, searchValue, limit = 50, offset = 0) {
     const idParams = [];
     let idWhereClause = 'WHERE 1=1';
     
@@ -466,46 +466,43 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
         idParams.push(`%${customerName}%`);
     }
 
-    // 在 customerName 的过滤之后，添加：
-    if (filterTestData && filterTestData.trim().length > 0) {
-        idWhereClause += `
-            AND (
-                t2.order_num LIKE ? OR
-                t2.test_item LIKE ? OR
-                t2.deadline LIKE ? OR
-                c.customer_name LIKE ? OR
-                c.contact_name LIKE ? OR
-                EXISTS (
+    if (searchColumn && searchValue) {
+        if (['sales_names', 'manager_names', 'team_names'].includes(searchColumn)) {
+            let roleCondition = '';
+            if (searchColumn === 'sales_names') {
+                roleCondition = `ua.role = 'sales'`;
+            } else if (searchColumn === 'manager_names') {
+                roleCondition = `ua.role = 'supervisor'`;
+            } else if (searchColumn === 'team_names') {
+                roleCondition = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
+            }
+    
+            idWhereClause += `
+                AND EXISTS (
                     SELECT 1
-                    FROM assignments aa
-                    JOIN users ua ON ua.account = aa.account
-                    WHERE aa.test_item_id = t2.test_item_id
-                    AND ua.role IN ('supervisor','employee')
+                    FROM assignments a
+                    JOIN users ua ON a.account = ua.account
+                    WHERE a.test_item_id = t2.test_item_id
+                    AND ${roleCondition}
                     AND ua.name LIKE ?
-                ) OR
-                EXISTS (
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else if (searchColumn === 'customer_name' || searchColumn === 'contact_name') {
+            idWhereClause += `
+                AND EXISTS (
                     SELECT 1
-                    FROM assignments aa
-                    JOIN users ua ON ua.account = aa.account
-                    WHERE aa.test_item_id = t2.test_item_id
-                    AND ua.role = 'sales'
-                    AND ua.name LIKE ?
-                ) OR
-                (CASE WHEN EXISTS (
-                    SELECT 1 FROM project_files f WHERE f.test_item_id = t2.test_item_id
-                ) THEN '1' ELSE '0' END) LIKE ? OR
-                t2.note LIKE ? OR
-                t2.test_note LIKE ? OR
-                t2.check_note LIKE ? OR
-                t2.quantity LIKE ? OR
-                t2.machine_hours LIKE ? OR
-                t2.work_hours LIKE ? OR
-                t2.listed_price LIKE ? OR
-                t2.original_no LIKE ?
-            )
-        `;
-        // 一共 16 个 '?'，每个都用同一个 filterTestData
-        idParams.push(...Array(16).fill(`%${filterTestData}%`));
+                    FROM orders o
+                    JOIN customers c ON o.customer_id = c.customer_id
+                    WHERE o.order_num = t2.order_num
+                    AND c.${searchColumn} LIKE ?
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else {
+            idWhereClause += ` AND t2.${searchColumn} LIKE ?`;
+            idParams.push(`%${searchValue}%`);
+        }
     }
 
     // Step 1: 使用子查询分页获取 test_item_id
@@ -629,7 +626,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
     return results;
 }
 
-async function getAllTestItems(status, departmentId, month, customerName, orderNum, filterTestData, role, limit = 50, offset = 0) {
+async function getAllTestItems(status, departmentId, month, customerName, orderNum, searchColumn, searchValue, role, limit = 50, offset = 0) {
     const idParams = [];
     let idWhereClause = 'WHERE 1=1';
     
@@ -665,67 +662,44 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
         idParams.push(role, 'YW001');
     }
 
-    // if (filterTestData && filterTestData.trim().length > 0) {
-    //     idWhereClause += `
-    //       AND (
-    //         t2.order_num         LIKE ? OR
-    //         t2.test_item         LIKE ? OR
-    //         t2.test_method       LIKE ? OR
-    //         c.customer_name      LIKE ? OR
-    //         c.contact_name       LIKE ? OR
-    //         CAST(t2.quantity     AS CHAR) LIKE ? OR
-    //         CAST(t2.machine_hours AS CHAR) LIKE ? OR
-    //         CAST(t2.listed_price AS CHAR) LIKE ? OR
-    //         CAST(t2.discounted_price AS CHAR) LIKE ? OR
-    //         t2.original_no       LIKE ? OR
-    //         t2.check_note        LIKE ? OR
-    //         EXISTS (
-    //           SELECT 1 FROM assignments aa
-    //           JOIN users ua ON aa.account = ua.account
-    //           WHERE aa.test_item_id = t2.test_item_id
-    //             AND ua.role IN ('employee','supervisor')
-    //             AND ua.name LIKE ?
-    //         ) OR
-    //         EXISTS (
-    //           SELECT 1 FROM assignments aa
-    //           JOIN users ua ON aa.account = ua.account
-    //           WHERE aa.test_item_id = t2.test_item_id
-    //             AND ua.role = 'sales'
-    //             AND ua.name LIKE ?
-    //         ) OR
-    //         (CASE WHEN EXISTS (
-    //            SELECT 1 FROM project_files f
-    //            WHERE f.test_item_id = t2.test_item_id
-    //          ) THEN '已上传' ELSE '无' END) LIKE ?
-    //       )
-    //     `
-    //     idParams.push(
-    //       ...Array(14).fill(`%${filterTestData}%`)
-    //     )
-    // }
-
-    if (filterTestData && filterTestData.trim().length > 0) {
-        // 构造 Boolean 模式查询，每个词前加 +，后加 * 支持前缀匹配
-        const terms = filterTestData
-          .trim()
-          .split(/\s+/)
-          .map(t => `+${t}*`)
-          .join(' ');
-      
-        idWhereClause += `
-          AND (
-            /* 在 test_items 表的全文索引字段上查 */
-            MATCH(t2.order_num, t2.test_item, t2.test_method, t2.check_note)
-              AGAINST (? IN BOOLEAN MODE)
-            OR
-            /* 在 customers 表的全文索引字段上查 */
-            MATCH(c.customer_name, c.contact_name)
-              AGAINST (? IN BOOLEAN MODE)
-          )
-        `;
-        // 两个问号，依次对应上面两条 AGAINST
-        idParams.push(terms, terms);
-      }
+    if (searchColumn && searchValue) {
+        if (['sales_names', 'manager_names', 'team_names'].includes(searchColumn)) {
+            let roleCondition = '';
+            if (searchColumn === 'sales_names') {
+                roleCondition = `ua.role = 'sales'`;
+            } else if (searchColumn === 'manager_names') {
+                roleCondition = `ua.role = 'supervisor'`;
+            } else if (searchColumn === 'team_names') {
+                roleCondition = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
+            }
+    
+            idWhereClause += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM assignments a
+                    JOIN users ua ON a.account = ua.account
+                    WHERE a.test_item_id = t2.test_item_id
+                    AND ${roleCondition}
+                    AND ua.name LIKE ?
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else if (searchColumn === 'customer_name' || searchColumn === 'contact_name') {
+            idWhereClause += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM orders o
+                    JOIN customers c ON o.customer_id = c.customer_id
+                    WHERE o.order_num = t2.order_num
+                    AND c.${searchColumn} LIKE ?
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else {
+            idWhereClause += ` AND t2.${searchColumn} LIKE ?`;
+            idParams.push(`%${searchValue}%`);
+        }
+    }
 
     // Step 1: 分页获取 test_item_id
     const idQuery = `
@@ -1042,7 +1016,7 @@ async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPr
     }
 }
 
-async function getAssignedTestsByUser(account, status, month, customerName, orderNum, filterTestData, limit = 50, offset = 0) {
+async function getAssignedTestsByUser(account, status, month, customerName, orderNum, searchColumn, searchValue, limit = 50, offset = 0) {
     const idParams = [account];
     let idWhereClause = 'WHERE 1=1';
     
@@ -1071,46 +1045,44 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
         idParams.push(`%${customerName}%`);
     }
 
-    if (filterTestData && filterTestData.trim()) {
-        idWhereClause += `
-          AND (
-            t2.order_num         LIKE ? OR
-            t2.test_item         LIKE ? OR
-            t2.test_method       LIKE ? OR
-            c.customer_name      LIKE ? OR
-            c.contact_name       LIKE ? OR
-            CAST(t2.quantity AS CHAR)     LIKE ? OR
-            CAST(t2.machine_hours AS CHAR) LIKE ? OR
-            CAST(t2.work_hours AS CHAR)    LIKE ? OR
-            CAST(t2.listed_price AS CHAR)  LIKE ? OR
-            CAST(t2.discounted_price AS CHAR) LIKE ? OR
-            t2.original_no       LIKE ? OR
-            t2.note              LIKE ? OR
-            t2.test_note         LIKE ? OR
-            t2.check_note        LIKE ? OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account = ua.account
-              WHERE aa.test_item_id = t2.test_item_id
-                AND ua.role IN ('employee','supervisor')
-                AND ua.name LIKE ?
-            ) OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account = ua.account
-              WHERE aa.test_item_id = t2.test_item_id
-                AND ua.role = 'sales'
-                AND ua.name LIKE ?
-            ) OR
-            (CASE WHEN EXISTS (
-               SELECT 1 FROM project_files f
-               WHERE f.test_item_id = t2.test_item_id
-             ) THEN '已上传' ELSE '无' END) LIKE ?
-          )
-           `
-        // 上面共 17 个 '?'，都用同一个 filterTestData
-        idParams.push(...Array(17).fill(`%${filterTestData}%`));
-    }  
+    if (searchColumn && searchValue) {
+        if (['sales_names', 'manager_names', 'team_names'].includes(searchColumn)) {
+            let roleCondition = '';
+            if (searchColumn === 'sales_names') {
+                roleCondition = `ua.role = 'sales'`;
+            } else if (searchColumn === 'manager_names') {
+                roleCondition = `ua.role = 'supervisor'`;
+            } else if (searchColumn === 'team_names') {
+                roleCondition = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
+            }
+    
+            idWhereClause += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM assignments a
+                    JOIN users ua ON a.account = ua.account
+                    WHERE a.test_item_id = t2.test_item_id
+                    AND ${roleCondition}
+                    AND ua.name LIKE ?
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else if (searchColumn === 'customer_name' || searchColumn === 'contact_name') {
+            idWhereClause += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM orders o
+                    JOIN customers c ON o.customer_id = c.customer_id
+                    WHERE o.order_num = t2.order_num
+                    AND c.${searchColumn} LIKE ?
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else {
+            idWhereClause += ` AND t2.${searchColumn} LIKE ?`;
+            idParams.push(`%${searchValue}%`);
+        }
+    }
     // Step 1: 使用子查询分页获取 test_item_id
     const idQuery = `
         SELECT t.test_item_id
@@ -2943,7 +2915,7 @@ async function getPrices(testCode, testItemName, testCondition) {
     }
 }
 
-async function getAllTestItemsCount(status, departmentId, month, customerName, orderNum, role, filterTestData) {
+async function getAllTestItemsCount(status, departmentId, month, role, searchColumn, searchValue) {
     let query = `
         SELECT COUNT(DISTINCT t.test_item_id) AS total
         FROM test_items t
@@ -2951,92 +2923,73 @@ async function getAllTestItemsCount(status, departmentId, month, customerName, o
         LEFT JOIN customers c ON o.customer_id = c.customer_id
         LEFT JOIN assignments a ON t.test_item_id = a.test_item_id
         LEFT JOIN users u ON u.account = a.account
+        WHERE 1 = 1
     `;
 
     const params = [];
-    let whereClauseAdded = false;
 
     if (departmentId) {
-        query += ' WHERE t.department_id = ?';
+        query += ' AND  t.department_id = ?';
         params.push(departmentId);
         whereClauseAdded = true;
     }
 
     if (status) {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.status = ?';
+        query += ' AND t.status = ?';
         params.push(status);
-        whereClauseAdded = true;
     }
 
     if (month) {
         const [year, monthPart] = month.split('-');
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' MID(t.order_num, 3, 4) = ?';
+        query += ' AND MID(t.order_num, 3, 4) = ?';
         params.push(`${year.slice(2)}${monthPart}`);
-        whereClauseAdded = true;
-    }
-
-    if (orderNum) {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' t.order_num LIKE ?';
-        params.push(`%${orderNum}%`);
-        whereClauseAdded = true;
-    }
-
-    if (customerName) {
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' c.customer_name LIKE ?';
-        params.push(`%${customerName}%`);
-        whereClauseAdded = true;
     }
 
     if (role === 'sales') {
-        // 用于过滤掉YW001账号（sales 视图）
-        query += (whereClauseAdded ? ' AND' : ' WHERE') + ' u.role = ? AND u.account != ?';
+        // 过滤掉 YW001（系统账户）
+        query += ' AND u.role = ? AND u.account != ?';
         params.push(role, 'YW001');
     }
 
-    if (filterTestData && filterTestData.trim()) {
-        const prefix = whereClauseAdded ? ' AND' : ' WHERE'
-        query += prefix + `
-          (
-            t.order_num        LIKE ? OR
-            t.test_item        LIKE ? OR
-            t.test_method      LIKE ? OR
-            c.customer_name    LIKE ? OR
-            c.contact_name     LIKE ? OR
-            CAST(t.quantity      AS CHAR) LIKE ? OR
-            CAST(t.machine_hours AS CHAR) LIKE ? OR
-            CAST(t.listed_price  AS CHAR) LIKE ? OR
-            CAST(t.discounted_price AS CHAR) LIKE ? OR
-            t.original_no      LIKE ? OR
-            t.check_note       LIKE ? OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account=ua.account
-              WHERE aa.test_item_id=t.test_item_id
-                AND ua.role IN ('employee','supervisor')
-                AND ua.name LIKE ?
-            ) OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account=ua.account
-              WHERE aa.test_item_id=t.test_item_id
-                AND ua.role='sales'
-                AND ua.name LIKE ?
-            ) OR
-            (CASE WHEN EXISTS (
-               SELECT 1 FROM project_files f
-               WHERE f.test_item_id=t.test_item_id
-            ) THEN '已上传' ELSE '无' END) LIKE ?
-          )
-        `
-        // 上面共 14 个问号
-        params.push(...Array(14).fill(`%${filterTestData}%`))
-        whereClauseAdded = true
-      }
+    if (searchColumn && searchValue) {
+        if (['sales_names', 'manager_names', 'team_names'].includes(searchColumn)) {
+            let roleCond = '';
+            if (searchColumn === 'sales_names') roleCond = `ua.role = 'sales'`;
+            if (searchColumn === 'manager_names') roleCond = `ua.role = 'supervisor'`;
+            if (searchColumn === 'team_names') roleCond = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
+
+            query += `
+                AND EXISTS (
+                    SELECT 1 FROM assignments a
+                    JOIN users ua ON a.account = ua.account
+                    WHERE a.test_item_id = t.test_item_id
+                    AND ${roleCond}
+                    AND ua.name LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
+        } else if (['customer_name', 'contact_name'].includes(searchColumn)) {
+            query += `
+                AND EXISTS (
+                    SELECT 1 FROM orders o2
+                    JOIN customers c2 ON o2.customer_id = c2.customer_id
+                    WHERE o2.order_num = t.order_num
+                    AND c2.${searchColumn} LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
+        } else {
+            query += ` AND t.${searchColumn} LIKE ?`;
+            params.push(`%${searchValue}%`);
+        }
+    }
+
     const [rows] = await db.query(query, params);
     return rows[0].total;
+    
 }
 
-async function getEmployeeTestItemsCount(status, departmentId, account, month, customerName, orderNum, filterTestData) {
+async function getEmployeeTestItemsCount(status, departmentId, account, month, searchColumn, searchValue) {
     let query = `
         SELECT COUNT(DISTINCT t.test_item_id) AS total
         FROM test_items t
@@ -3081,48 +3034,44 @@ async function getEmployeeTestItemsCount(status, departmentId, account, month, c
         params.push(`%${customerName}%`);
     }
 
-    if (filterTestData && filterTestData.trim()) {
-        query += `
-          AND (
-            t.order_num        LIKE ? OR
-            t.test_item        LIKE ? OR
-            t.test_method      LIKE ? OR
-            c.customer_name    LIKE ? OR
-            c.contact_name     LIKE ? OR
-            CAST(t.quantity      AS CHAR) LIKE ? OR
-            CAST(t.machine_hours AS CHAR) LIKE ? OR
-            CAST(t.listed_price  AS CHAR) LIKE ? OR
-            CAST(t.discounted_price AS CHAR) LIKE ? OR
-            t.original_no      LIKE ? OR
-            t.check_note       LIKE ? OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account=ua.account
-              WHERE aa.test_item_id=t.test_item_id
-                AND ua.role IN ('employee','supervisor')
-                AND ua.name LIKE ?
-            ) OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account=ua.account
-              WHERE aa.test_item_id=t.test_item_id
-                AND ua.role='sales'
-                AND ua.name LIKE ?
-            ) OR
-            (CASE WHEN EXISTS (
-               SELECT 1 FROM project_files f
-               WHERE f.test_item_id=t.test_item_id
-            ) THEN '已上传' ELSE '无' END) LIKE ?
-          )
-        `
-        params.push(...Array(14).fill(`%${filterTestData}%`))
-      }
+    if (searchColumn && searchValue) {
+        if (['sales_names', 'manager_names', 'team_names'].includes(searchColumn)) {
+            let roleCond = '';
+            if (searchColumn === 'sales_names') roleCond = `ua.role = 'sales'`;
+            if (searchColumn === 'manager_names') roleCond = `ua.role = 'supervisor'`;
+            if (searchColumn === 'team_names') roleCond = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
+
+            query += `
+                AND EXISTS (
+                    SELECT 1 FROM assignments a
+                    JOIN users ua ON a.account = ua.account
+                    WHERE a.test_item_id = t.test_item_id
+                    AND ${roleCond}
+                    AND ua.name LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
+        } else if (['customer_name', 'contact_name'].includes(searchColumn)) {
+            query += `
+                AND EXISTS (
+                    SELECT 1 FROM orders o2
+                    JOIN customers c2 ON o2.customer_id = c2.customer_id
+                    WHERE o2.order_num = t.order_num
+                    AND c2.${searchColumn} LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
+        } else {
+            query += ` AND t.${searchColumn} LIKE ?`;
+            params.push(`%${searchValue}%`);
+        }
+    }
 
     const [rows] = await db.query(query, params);
     return rows[0].total;
 }
 
-async function getAssignedTestsCountByUser(account, status, month, customerName, orderNum, filterTestData) {
+async function getAssignedTestsCountByUser(account, status, month, searchColumn, searchValue) {
     let query = `
         SELECT COUNT(DISTINCT t.test_item_id) AS total
         FROM test_items t
@@ -3148,58 +3097,45 @@ async function getAssignedTestsCountByUser(account, status, month, customerName,
         params.push(`${year.slice(2)}${monthPart}`);
     }
 
-    if (orderNum) {
-        query += ' AND t.order_num LIKE ?';
-        params.push(`%${orderNum}%`);
-    }
 
-    if (customerName) {
-        query += ' AND c.customer_name LIKE ?';
-        params.push(`%${customerName}%`);
-    }
+    if (searchColumn && searchValue) {
+        if (['sales_names', 'manager_names', 'team_names'].includes(searchColumn)) {
+            let roleCond = '';
+            if (searchColumn === 'sales_names') roleCond = `ua.role = 'sales'`;
+            if (searchColumn === 'manager_names') roleCond = `ua.role = 'supervisor'`;
+            if (searchColumn === 'team_names') roleCond = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
 
-    if (filterTestData && filterTestData.trim()) {
-        query += `
-          AND (
-            t.order_num        LIKE ? OR
-            t.test_item        LIKE ? OR
-            t.test_method      LIKE ? OR
-            c.customer_name    LIKE ? OR
-            c.contact_name     LIKE ? OR
-            CAST(t.quantity      AS CHAR) LIKE ? OR
-            CAST(t.machine_hours AS CHAR) LIKE ? OR
-            CAST(t.listed_price  AS CHAR) LIKE ? OR
-            CAST(t.discounted_price AS CHAR) LIKE ? OR
-            t.original_no      LIKE ? OR
-            t.check_note       LIKE ? OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account=ua.account
-              WHERE aa.test_item_id=t.test_item_id
-                AND ua.role IN ('employee','supervisor')
-                AND ua.name LIKE ?
-            ) OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account=ua.account
-              WHERE aa.test_item_id=t.test_item_id
-                AND ua.role='sales'
-                AND ua.name LIKE ?
-            ) OR
-            (CASE WHEN EXISTS (
-               SELECT 1 FROM project_files f
-               WHERE f.test_item_id=t.test_item_id
-            ) THEN '已上传' ELSE '无' END) LIKE ?
-          )
-        `
-        params.push(...Array(14).fill(`%${filterTestData}%`))
-      }
+            query += `
+                AND EXISTS (
+                    SELECT 1 FROM assignments a
+                    JOIN users ua ON a.account = ua.account
+                    WHERE a.test_item_id = t.test_item_id
+                    AND ${roleCond}
+                    AND ua.name LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
+        } else if (['customer_name', 'contact_name'].includes(searchColumn)) {
+            query += `
+                AND EXISTS (
+                    SELECT 1 FROM orders o2
+                    JOIN customers c2 ON o2.customer_id = c2.customer_id
+                    WHERE o2.order_num = t.order_num
+                    AND c2.${searchColumn} LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
+        } else {
+            query += ` AND t.${searchColumn} LIKE ?`;
+            params.push(`%${searchValue}%`);
+        }
+    }
 
     const [rows] = await db.query(query, params);
     return rows[0].total;
 }
 
-async function getAllTestItemIds(status, departmentId, month, filterTestData, role, account) {
+async function getAllTestItemIds(status, departmentId, month, searchColumn, searchValue, role, account) {
     let query = `SELECT t.test_item_id FROM test_items t
                  LEFT JOIN orders o ON t.order_num = o.order_num
                  LEFT JOIN customers c ON o.customer_id = c.customer_id`;
@@ -3228,43 +3164,44 @@ async function getAllTestItemIds(status, departmentId, month, filterTestData, ro
         query += ' AND MID(t.order_num, 3, 4) = ?';
         params.push(monthComparison);
     }
-    if (filterTestData && filterTestData.trim()) {
-        query += `
-          AND (
-            t.order_num        LIKE ? OR
-            t.test_item        LIKE ? OR
-            t.test_method      LIKE ? OR
-            c.customer_name    LIKE ? OR
-            c.contact_name     LIKE ? OR
-            CAST(t.quantity      AS CHAR) LIKE ? OR
-            CAST(t.machine_hours AS CHAR) LIKE ? OR
-            CAST(t.listed_price  AS CHAR) LIKE ? OR
-            CAST(t.discounted_price AS CHAR) LIKE ? OR
-            t.original_no      LIKE ? OR
-            t.check_note       LIKE ? OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account=ua.account
-              WHERE aa.test_item_id=t.test_item_id
-                AND ua.role IN ('employee','supervisor')
-                AND ua.name LIKE ?
-            ) OR
-            EXISTS (
-              SELECT 1 FROM assignments aa
-              JOIN users ua ON aa.account=ua.account
-              WHERE aa.test_item_id=t.test_item_id
-                AND ua.role='sales'
-                AND ua.name LIKE ?
-            ) OR
-            (CASE WHEN EXISTS (
-               SELECT 1 FROM project_files f
-               WHERE f.test_item_id=t.test_item_id
-            ) THEN '已上传' ELSE '无' END) LIKE ?
-          )
-        `
-        params.push(...Array(14).fill(`%${filterTestData}%`))
-      }
+    if (searchColumn && searchValue) {
+        if (['sales_names', 'manager_names', 'team_names'].includes(searchColumn)) {
+            let roleCondition = '';
+            if (searchColumn === 'sales_names') {
+                roleCondition = `ua.role = 'sales'`;
+            } else if (searchColumn === 'manager_names') {
+                roleCondition = `ua.role = 'supervisor'`;
+            } else if (searchColumn === 'team_names') {
+                roleCondition = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
+            }
 
+            query += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM assignments a
+                    JOIN users ua ON a.account = ua.account
+                    WHERE a.test_item_id = t.test_item_id
+                    AND ${roleCondition}
+                    AND ua.name LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
+        } else if (searchColumn === 'customer_name' || searchColumn === 'contact_name') {
+            query += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM orders o2
+                    JOIN customers c2 ON o2.customer_id = c2.customer_id
+                    WHERE o2.order_num = t.order_num
+                    AND c2.${searchColumn} LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
+        } else {
+            query += ` AND t.${searchColumn} LIKE ?`;
+            params.push(`%${searchValue}%`);
+        }
+    }
     const [rows] = await db.query(query, params);
     return [...new Set(rows.map(r => r.test_item_id))];
 }
@@ -3276,8 +3213,12 @@ async function getSelectedOrderNums(ids) {
   
     // mysql2 会自动把数组展平成逗号分隔
     const [rows] = await db.query(
-      `SELECT test_item_id, order_num
-         FROM test_items
+      `SELECT t.test_item_id, t.order_num,
+            c.customer_name,
+            c.contact_name
+         FROM test_items t
+       JOIN orders   o ON t.order_num = o.order_num
+       JOIN customers c ON o.customer_id = c.customer_id
         WHERE test_item_id IN (?)`,
       [ids]
     );
@@ -3460,67 +3401,125 @@ async function insertProjectFiles(fileDetails) {
  * @returns {Promise<{order:Object, customer:Object, payer:Object,
 *                    report:Object|null, sample:Object|null, items:Array}>}
 */
-async function getCommissionInfo(orderNum, itemIds = []) {
- const conn = await db.getConnection();
- try {
-   /* --- 1. 订单 + 客户 + 付款方 --- */
-   const [order] = await conn.execute(
-     `SELECT  o.*, 
-              c.customer_name,      c.customer_address,
-              c.contact_name,       c.contact_phone_num,  c.contact_email,
-              c.area               AS customer_area,
-              c.organization       AS customer_org,
-              p.vat_type,           p.payer_name,          p.payer_address,
-              p.payer_phone_num,    p.bank_name,           p.tax_number,
-              p.bank_account,       p.payer_contact_name,  p.payer_contact_phone_num,
-              p.payer_contact_email,
-              p.area               AS payer_area,
-              p.organization       AS payer_org
+async function getCommissionInfo(orderNum, itemIds) {
+    const conn = await db.getConnection();
+    try {
+    /* --- 1. 订单 + 客户 + 付款方 --- */
+    const [order] = await conn.execute(
+        `SELECT  o.*, 
+                c.customer_name,      c.customer_address,
+                c.contact_name,       c.contact_phone_num,  c.contact_email,
+                p.vat_type,           p.payer_name,          p.payer_address,
+                p.payer_phone_num,    p.bank_name,           p.tax_number,
+                p.bank_account,       p.payer_contact_name,  p.payer_contact_phone_num,
+                p.payer_contact_email,
+                p.area               AS payer_area,
+                p.organization       AS payer_org
         FROM orders   o
         JOIN customers c ON o.customer_id = c.customer_id
         JOIN payments  p ON o.payment_id  = p.payment_id
-       WHERE o.order_num = ?`,
-     [orderNum]
-   );
+        WHERE o.order_num = ?`,
+        [orderNum]
+    );
+    if (!order) return null;
 
-   if (!order) return null;
-
-   /* --- 2. 报告信息（可为空） --- */
-   const [report] = await conn.execute(
-     `SELECT *
+    /* --- 2. 报告信息（可为空） --- */
+    const [report] = await conn.execute(
+        `SELECT *
         FROM reports
-       WHERE order_num = ?
-       LIMIT 1`,
-     [orderNum]
-   );
+        WHERE order_num = ?
+        LIMIT 1`,
+        [orderNum]
+    );
 
-   /* --- 3. 样品处置 / 危险特性等（samples 表一行） --- */
-   const [sample] = await conn.execute(
-     `SELECT *
+    /* --- 3. 样品处置 / 危险特性等（samples 表一行） --- */
+    const [sample] = await conn.execute(
+        `SELECT *
         FROM samples
-       WHERE order_num = ?
-       LIMIT 1`,
-     [orderNum]
-   );
+        WHERE order_num = ?
+        LIMIT 1`,
+        [orderNum]
+    );
+    /* --- 4. 测试项目列表 --- */
+    const itemsSql = `
+  SELECT  t.test_item_id,
+          t.sample_name,      t.material,        t.sample_type,
+          t.original_no,      t.test_item,       t.test_method,
+          t.sample_preparation,
+          t.quantity,         t.department_id,
+          t.note,
+          p.test_code,        p.test_standard
+    FROM test_items t
+    LEFT JOIN price p ON t.price_id = p.price_id
+   WHERE t.order_num = ?
+     ${itemIds.length ? 'AND t.test_item_id IN (?)' : ''}
+   ORDER BY t.test_item_id`;
 
-   /* --- 4. 测试项目列表 --- */
-   const itemsSql = `
-     SELECT  test_item_id, sample_name, material, sample_type,
-             original_no,  test_item,  test_method,
-             sample_preparation, quantity, department_id,
-             note
-       FROM test_items
-      WHERE order_num = ?
-        ${itemIds.length ? 'AND test_item_id IN (?)' : ''}
-      ORDER BY test_item_id`;
-   const [items] = await conn.execute(itemsSql, itemIds.length ? [orderNum, itemIds] : [orderNum]);
+    const [items] = await conn.query(itemsSql, itemIds.length ? [orderNum, itemIds] : [orderNum]);
 
-   return { order, report, sample, items };
- } finally {
-   conn.release();
- }
+    /* 5. 业务员信息 -------------------------------------------------- */
+    // 取 assignments → users，只保留第一条
+    const salesSql = `
+      SELECT u.account,
+             u.name           AS sales_name,
+             u.user_email     AS sales_email,
+             u.user_phone_num AS sales_phone
+        FROM assignments a
+        JOIN users u ON a.account = u.account AND a.account LIKE '%YW%'
+       WHERE a.test_item_id IN (${itemIds.map(() => '?').join(',')})
+       LIMIT 1`;
+    const [salesRows] = await conn.execute(salesSql, itemIds);
+    const sales = salesRows[0] || {};
+
+    return { order, report, sample, items, sales };
+    } finally {
+    conn.release();
+    }
 }
 
+// 放在其它查询之后，别忘了 export
+async function getTestsWithRawData(account) {
+    const sql = `
+      SELECT  DISTINCT  t.test_item_id,
+              t.order_num,
+              t.test_item,
+              EXISTS (
+                SELECT 1 FROM project_files pf
+                WHERE pf.test_item_id = t.test_item_id
+                  AND pf.category = '实验数据原始文件/记录'
+              ) AS has_raw_data
+      FROM test_items t
+      JOIN assignments a ON a.test_item_id = t.test_item_id
+      WHERE a.account = ?
+      ORDER BY t.order_num, t.test_item_id;
+    `;
+    const [rows] = await db.query(sql, [account]);
+    return rows;
+  }
+
+  async function reassignSupervisor(test_item_id, newAccount) {
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+  
+      // 1. assignments：只更新“主管理”那一条（account 属于 supervisor 角色）
+      await conn.query(`
+        UPDATE assignments AS a
+        JOIN users u ON a.account = u.account
+        SET a.account = ?
+        WHERE a.test_item_id = ?
+          AND u.role = 'supervisor'`,
+        [newAccount, test_item_id]
+      );
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  }
 
 module.exports = {
     getConnection,
@@ -3612,5 +3611,7 @@ module.exports = {
     getTestItemSummary,
     insertProjectFiles,
     getSelectedOrderNums,
-    getCommissionInfo
+    getCommissionInfo,
+    getTestsWithRawData,
+    reassignSupervisor
 };
