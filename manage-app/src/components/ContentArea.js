@@ -1073,6 +1073,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             size: '',
             quantity: '',
             deadline: '',
+            price_note: '',
             note: '',
             department_id: '',
             status: '0',
@@ -1486,6 +1487,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         link.parentNode.removeChild(link);
         window.URL.revokeObjectURL(url);
     };
+
+
+    // 把时间戳转成 yyyy-MM-dd
+    const formatDateOnly = (iso) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
     // 执行Excel导出检测项目的操作
     const exportSalesTestExcel = async () => {
         setExportLoading(l => ({ ...l, salesTestExcel: true }));
@@ -1511,7 +1524,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     const mappedKey = fieldMapping[key] || key;
                     let value = item[key];
                     // 转换时间格式
-                    if (['create_time', 'start_time', 'end_time', 'appoint_time'].includes(key)) {
+                    if (key === 'create_time') {
+                        // 只要日期
+                        mappedItem[mappedKey] = formatDateOnly(value);
+                      } else if (['start_time', 'end_time', 'appoint_time'].includes(key)) {
                         mappedItem[mappedKey] = formatDateToLocal(value); // 调用你定义的 formatDateToLocal 函数
                     }
                     else {
@@ -1908,7 +1924,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 setShowSuccessToast(true); // 显示成功的Toast
                 setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast                   
                 fetchData('orders');
-
             } else {
                 setShowFailureToast(true)
             }
@@ -2229,14 +2244,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     const submitSupTransfer = async () => {
         try {
-          await axios.post(`${config.API_BASE_URL}/api/tests/reassign-supervisor`, {
-            test_item_id: currentItem.test_item_id,
-            newAccount:   targetAccount,
-          });
-          setShowSuccessToast(true); // 显示成功的Toast
-          setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast
-          setShowSupModal(false);
-          fetchDataForSupervisor(departmentID);
+            await axios.post(`${config.API_BASE_URL}/api/tests/reassign-supervisor`, {
+                test_item_id: currentItem.test_item_id,
+                newAccount: targetAccount,
+            });
+            setShowSuccessToast(true); // 显示成功的Toast
+            setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast
+            setShowSupModal(false);
+            fetchDataForSupervisor(departmentID);
         } catch (error) {
             console.error('Error submitting assignment:', error);
             setError('Failed to fetch data'); // 更新错误状态
@@ -2244,7 +2259,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             setShowAlert(true);
             setTimeout(() => setError(''), 3000); // 3秒后清除错误消息
         }
-      };
+    };
 
     // 转办
     const submitReassignment = async () => {
@@ -2469,7 +2484,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 setShowAlert(true);
                 return; // 阻止继续提交
             }
-
 
             // 如果是编辑模式，调用修改接口
             const apiUrl = isEditMode
@@ -2717,7 +2731,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'handleTests':
                     // 为员工定制的视图逻辑
-                    headers = ["委托单号", "我的检测项目", "状态", "样品名称", "材质", "客户名称", "联系人", "剩余天数", "负责人", "数量", "机时", "工时", "标准价格", "附件", "组长指派时间", "样品原号", "客户备注", "实验备注", "审批意见"];
+                    headers = ["委托单号", "我的检测项目", "状态", "样品名称", "材质", "客户名称", "联系人", "剩余天数", "负责人", "数量", "机时", "工时", "标准价格", "附件", "组长指派时间", "样品原号", "价格备注", "客户备注", "实验备注", "审批意见"];
                     if (loading) {
                         rows = [
                             <tr key="loading">
@@ -2767,6 +2781,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
                                 <td>{item.appoint_time ? new Date(item.appoint_time).toLocaleString() : ''}</td>
                                 <td>{highlightText(item.original_no, searchValue)}</td>
+                                <td>{highlightText(item.price_note, searchValue)}</td>
                                 <td>{highlightText(item.note, searchValue)}</td>
                                 <td>{highlightText(item.test_note, searchValue)}</td>
                                 <td>{highlightText(item.check_note, searchValue)}</td>
@@ -2865,7 +2880,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'handleTests':
                     // 为员工定制的视图逻辑
-                    headers = ["委托单号", "检测项目", "状态", "剩余天数", "样品原号", "样品名称", "材质", "客户名称", "联系人", "检测人员", "业务人员", "附件", "客户备注", "实验备注", "审批意见", "数量", "机时", "工时", "标准价格"];
+                    headers = ["委托单号", "检测项目", "状态", "剩余天数", "样品原号", "样品名称", "材质", "客户名称", "联系人", "检测人员", "业务人员", "附件", "价格备注", "客户备注", "实验备注", "审批意见", "数量", "机时", "工时", "标准价格"];
                     if (loading) {
                         rows = [
                             <tr key="loading">
@@ -2914,6 +2929,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     {item.sales_names ? highlightText(item.sales_names, searchValue) : '暂未分配'}
                                 </td>
                                 <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
+                                <td>{highlightText(item.price_note, searchValue)}</td>
                                 <td>{highlightText(item.note, searchValue)}</td>
                                 <td>{highlightText(item.test_note, searchValue)}</td>
                                 <td>{highlightText(item.check_note, searchValue)}</td>
@@ -3029,7 +3045,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             switch (selected) {
                 case 'handleTests':
                     // 为员工定制的视图逻辑
-                    headers = ["委托单号", "检测项目", "状态", "附件", "样品名称", "材质", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "负责人", "检测人员", "业务人员", "客户备注", "实验备注", "审批意见", "样品原号", "剩余天数"];
+                    headers = ["委托单号", "检测项目", "状态", "附件", "样品名称", "材质", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "负责人", "检测人员", "业务人员", "价格备注", "客户备注", "实验备注", "审批意见", "样品原号", "剩余天数"];
                     if (loading) {
                         rows = [
                             <tr key="loading">
@@ -3078,6 +3094,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>
                                     {item.sales_names ? highlightText(item.sales_names, searchValue) : '暂未分配'}
                                 </td>
+                                <td>{highlightText(item.price_note, searchValue)}</td>
                                 <td>{highlightText(item.note, searchValue)}</td>
                                 <td>{highlightText(item.test_note, searchValue)}</td>
                                 <td>{highlightText(item.check_note, searchValue)}</td>
@@ -3177,7 +3194,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } else if (role === 'sales') {
             switch (selected) {
                 case 'handleTests':
-                    headers = ["委托单号", "检测项目", "样品名称", "材质", "客户名称", "联系人", "数量", "机时", "标准价格", "实收(含税)价", "附件", "状态", "样品原号", "检测人员", "业务人员", "审批意见"];
+                    headers = ["委托单号", "检测项目", "样品名称", "材质", "客户名称", "联系人", "付款方名称", "付款联系人", "数量", "机时", "标准价格", "价格备注", "客户备注", "实收(含税)价", "附件", "状态", "样品原号", "检测人员", "业务人员", "审批意见"];
                     rows = currentItems.map((item, index) => (
                         <tr key={item.test_item_id}
                             className={item.status === '5' ? 'row-delivered' : ''}
@@ -3195,9 +3212,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>{item.material}</td>
                             <td>{highlightText(item.customer_name, searchValue)}</td>
                             <td>{highlightText(item.contact_name, searchValue)}</td>
+                            <td>{highlightText(item.payer_name, searchValue)}</td>
+                            <td>{highlightText(item.payer_contact_name, searchValue)}</td>
                             <td>{highlightText(item.quantity, searchValue)}</td>
                             <td>{highlightText(item.machine_hours, searchValue)}</td>
                             <td>{highlightText(item.listed_price, searchValue)}</td>
+                            <td>{highlightText(item.price_note, searchValue)}</td>
+                            <td>{highlightText(item.note, searchValue)}</td>
+
                             {/* <td>{item.discounted_price}</td> */}
                             {/* 双击编辑逻辑 */}
                             <td
@@ -3369,7 +3391,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     }
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "样品原号", "检测项目", "方法", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "客户备注", "实验备注", "审批意见"];
+                    headers = ["委托单号", "样品原号", "检测项目", "方法", "客户名称", "联系人", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "价格备注", "客户备注", "实验备注", "审批意见"];
                     if (loading) {
                         rows = [
                             <tr key="loading">
@@ -3412,6 +3434,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>{statusLabels[item.status]}</td>
                                 <td>{highlightText(item.team_names, searchValue)}</td>
                                 <td>{highlightText(item.sales_names, searchValue)}</td>
+                                <td>{highlightText(item.price_note, searchValue)}</td>
                                 <td>{highlightText(item.note, searchValue)}</td>
                                 <td>{highlightText(item.test_note, searchValue)}</td>
                                 <td>{highlightText(item.check_note, searchValue)}</td>
@@ -3635,7 +3658,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     });
                     break;
                 case 'getTests':
-                    headers = ["委托单号", "客户名称", "联系人", "检测项目", "样品原号", "样品名称", "材质", "方法", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "客户备注", "实验备注", "审批意见"];
+                    headers = ["委托单号", "客户名称", "联系人", "检测项目", "样品原号", "样品名称", "材质", "方法", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "价格备注", "客户备注", "实验备注", "审批意见"];
                     if (loading) {
                         rows = [
                             <tr key="loading">
@@ -3702,6 +3725,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>{statusLabels[item.status]}</td>
                                 <td>{highlightText(item.team_names, searchValue)}</td>
                                 <td>{highlightText(item.sales_names, searchValue)}</td>
+                                <td>{highlightText(item.price_note, searchValue)}</td>
                                 <td>{highlightText(item.note, searchValue)}</td>
                                 <td>{highlightText(item.test_note, searchValue)}</td>
                                 <td>{highlightText(item.check_note, searchValue)}</td>
@@ -3959,12 +3983,12 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             <option value="test_item">检测项目</option>
                                             <option value="customer_name">客户名称</option>
                                             <option value="contact_name">联系人名称</option>
+                                            <option value="payer_name">付款方名称</option>
+                                            <option value="payer_contact_name">付款方联系人</option>
                                             <option value="manager_names">负责人</option>
                                             <option value="team_names">实验员</option>
                                             <option value="sales_names">业务人员</option>
                                             <option value="note">客户备注</option>
-
-                                            {/* 根据需要添加更多选项 */}
                                         </select>
                                         <input
                                             type="text"
@@ -4322,6 +4346,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 onChange={(e) => setCurrentItem({ ...currentItem, quantity: e.target.value })}
                             />
                         </Form.Group>
+                        <Form.Group controlId="formPriceNote">
+                            <Form.Label>价格备注</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentItem.price_note || ''}
+                                onChange={(e) => setCurrentItem({ ...currentItem, price_note: e.target.value })}
+                            />
+                        </Form.Group>
                         <Form.Group controlId="formNote">
                             <Form.Label>备注</Form.Label>
                             <Form.Control
@@ -4500,6 +4532,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 type="number"
                                 value={addData.deadline}
                                 onChange={(e) => setAddData({ ...addData, deadline: e.target.value })}
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="formNote">
+                            <Form.Label>价格备注</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={addData.price_note}
+                                onChange={(e) => setAddData({ ...addData, price_note: e.target.value })}
                             />
                         </Form.Group>
                         <Form.Group controlId="formNote">
@@ -5325,6 +5365,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <p>数量：<span>{selectedDetails.quantity}</span></p>
                         </div>
                         <div className="detail-item">
+                            <p>价格备注：<span>{selectedDetails.price_note}</span></p>
+                        </div>
+                        <div className="detail-item">
                             <p>客户备注：<span>{selectedDetails.note}</span></p>
                         </div>
                         <div className="detail-item">
@@ -5354,7 +5397,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     </p>
                     <p>剩余天数：{(selectedDetails.status === '1' || selectedDetails.status === '2') ? renderDeadlineStatus(selectedDetails.deadline, selectedDetails.appoint_time) : ''}</p>
                     <TestItemFlow selectedDetails={selectedDetails} />
-                    <FileUpload testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh} />
+                    <FileUpload role={role} name={name} listedPrice={selectedDetails.listed_price} testItemId={selectedDetails.test_item_id} onCloseAndRefresh={handleCloseAndRefresh} />
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>关闭</Button>

@@ -3,7 +3,6 @@ import '../css/HomePage.css';
 
 const HomePage = ({ role, account, summaryData, deliveredData = [], onShowAssignment, onShowDetail, onShowCheck, onShowFinish, renderDeadlineStatus, loading, deliveredLoading }) => {
     const statusCounts = { '0': 0, '1': 0, '2': 0, '3': 0, '5': 0 };
-    console.log(deliveredLoading)
     let totalMachineHours = 0;
     let totalWorkHours = 0;
     let totalListedPrice = 0;
@@ -12,7 +11,7 @@ const HomePage = ({ role, account, summaryData, deliveredData = [], onShowAssign
     const notAssigned = [];
     const notTested = [];
     const notChecked = [];
-    const rawDataProjects = deliveredData.filter(d => d.has_raw_data);
+    const rawDataProjects = deliveredData.filter(d => d.has_raw_data && (!d.has_download_record));
     summaryData.forEach(order => {
         const status = order.status;
         if (statusCounts[status] !== undefined) {
@@ -233,7 +232,7 @@ const HomePage = ({ role, account, summaryData, deliveredData = [], onShowAssign
 
                         {role === 'sales' && rawDataProjects.length > 0 && account !== 'YW001' && (
                         <div className="block">
-                            <h3>已上传原始实验数据的项目：{rawDataProjects.length} 个</h3>
+                            <h3>已上传原始实验数据（未下载）的项目：{rawDataProjects.length} 个</h3>
 
                             {deliveredLoading ? (
                                 <p style={{opacity:.6}}>加载中…</p>

@@ -4,7 +4,7 @@ import config from '../config/config'; // 确保路径正确
 import '../css/FileUpload.css'; // 引入CSS文件
 import { Modal, Button } from 'react-bootstrap'; // 引入 Modal 组件
 
-const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
+const FileUpload = ({ role, name, listedPrice, testItemId, onCloseAndRefresh }) => {
 
     const [qrcode, setQrcode] = useState('');
     const [files, setFiles] = useState({
@@ -82,6 +82,13 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
     const onFileUpload = async (category) => {
         const categoryFiles = files[category];
         if (categoryFiles.length === 0) return;
+
+        if (category === '实验数据原始文件/记录' && (!listedPrice || listedPrice === 0)) {
+            setUploadStatus({ success: false, message: '请先 点击“完成”并填写标准价格！' });
+            setShowUploadModal(true);
+            return;
+        }
+        
         setUploading(prev => ({ ...prev, [category]: true }));
         const source = axios.CancelToken.source();
         setCancelSource(prev => ({ ...prev, [category]: source }));
@@ -193,16 +200,16 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
     const formatDateTime = (isoString) => {
         const d = new Date(isoString);
         return d.toLocaleString('zh-CN', {
-          year:   'numeric',
-          month:  '2-digit',
-          day:    '2-digit',
-          hour:   '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
         });
-      };
+    };
 
-      
+
     return (
         <div className="file-upload-container">
             <h5>委托单附件：</h5>
@@ -247,7 +254,9 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                                 )}
                                 &nbsp;
                                 <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
-                                <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
+                                {role !== 'sales' && (
+                                    <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
+                                )}
                             </li>
                         ))}
                     </ul>
@@ -289,15 +298,52 @@ const FileUpload = ({ testItemId, onCloseAndRefresh }) => {
                                 >
                                     (上传于{formatDateTime(file.upload_time)})
                                 </span>
-                                {/* 预览按钮（仅支持特定文件类型） */}
-                                {/\.(pdf|png|jpg|jpeg|gif|docx|pptx|xlsx|txt)$/i.test(file.filename) && (
-                                    <a href={`${config.API_BASE_URL}/api/files/preview/${file.filename}`} target="_blank" rel="noopener noreferrer">
-                                        预览
-                                    </a>
+
+                                {file.last_download_time && (
+                                    <span className="upload-time">（{file.last_download_by}下载于 {formatDateTime(file.last_download_time)}）</span>
                                 )}
-                                &nbsp;
-                                <a href={`${config.API_BASE_URL}/api/files/download/${file.filename}`} download>下载</a>
-                                <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
+                                {/* 预览按钮（仅支持特定文件类型） */}
+                                <div className="file-actions">
+                                    {/* 预览和下载链接另起一行 */}
+                                    {/\.(pdf|png|jpg|jpeg|gif|docx|pptx|xlsx|txt)$/i.test(file.filename) && (
+                                        <a href={`${config.API_BASE_URL}/api/files/preview/${file.filename}`} target="_blank" rel="noopener noreferrer">
+                                            预览
+                                        </a>
+                                    )}
+                                    &nbsp;
+                                    <button
+                                        className="download-button"
+                                        onClick={async () => {
+                                            try {
+                                                if (role === 'sales') {
+                                                    await axios.post(`${config.API_BASE_URL}/api/files/record-download`, {
+                                                        filename: file.filename,
+                                                        name,
+                                                    });
+                                                }
+
+                                                const response = await axios.get(`${config.API_BASE_URL}/api/files/download/${file.filename}`, {
+                                                    responseType: 'blob',
+                                                });
+
+                                                const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+                                                const link = document.createElement('a');
+                                                link.href = blobUrl;
+                                                link.setAttribute('download', file.filename);
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                            } catch (error) {
+                                                console.error('下载失败', error);
+                                            }
+                                        }}
+                                    >
+                                        下载
+                                    </button>
+                                    {role !== 'sales' && (
+                                        <button className="delete-button" onClick={() => confirmDelete(file.project_id)}>删除</button>
+                                    )}
+                                </div>
                             </li>
                         ))}
                     </ul>

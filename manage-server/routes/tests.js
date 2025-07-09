@@ -57,7 +57,7 @@ router.get('/', async (req, res) => {
     let orderNum = req.query.orderNum
     let role = req.query.role
     // 自动解析传入字段
-    const allowedSearchFields = ['order_num', 'test_item', 'customer_name', 'contact_name', 'contact_name', 'team_names', 'manager_names', 'sales_names', 'note'];
+    const allowedSearchFields = ['order_num', 'test_item', 'customer_name', 'contact_name', 'payer_name', 'payer_contact_name', 'team_names', 'manager_names', 'sales_names', 'note'];
     let searchColumn = null;
     let searchValue = null;
     for (const key of allowedSearchFields) {
@@ -91,7 +91,7 @@ router.get('/assignments/:userId', async (req, res) => {
     let customerName = req.query.customerName
     let orderNum = req.query.orderNum
     // 自动解析搜索字段
-    const allowedSearchFields = ['order_num', 'test_item', 'customer_name', 'contact_name', 'employeeName'];
+    const allowedSearchFields = ['order_num', 'test_item', 'customer_name', 'contact_name', 'payer_name', 'payer_contact_name', 'employeeName'];
     let searchColumn = null;
     let searchValue = null;
     for (const key of allowedSearchFields) {
@@ -520,7 +520,7 @@ router.patch('/:testItemId', async (req, res) => {
     const { testItemId } = req.params;
     const updatedFields = req.body;
     // 过滤掉不需要更新的字段
-    const allowedFields = ['original_no', 'test_item', 'test_method', 'size', 'quantity', 'order_num', 'note', 'status', 'machine_hours', 'work_hours', 'listed_price', 'discounted_price', 'check_note', 'create_time', 'deadline', 'department_id', 'price_id'];
+    const allowedFields = ['original_no', 'test_item', 'test_method', 'size', 'quantity', 'order_num', 'price_note', 'note', 'status', 'machine_hours', 'work_hours', 'listed_price', 'discounted_price', 'check_note', 'create_time', 'deadline', 'department_id', 'price_id'];
     const filteredFields = {};
     for (const key in updatedFields) {
         if (allowedFields.includes(key)) {

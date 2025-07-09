@@ -221,4 +221,17 @@ function getMimeType(filename) {
     return mimeTypes[ext] || 'application/octet-stream';
 }
 
+router.post('/record-download', async (req, res) => {
+    const { filename, name } = req.body;
+    const downloadTime = new Date();
+
+    try {
+        await db.recordFileDownloadTime(filename, name, downloadTime);
+        res.json({ success: true, message: 'Download time recorded' });
+    } catch (error) {
+        console.error('Failed to record download time:', error);
+        res.status(500).json({ success: false, message: 'Failed to record download time' });
+    }
+});
+
 module.exports = router;

@@ -68,13 +68,18 @@
 
 .file-item {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     margin-bottom: 10px;
+    gap: 8px;
 }
 
 /* 文件名样式 */
 .file-name {
+    flex: 1;
     margin-right: 10px;
+    min-width: 200px;
+    word-break: break-all;
     font-size: 14px;
 }
 
@@ -131,4 +136,20 @@
     color: #bebebe;
     opacity: 0.7;
     margin-left: 0.5em;
-  }
+}
+
+
+.file-actions {
+margin-top: 4px;
+}
+
+.file-actions a {
+margin-right: 12px;
+font-size: 16px;
+color: #007bff;
+text-decoration: none;
+}
+
+.file-actions a:hover {
+text-decoration: underline;
+}

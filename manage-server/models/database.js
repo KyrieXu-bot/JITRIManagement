@@ -57,7 +57,7 @@ async function getAllOrders(orderNum, departmentId, filterData) {
         query += 'AND t.department_id = ?';
         params.push(departmentId);
     }
-    if(filterData && filterData.trim().length > 0){
+    if (filterData && filterData.trim().length > 0) {
         query += `
             AND (
                 o.order_num LIKE ? OR
@@ -430,7 +430,7 @@ async function getAllSamples() {
 async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, searchColumn, searchValue, limit = 50, offset = 0) {
     const idParams = [];
     let idWhereClause = 'WHERE 1=1';
-    
+
     // 必须包含当前用户的分配记录
     idWhereClause += ' AND EXISTS (SELECT 1 FROM assignments a WHERE a.test_item_id = t2.test_item_id AND a.account = ?)';
     idParams.push(account);
@@ -476,7 +476,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
             } else if (searchColumn === 'team_names') {
                 roleCondition = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
             }
-    
+
             idWhereClause += `
                 AND EXISTS (
                     SELECT 1
@@ -496,6 +496,17 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
                     JOIN customers c ON o.customer_id = c.customer_id
                     WHERE o.order_num = t2.order_num
                     AND c.${searchColumn} LIKE ?
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else if (searchColumn === 'payer_name' || searchColumn === 'payer_contact_name') {
+            idWhereClause += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM orders o
+                    JOIN payments p ON o.payment_id = p.payment_id
+                    WHERE o.order_num = t2.order_num
+                    AND p.${searchColumn} LIKE ?
                 )
             `;
             idParams.push(`%${searchValue}%`);
@@ -575,16 +586,20 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
             t.material,
             t.sample_type,
             t.sample_preparation,
+            t.price_note,
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
                 ) THEN 1 ELSE 0
             END AS hasAttachments,
             c.customer_name,
-            c.contact_name
+            c.contact_name,
+            pa.payer_name,
+            pa.payer_contact_name
         FROM test_items t
         LEFT JOIN orders o ON t.order_num = o.order_num
         LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN payments pa ON o.payment_id = pa.payment_id
         LEFT JOIN equipment e ON e.equipment_id = t.equipment_id
         LEFT JOIN price p ON p.price_id = t.price_id
         LEFT JOIN (
@@ -616,6 +631,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
             t.test_item_id, 
             e.equipment_name, e.model, 
             c.customer_name, c.contact_name,
+            pa.payer_name, pa.payer_contact_name,
             manager_agg.manager_names,
             team_agg.team_names,
             sales_agg.sales_names
@@ -629,7 +645,7 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
 async function getAllTestItems(status, departmentId, month, customerName, orderNum, searchColumn, searchValue, role, limit = 50, offset = 0) {
     const idParams = [];
     let idWhereClause = 'WHERE 1=1';
-    
+
     if (departmentId) {
         idWhereClause += ' AND t.department_id = ?';
         idParams.push(departmentId);
@@ -672,7 +688,7 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             } else if (searchColumn === 'team_names') {
                 roleCondition = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
             }
-    
+
             idWhereClause += `
                 AND EXISTS (
                     SELECT 1
@@ -692,6 +708,17 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
                     JOIN customers c ON o.customer_id = c.customer_id
                     WHERE o.order_num = t2.order_num
                     AND c.${searchColumn} LIKE ?
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else if (searchColumn === 'payer_name' || searchColumn === 'payer_contact_name') {
+            idWhereClause += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM orders o
+                    JOIN payments p ON o.payment_id = p.payment_id
+                    WHERE o.order_num = t2.order_num
+                    AND p.${searchColumn} LIKE ?
                 )
             `;
             idParams.push(`%${searchValue}%`);
@@ -770,6 +797,7 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             t.material,
             t.sample_type,
             t.sample_preparation,
+            t.price_note,
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
@@ -782,10 +810,13 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
                 ) THEN 1 ELSE 0
             END AS hasReports,
             c.customer_name,
-            c.contact_name
+            c.contact_name,
+            pa.payer_name,
+            pa.payer_contact_name
         FROM test_items t
         LEFT JOIN orders o ON t.order_num = o.order_num
         LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN payments pa ON o.payment_id = pa.payment_id
         LEFT JOIN equipment e ON e.equipment_id = t.equipment_id
         LEFT JOIN price p ON p.price_id = t.price_id
         LEFT JOIN (
@@ -818,6 +849,7 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             t.test_item_id, 
             e.equipment_name, e.model, 
             c.customer_name, c.contact_name,
+            pa.payer_name, pa.payer_contact_name,
             manager_agg.manager_names,
             team_agg.team_names,
             sales_agg.sales_names
@@ -991,7 +1023,7 @@ async function updateTestItemStatus(finishData) {
     } catch (error) {
         await connection.rollback();
         console.error('Failed to update test item', error);
-        throw error; 
+        throw error;
     } finally {
         connection.release();
     }
@@ -1019,10 +1051,10 @@ async function updateTestItemCheckStatus(testItemId, status, checkNote, listedPr
 async function getAssignedTestsByUser(account, status, month, customerName, orderNum, searchColumn, searchValue, limit = 50, offset = 0) {
     const idParams = [account];
     let idWhereClause = 'WHERE 1=1';
-    
+
     // 必须包含当前用户的分配记录
     idWhereClause += ' AND EXISTS (SELECT 1 FROM assignments a WHERE a.test_item_id = t2.test_item_id AND a.account = ?)';
-    
+
     if (status) {
         idWhereClause += ' AND t2.status = ?';
         idParams.push(status);
@@ -1055,7 +1087,7 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
             } else if (searchColumn === 'team_names') {
                 roleCondition = `(ua.role = 'employee' OR (ua.role = 'supervisor' AND a.is_assigned = 1))`;
             }
-    
+
             idWhereClause += `
                 AND EXISTS (
                     SELECT 1
@@ -1075,6 +1107,17 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
                     JOIN customers c ON o.customer_id = c.customer_id
                     WHERE o.order_num = t2.order_num
                     AND c.${searchColumn} LIKE ?
+                )
+            `;
+            idParams.push(`%${searchValue}%`);
+        } else if (searchColumn === 'payer_name' || searchColumn === 'payer_contact_name') {
+            idWhereClause += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM orders o
+                    JOIN payments p ON o.payment_id = p.payment_id
+                    WHERE o.order_num = t2.order_num
+                    AND p.${searchColumn} LIKE ?
                 )
             `;
             idParams.push(`%${searchValue}%`);
@@ -1144,6 +1187,7 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
             t.material,
             t.sample_type,
             t.sample_preparation,
+            t.price_note,
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
@@ -1151,6 +1195,8 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
             END AS hasAttachments,
             c.customer_name,
             c.contact_name,
+            pa.payer_name,
+            pa.payer_contact_name,
             t.report_approved_time,
             t.report_rejected_time,
             t.report_note,
@@ -1163,6 +1209,7 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
         FROM test_items t
         LEFT JOIN orders o ON t.order_num = o.order_num
         LEFT JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN payments pa ON o.payment_id = pa.payment_id
         LEFT JOIN equipment e ON e.equipment_id = t.equipment_id
         LEFT JOIN price p ON p.price_id = t.price_id
         LEFT JOIN (
@@ -1194,6 +1241,7 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
             t.test_item_id, 
             e.equipment_name, e.model, 
             c.customer_name, c.contact_name,
+            pa.payer_name, pa.payer_contact_name,
             manager_agg.manager_names,
             team_agg.team_names,
             sales_agg.sales_names
@@ -1390,8 +1438,8 @@ async function getEmployeeWorkStats(departmentId, timePeriod) {
     else if (timePeriod.includes('季度')) {
         const year = timePeriod.split('年')[0].trim(); // 获取年份
         const quarter = timePeriod.includes('第一') ? '第一季度' :
-                        timePeriod.includes('第二') ? '第二季度' :
-                        timePeriod.includes('第三') ? '第三季度' : '第四季度'; // 获取季度
+            timePeriod.includes('第二') ? '第二季度' :
+                timePeriod.includes('第三') ? '第三季度' : '第四季度'; // 获取季度
 
         query = `
             SELECT 
@@ -1845,7 +1893,7 @@ async function getFilesByTestItemId(testItemId) {
     try {
         await connection.beginTransaction(); // 开始事务
 
-        const query = `SELECT filename, filepath, project_id, category, upload_time FROM project_files WHERE test_item_id = ?`;
+        const query = `SELECT filename, filepath, project_id, category, upload_time, last_download_time, last_download_by FROM project_files WHERE test_item_id = ?`;
         const [results] = await connection.query(query, [testItemId]);
         return results;
     } catch (error) {
@@ -1968,7 +2016,7 @@ async function addTestItem(addedFields) {
             addedFields.status = '1';
         }
 
-        const testItemFields = ['order_num', 'original_no', 'test_item', 'test_method', 'size', 'quantity', 'deadline', 'note', 'department_id', 'status', 'price_id']; // test_items 表中的字段
+        const testItemFields = ['order_num', 'original_no', 'test_item', 'test_method', 'size', 'quantity', 'deadline', 'price_note', 'note', 'department_id', 'status', 'price_id']; // test_items 表中的字段
         const filteredFields = {};
         for (let field of testItemFields) {
             if (addedFields[field] !== undefined) {
@@ -1995,7 +2043,7 @@ async function addTestItem(addedFields) {
         const [result] = await connection.query(query, values);
         const testItemId = result.insertId;
         // 将 test_item_id 和 account 插入到 assignments 表中
-        if(addedFields.sales_names){
+        if (addedFields.sales_names) {
             const insertAssignmentQuery = `
             INSERT INTO assignments (test_item_id, account, is_assigned)
             VALUES (?, ?, 1);
@@ -2004,7 +2052,7 @@ async function addTestItem(addedFields) {
             await connection.query(insertAssignmentQuery, [testItemId, account]);
         }
 
-         if (addedFields.role === 'supervisor' && addedFields.supervisor_account) {
+        if (addedFields.role === 'supervisor' && addedFields.supervisor_account) {
             const insertSupervisorQuery = `
                 INSERT INTO assignments (test_item_id, account, is_assigned)
                 VALUES (?, ?, 0);
@@ -2049,7 +2097,7 @@ async function addTestItem(addedFields) {
 
 async function getCustomers(filterData) {
     const connection = await db.getConnection();
-    let whereSql='';
+    let whereSql = '';
     let queryParams = [];
 
     // 如果 filterData 有值，添加模糊查询条件
@@ -2148,7 +2196,7 @@ async function getPayers(filterData) {
         const [rows] = await connection.query(query, queryParams);
         return rows;
 
-    } catch(error) {
+    } catch (error) {
         console.error('查询付款方失败:', error.message);
         throw error;
     } finally {
@@ -2248,8 +2296,8 @@ async function makeDeposit(paymentId, amount, description) {
     }
 }
 
-async function handleCheckout( orderNums, checkoutTime, invoiceNumber, amount ) {
-    const connection = await db.getConnection(); 
+async function handleCheckout(orderNums, checkoutTime, invoiceNumber, amount) {
+    const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
         // 查询指定订单的discounted_price是否存在
@@ -2425,8 +2473,8 @@ async function setFinalPrice(invoiceId, finalPrice) {
 
 // 执行更新操作的函数
 const updateCustomer = (customerData) => {
-    const { customer_id, customer_name, customer_address, contact_name, contact_phone_num, contact_email} = customerData;
-      const sql = `
+    const { customer_id, customer_name, customer_address, contact_name, contact_phone_num, contact_email } = customerData;
+    const sql = `
       UPDATE customers
       SET 
         customer_name = ?, 
@@ -2436,17 +2484,17 @@ const updateCustomer = (customerData) => {
         contact_email = ?
       WHERE customer_id = ?
     `;
-  
-    const values = [customer_name || null, 
-                    customer_address || null, 
-                    contact_name || null, 
-                    contact_phone_num || null, 
-                    contact_email || null, 
-                    customer_id];
+
+    const values = [customer_name || null,
+    customer_address || null,
+    contact_name || null,
+    contact_phone_num || null,
+    contact_email || null,
+        customer_id];
     return db.execute(sql, values);
-  };
-  
-  const updatePayer = (paymentData) => {
+};
+
+const updatePayer = (paymentData) => {
     const { payment_id, payer_name, payer_address, payer_phone_num, bank_name, tax_number, bank_account, payer_contact_name, payer_contact_phone_num, payer_contact_email, category, area, organization } = paymentData;
     const sql = `
       UPDATE payments
@@ -2464,25 +2512,25 @@ const updateCustomer = (customerData) => {
         organization = ?
       WHERE payment_id = ?
     `;
-  
+
     const values = [payer_name || null,
-                    payer_address || null, 
-                    payer_phone_num || null,
-                    bank_name || null,
-                    tax_number || null,
-                    bank_account || null,
-                    payer_contact_name || null,
-                    payer_contact_phone_num || null,
-                    payer_contact_email || null,
-                    area || null, 
-                    organization || null, 
-                    payment_id];
+    payer_address || null,
+    payer_phone_num || null,
+    bank_name || null,
+    tax_number || null,
+    bank_account || null,
+    payer_contact_name || null,
+    payer_contact_phone_num || null,
+    payer_contact_email || null,
+    area || null,
+    organization || null,
+        payment_id];
     return db.execute(sql, values);
-  };
+};
 
 
 
-  // 更新发票表
+// 更新发票表
 const updateInvoice = async (invoiceId, invoiceNumber, accountTime) => {
     return db.query(`
         UPDATE invoices 
@@ -2612,8 +2660,8 @@ async function checkTimeConflict(equipment_id, start_time, end_time, reservation
 
         // 执行查询并返回结果
         const params = reservation_id ? [equipment_id, start_time, end_time, reservation_id] : [equipment_id, start_time, end_time];
-        const [result] = await db.query(query, params);        
-        
+        const [result] = await db.query(query, params);
+
         // 返回冲突状态
         if (result.length > 0) {
             // 如果存在时间冲突，返回详细的冲突时间段
@@ -2634,7 +2682,7 @@ async function checkTimeConflict(equipment_id, start_time, end_time, reservation
         console.error('Error checking time conflict in database:', error);
         throw error;  // 将错误抛出给调用者处理
     }
-    
+
 }
 
 async function deliverTest(testItemId, status) {
@@ -2711,8 +2759,8 @@ async function duplicateTestItem(testItemData) {
             suffix = suffixes[0] + 1; // 增加后缀
         }
         newTestItemName = `${newTestItemName}-${suffix}`;
-        const query = 
-        `INSERT INTO test_items (
+        const query =
+            `INSERT INTO test_items (
             order_num, 
             original_no, 
             test_item, 
@@ -2729,7 +2777,7 @@ async function duplicateTestItem(testItemData) {
             appoint_time,
             price_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(),NOW(), ?)`;
-    
+
         const params = [
             testItemData.order_num,
             testItemData.original_no,
@@ -2744,11 +2792,11 @@ async function duplicateTestItem(testItemData) {
             testItemData.equipment_id,
             testItemData.price_id
         ];
-    
+
         const [result] = await db.query(query, params);
         await connection.commit();
         return result.insertId; // 返回新生成的 test_item_id
-        
+
 
     } catch (error) {
         await connection.rollback();
@@ -2877,9 +2925,9 @@ async function updateAppointTime(testItemId) {
             SET appoint_time = NOW()
             WHERE test_item_id = ?;
         `;
-        
+
         const [results] = await db.query(query, [testItemId]);
-        
+
         // 返回成功信息
         return results;
     } catch (error) {
@@ -2907,7 +2955,7 @@ async function getPrices(testCode, testItemName, testCondition) {
             query += ' AND test_condition LIKE ?';
             params.push(`%${testCondition}%`);
         }
-        
+
         const [results] = await connection.query(query, params);
         return results;
     } finally {
@@ -2986,7 +3034,7 @@ async function getAllTestItemsCount(status, departmentId, month, role, searchCol
 
     const [rows] = await db.query(query, params);
     return rows[0].total;
-    
+
 }
 
 async function getEmployeeTestItemsCount(status, departmentId, account, month, searchColumn, searchValue) {
@@ -3208,22 +3256,22 @@ async function getAllTestItemIds(status, departmentId, month, searchColumn, sear
 
 async function getSelectedOrderNums(ids) {
     if (!Array.isArray(ids) || ids.length === 0) {
-      return [];
+        return [];
     }
-  
+
     // mysql2 会自动把数组展平成逗号分隔
     const [rows] = await db.query(
-      `SELECT t.test_item_id, t.order_num,
+        `SELECT t.test_item_id, t.order_num,
             c.customer_name,
             c.contact_name
          FROM test_items t
        JOIN orders   o ON t.order_num = o.order_num
        JOIN customers c ON o.customer_id = c.customer_id
         WHERE test_item_id IN (?)`,
-      [ids]
+        [ids]
     );
     return rows;
-  }
+}
 
 async function updateReportCheckStatus(testItemId, status, reportNote) {
     const connection = await db.getConnection();
@@ -3404,9 +3452,9 @@ async function insertProjectFiles(fileDetails) {
 async function getCommissionInfo(orderNum, itemIds) {
     const conn = await db.getConnection();
     try {
-    /* --- 1. 订单 + 客户 + 付款方 --- */
-    const [order] = await conn.execute(
-        `SELECT  o.*, 
+        /* --- 1. 订单 + 客户 + 付款方 --- */
+        const [order] = await conn.execute(
+            `SELECT  o.*, 
                 c.customer_name,      c.customer_address,
                 c.contact_name,       c.contact_phone_num,  c.contact_email,
                 p.vat_type,           p.payer_name,          p.payer_address,
@@ -3419,29 +3467,29 @@ async function getCommissionInfo(orderNum, itemIds) {
         JOIN customers c ON o.customer_id = c.customer_id
         JOIN payments  p ON o.payment_id  = p.payment_id
         WHERE o.order_num = ?`,
-        [orderNum]
-    );
-    if (!order) return null;
+            [orderNum]
+        );
+        if (!order) return null;
 
-    /* --- 2. 报告信息（可为空） --- */
-    const [report] = await conn.execute(
-        `SELECT *
+        /* --- 2. 报告信息（可为空） --- */
+        const [report] = await conn.execute(
+            `SELECT *
         FROM reports
         WHERE order_num = ?
         LIMIT 1`,
-        [orderNum]
-    );
+            [orderNum]
+        );
 
-    /* --- 3. 样品处置 / 危险特性等（samples 表一行） --- */
-    const [sample] = await conn.execute(
-        `SELECT *
+        /* --- 3. 样品处置 / 危险特性等（samples 表一行） --- */
+        const [sample] = await conn.execute(
+            `SELECT *
         FROM samples
         WHERE order_num = ?
         LIMIT 1`,
-        [orderNum]
-    );
-    /* --- 4. 测试项目列表 --- */
-    const itemsSql = `
+            [orderNum]
+        );
+        /* --- 4. 测试项目列表 --- */
+        const itemsSql = `
   SELECT  t.test_item_id,
           t.sample_name,      t.material,        t.sample_type,
           t.original_no,      t.test_item,       t.test_method,
@@ -3455,11 +3503,11 @@ async function getCommissionInfo(orderNum, itemIds) {
      ${itemIds.length ? 'AND t.test_item_id IN (?)' : ''}
    ORDER BY t.test_item_id`;
 
-    const [items] = await conn.query(itemsSql, itemIds.length ? [orderNum, itemIds] : [orderNum]);
+        const [items] = await conn.query(itemsSql, itemIds.length ? [orderNum, itemIds] : [orderNum]);
 
-    /* 5. 业务员信息 -------------------------------------------------- */
-    // 取 assignments → users，只保留第一条
-    const salesSql = `
+        /* 5. 业务员信息 -------------------------------------------------- */
+        // 取 assignments → users，只保留第一条
+        const salesSql = `
       SELECT u.account,
              u.name           AS sales_name,
              u.user_email     AS sales_email,
@@ -3468,58 +3516,91 @@ async function getCommissionInfo(orderNum, itemIds) {
         JOIN users u ON a.account = u.account AND a.account LIKE '%YW%'
        WHERE a.test_item_id IN (${itemIds.map(() => '?').join(',')})
        LIMIT 1`;
-    const [salesRows] = await conn.execute(salesSql, itemIds);
-    const sales = salesRows[0] || {};
+        const [salesRows] = await conn.execute(salesSql, itemIds);
+        const sales = salesRows[0] || {};
 
-    return { order, report, sample, items, sales };
+        return { order, report, sample, items, sales };
     } finally {
-    conn.release();
+        conn.release();
     }
 }
 
 // 放在其它查询之后，别忘了 export
 async function getTestsWithRawData(account) {
     const sql = `
-      SELECT  DISTINCT  t.test_item_id,
-              t.order_num,
-              t.test_item,
-              EXISTS (
-                SELECT 1 FROM project_files pf
-                WHERE pf.test_item_id = t.test_item_id
-                  AND pf.category = '实验数据原始文件/记录'
-              ) AS has_raw_data
-      FROM test_items t
-      JOIN assignments a ON a.test_item_id = t.test_item_id
-      WHERE a.account = ?
-      ORDER BY t.order_num, t.test_item_id;
+      SELECT DISTINCT
+        t.test_item_id,
+        t.order_num,
+        t.test_item,
+        CASE WHEN raw.pf_id IS NOT NULL THEN 1 ELSE 0 END AS has_raw_data,
+        CASE WHEN raw_dl.pf_id IS NOT NULL THEN 1 ELSE 0 END AS has_download_record
+        FROM test_items t
+        JOIN assignments a ON a.test_item_id = t.test_item_id
+        LEFT JOIN (
+            SELECT test_item_id, MIN(id) AS pf_id
+            FROM project_files
+            WHERE category = '实验数据原始文件/记录'
+            GROUP BY test_item_id
+        ) raw ON raw.test_item_id = t.test_item_id
+        LEFT JOIN (
+            SELECT test_item_id, MIN(id) AS pf_id
+            FROM project_files
+            WHERE category = '实验数据原始文件/记录'
+            AND last_download_time IS NOT NULL
+            GROUP BY test_item_id
+        ) raw_dl ON raw_dl.test_item_id = t.test_item_id
+        WHERE a.account = ?
+        ORDER BY t.order_num, t.test_item_id;
     `;
     const [rows] = await db.query(sql, [account]);
     return rows;
-  }
+}
 
-  async function reassignSupervisor(test_item_id, newAccount) {
+async function reassignSupervisor(test_item_id, newAccount) {
     const conn = await db.getConnection();
     try {
-      await conn.beginTransaction();
-  
-      // 1. assignments：只更新“主管理”那一条（account 属于 supervisor 角色）
-      await conn.query(`
+        await conn.beginTransaction();
+
+        // 1. assignments：只更新“主管理”那一条（account 属于 supervisor 角色）
+        await conn.query(`
         UPDATE assignments AS a
         JOIN users u ON a.account = u.account
         SET a.account = ?
         WHERE a.test_item_id = ?
           AND u.role = 'supervisor'`,
-        [newAccount, test_item_id]
-      );
+            [newAccount, test_item_id]
+        );
 
-      await conn.commit();
+        await conn.commit();
     } catch (err) {
-      await conn.rollback();
-      throw err;
+        await conn.rollback();
+        throw err;
     } finally {
-      conn.release();
+        conn.release();
     }
-  }
+}
+
+
+async function recordFileDownloadTime(filename, name, time) {
+    const conn = await db.getConnection();
+
+    try {
+        await conn.beginTransaction();
+        await conn.query(`
+            UPDATE project_files 
+            SET last_download_time = ?, last_download_by = ?
+            WHERE filename = ?`,
+            [time, name, filename]
+        );
+
+        await conn.commit();
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
+}
 
 module.exports = {
     getConnection,
@@ -3613,5 +3694,6 @@ module.exports = {
     getSelectedOrderNums,
     getCommissionInfo,
     getTestsWithRawData,
-    reassignSupervisor
+    reassignSupervisor,
+    recordFileDownloadTime
 };
