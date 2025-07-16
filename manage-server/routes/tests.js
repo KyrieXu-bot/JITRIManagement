@@ -811,7 +811,6 @@ router.post('/exportCommissionWord', async (req, res) => {
     const orderNum = uniq[0];
     /* ---------- 2. 拉数据 ---------- */
     const info = await db.getCommissionInfo(orderNum, selectedOrders);
-    console.log(info)
     if (!info) return res.status(404).send('委托单不存在');
     const order = (info.order && info.order[0]) || {};
     const report = (info.report && info.report[0]) || {};

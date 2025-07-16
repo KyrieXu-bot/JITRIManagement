@@ -279,7 +279,8 @@ async function getTestForExcelForSales(selectedOrders) {
         LEFT JOIN
             customers c ON o.customer_id = c.customer_id
         WHERE t.test_item_id IN (${placeholders})
-        GROUP BY t.test_item_id, c.customer_name, c.contact_name;
+        GROUP BY t.test_item_id, c.customer_name, c.contact_name, t.order_num
+        order by t.order_num;
     `
     try {
         const [results] = await db.query(query, selectedOrders);
@@ -407,9 +408,10 @@ async function deleteOrder(orderNum) {
 
 
 
-async function getAllSamples() {
-    const query = `
+async function getAllSamples(month, sampleSolutionType, orderNum) {
+    let query = `
         SELECT 
+            s.sample_id,
             s.sample_solution_type,
             s.sample_type,
             s.order_num,
@@ -422,7 +424,30 @@ async function getAllSamples() {
             s.order_num
         FROM samples s
     `;
-    const [results] = await db.query(query);
+
+    const params = [];
+    let whereAdded = false;
+
+    if (sampleSolutionType) {
+        query += `${whereAdded ? ' AND' : ' WHERE'} s.sample_solution_type = ?`;
+        params.push(sampleSolutionType);
+        whereAdded = true;
+    }
+
+    if (orderNum) {
+        query += `${whereAdded ? ' AND' : ' WHERE'} s.order_num LIKE ?`;
+        params.push(`%${orderNum}%`);
+    }
+
+    if (month) {
+        const [year, monthPart] = month.split('-');
+        const monthComparison = `${year.slice(2)}${monthPart}`;
+        query += `${whereAdded ? ' AND' : ' WHERE'} MID(s.order_num, 3, 4) = ?`;
+        params.push(monthComparison);
+    }
+
+
+    const [results] = await db.query(query, params);
     return results;
 }
 

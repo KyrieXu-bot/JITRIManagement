@@ -102,6 +102,8 @@ const Sidebar = ({ onSelect, selected, role, isLoading }) => {
                     <>
                         <li className={selected === 'getTests' ? 'active' : ''} onClick={() => onSelect('getTests')}>检测项目处理</li>
                         <li className={selected === 'getCommission' ? 'active' : ''} onClick={() => onSelect('getCommission')}>委托单</li>
+                        <li className={selected === 'getSamples' ? 'active' : ''} onClick={() => onSelect('getSamples')}>样品管理</li>
+
                     </>
                 )}
 

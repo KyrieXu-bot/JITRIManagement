@@ -417,8 +417,8 @@ router.post('/', async (req, res) => {
     
     
     const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,            // 处理 {#…} 循环
-      linebreaks: true,            // 保持换行
+      paragraphLoop: true, 
+      linebreaks: true,
       nullGetter: () => '',
       undefinedGetter: () => '',
       modules: [imageModule]    // 挂载图片模块
@@ -431,7 +431,6 @@ router.post('/', async (req, res) => {
     // 4. 提交事务
     await connection.commit();
 
-    // 5. 返回文档
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'Content-Disposition': `attachment; filename=${reportType}_${order_num}.docx`
@@ -439,7 +438,6 @@ router.post('/', async (req, res) => {
     res.send(buf);
 
   } catch (err) {
-    // 如果在事务内 出现任何异常，回滚
     if (connection) {
       try { await connection.rollback(); }
       catch (rollbackErr) {
@@ -447,7 +445,6 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // 根据自定义错误类型返回不同状态
     if (err.message === 'ORDER_NOT_FOUND') {
       return res.status(404).send('订单未找到');
     }
@@ -455,7 +452,6 @@ router.post('/', async (req, res) => {
     res.status(500).send('文档生成失败');
 
   } finally {
-    // 最后一定释放连接
     if (connection) connection.release();
   }
 });

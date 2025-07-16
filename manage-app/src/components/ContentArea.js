@@ -29,7 +29,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [totalItemsCountFromServer, setTotalItemsCountFromServer] = useState(0);
     const [summaryItems, setSummaryItems] = useState([]); // 首页概览统计数据
     const [isBatchMode, setIsBatchMode] = useState(false);
-
+    const [filterSampleSolutionType, setFilterSampleSolutionType] = useState('');
+    const [filterSampleOrderNum, setFilterSampleOrderNum] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSuccessToast, setShowSuccessToast] = useState(false); // 控制Toast显示的状态
     const [showFailureToast, setShowFailureToast] = useState(false); // 控制Toast显示的状态
@@ -75,6 +76,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [selectedInvoices, setSelectedInvoices] = useState(new Set());
     const [isAllSelected, setIsAllSelected] = useState(false);
     const [isAllSelectedInvoices, setIsAllSelectedInvoices] = useState(false);
+    const [selectedSamples, setSelectedSamples] = useState([]);
+    const [isAllSamplesSelected, setIsAllSamplesSelected] = useState(false);
+
     const [selectedLabel, setSelectedLabel] = useState(''); // 当前选择的设备分类标签
     const [filteredEquipments, setFilteredEquipments] = useState([]); // 二级菜单：根据分类标签筛选设备
     const [transactionType, setTransactionType] = useState('');
@@ -302,6 +306,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         { key: 'Unknown', label: '未知' }
     ];
 
+
+    const sampleFieldMap = {
+        order_num:             '委托单号',
+        sample_solution_type:  '样品处置',
+      };
+      
+      // Excel 列顺序
+      const sampleHeaders = [
+        '委托单号',
+        '样品处置',
+      ];
+
     // 在组件外部构建映射表
     const hazardMap = Object.fromEntries(
         hazardOptions.map(({ key, label }) => [key, label])
@@ -403,6 +419,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (searchColumn && searchValue) {
                 params.append(searchColumn, searchValue);
             }
+            if (endpoint === 'samples') {
+                if (filterSampleSolutionType) params.append('sampleSolutionType', filterSampleSolutionType);
+                if (filterSampleOrderNum) params.append('orderNum', filterSampleOrderNum);
+            }
             const response = await axios.get(`${config.API_BASE_URL}/api/${endpoint}?${params}`);
             if (response.data) {
                 setIsLoading(false);
@@ -420,7 +440,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         } finally {
             setLoading(false); // 数据加载完成
         }
-    }, [setError, activePage, setIsLoading, filterStatus, selectedMonth, departmentID, filterData, searchColumn, searchValue]);
+    }, [setError,
+        activePage,
+        setIsLoading,
+        filterStatus,
+        selectedMonth,
+        departmentID,
+        filterData,
+        searchColumn,
+        searchValue,
+        filterSampleSolutionType,
+        filterSampleOrderNum
+    ]);
 
 
     //拉取工程师显示数据
@@ -899,6 +930,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (selected === 'getCommission') {
                 fetchData('orders');
             } else if (selected === 'getSamples') {
+                fetchTimePeriods('month');
+
                 fetchData('samples');
             } else if (selected === 'getTests') {
                 fetchData('tests');
@@ -1419,6 +1452,49 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     }
 
+
+    const exportSamplesExcel = async () => {
+        setExportLoading(l => ({ ...l, sampleExcel: true }));
+        try {
+          const response = await axios.post(
+            `${config.API_BASE_URL}/api/samples/exportSampleData`,
+            { selectedSamples }
+          );
+          const raw = response.data;
+      
+          // 字段名映射 & 格式化
+          const mapped = raw.map(r => {
+            const obj = {};
+            Object.keys(r).forEach(k => {
+              if (!sampleFieldMap[k]) return;                // 忽略无用字段
+              let v = r[k];
+              if (k === 'sample_solution_type') {
+                v = sampleSolutionTypeLabels[v] ?? v;   // 找不到标签时保留数字
+              }
+              
+              // 例如把 0/1 转 “否/是” —— 根据业务自行添加
+              if (['magnetism','conductivity','breakable','brittle'].includes(k)) {
+                v = v ? '是' : '否';
+              }
+              obj[sampleFieldMap[k]] = v;
+            });
+            return obj;
+          });
+      
+          // 生成 Excel
+          const ws = XLSX.utils.json_to_sheet(mapped, { header: sampleHeaders });
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, '样品列表');
+          XLSX.writeFile(wb, '样品列表.xlsx');
+        } catch (err) {
+          console.error('样品导出失败:', err);
+          setError('导出失败');
+        } finally {
+          setExportLoading(l => ({ ...l, sampleExcel: false }));
+        }
+    };
+
+
     /** 2. 委托单 Word */
     const exportCommissionWord = async () => {
         setExportLoading(l => ({ ...l, commissionWord: true }));
@@ -1527,7 +1603,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     if (key === 'create_time') {
                         // 只要日期
                         mappedItem[mappedKey] = formatDateOnly(value);
-                      } else if (['start_time', 'end_time', 'appoint_time'].includes(key)) {
+                    } else if (['start_time', 'end_time', 'appoint_time'].includes(key)) {
                         mappedItem[mappedKey] = formatDateToLocal(value); // 调用你定义的 formatDateToLocal 函数
                     }
                     else {
@@ -1821,7 +1897,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 if (searchColumn && searchValue) {
                     body[searchColumn] = searchValue;
                 }
-                console.log(body)
                 const { data: ids } = await axios.post(
                     `${config.API_BASE_URL}/api/tests/ids`,   // <- 用 POST
                     body
@@ -1851,6 +1926,25 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
         setIsAllSelectedInvoices(!isAllSelectedInvoices);  // 切换全选状态
     };
+
+    const handleCheckboxChangeSample = id => {
+        setSelectedSamples(prev => {
+            const next = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id];
+            setIsAllSamplesSelected(next.length === data.length); // data 是当前过滤后的可见样品
+            return next;
+        });
+    };
+
+    // 全选
+    const handleSelectAllSamples = () => {
+        if (isAllSamplesSelected) {
+            setSelectedSamples([]);
+        } else {
+            setSelectedSamples(data.map(i => i.sample_id));
+        }
+        setIsAllSamplesSelected(!isAllSamplesSelected);
+    };
+
 
     //获取设备预约时间线
     // const toggleScheduleView = () => {
@@ -3448,6 +3542,58 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         ));
                     }
                     break;
+                case 'getSamples':
+                    headers = ["订单编号", "样品处置", "危险特性", "其他危险说明", "磁性", "导电性", "是否可破坏", "是否孤品",];
+                    rows = currentItems.map((item, index) => {
+                        // 解析 hazards（可能是 JSON 字符串，也可能已经是数组）
+                        const hazardKeys = Array.isArray(item.hazards)
+                            ? item.hazards
+                            : JSON.parse(item.hazards || '[]');
+
+                        return (
+                            <tr key={index}>
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedSamples.includes(item.sample_id)}
+                                        onChange={() => handleCheckboxChangeSample(item.sample_id)}
+                                    />
+                                </td>
+                                <td>{item.order_num}</td>
+                                <td>{sampleSolutionTypeLabels[item.sample_solution_type]}</td>
+                                {/* 多选的 hazards，用 mapKeysToLabels 转成中文标签 */}
+                                <td>{mapKeysToLabels(hazardKeys, hazardMap)}</td>
+
+                                <td>{item.hazard_other || '—'}</td>
+
+                                {/* 单选字段直接查表 */}
+                                <td>{magnetismMap[item.magnetism] || item.magnetism || '—'}</td>
+                                <td>{conductivityMap[item.conductivity] || item.conductivity || '—'}</td>
+
+                                {/* 布尔型字段，根据 yes/no 渲染 */}
+                                <td>
+                                    {item.breakable === 'yes'
+                                        ? '可破坏'
+                                        : item.breakable === 'no'
+                                            ? '不可破坏'
+                                            : '—'}
+                                </td>
+                                <td>
+                                    {item.brittle === 'yes'
+                                        ? '是'
+                                        : item.brittle === 'no'
+                                            ? '否'
+                                            : '—'}
+                                </td>
+
+                                <td className="fixed-column">
+                                    <Button onClick={() => handleEditSamples(item)}>修改</Button>
+                                </td>
+                            </tr>
+                        );
+                    });
+                    break;
+
                 default:
                     headers = ["暂无数据"];
                     rows = <tr><td colSpan={headers.length}>No data selected or available</td></tr>;
@@ -3623,6 +3769,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
                         return (
                             <tr key={index}>
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedOrders.includes(item.test_item_id)}
+                                        onChange={() => handleCheckboxChange(item.test_item_id)}
+                                    />
+                                </td>
                                 <td>{item.order_num}</td>
                                 <td>{sampleSolutionTypeLabels[item.sample_solution_type]}</td>
                                 {/* 多选的 hazards，用 mapKeysToLabels 转成中文标签 */}
@@ -4134,6 +4287,56 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         )}
                                     </div>
                                 </div>
+                            ) : selected === 'getSamples' ? (
+                                <div className="searchBar">
+                                    <div>
+                                        <span>月份：</span>
+
+                                        {periodOptions && (
+                                            <>
+                                                <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                                                    <option value="">选择月份</option>
+                                                    {periodOptions.map((option, index) => (
+                                                        <option key={index} value={option.month}>
+                                                            {option.month}
+                                                        </option>
+                                                    ))}
+                                                </select>&nbsp;&nbsp;&nbsp;
+                                            </>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <span>样品处置：</span>
+                                        <select
+                                            value={filterSampleSolutionType}
+                                            onChange={e => setFilterSampleSolutionType(e.target.value)}
+                                        >
+                                            <option value="">全部</option>
+                                            {Object.entries(sampleSolutionTypeLabels).map(([key, label]) => (
+                                                <option key={key} value={key}>{label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span>委托单号：</span>
+                                        <input
+                                            type="text"
+                                            value={filterSampleOrderNum}
+                                            onChange={e => setFilterSampleOrderNum(e.target.value)}
+                                            placeholder="输入委托单号"
+                                        />
+                                        <button onClick={() => fetchData('samples')}>查询</button>
+                                    </div>
+
+                                    <div>
+                                        <button
+                                            onClick={exportSamplesExcel}
+                                            disabled={!selectedSamples.length}
+                                        >
+                                            导出 Excel
+                                        </button>
+                                    </div>
+                                </div>
                             ) : (
                                 <div>
                                 </div>
@@ -4201,6 +4404,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <table>
                                     <thead>
                                         <tr>
+                                            {(selected === 'getSamples') && (
+                                                <th>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isAllSamplesSelected}
+                                                        onChange={handleSelectAllSamples}
+                                                    />
+                                                    &nbsp;全选
+                                                </th>
+                                            )}
                                             {(selected === 'handleTests' || selected === 'getTests') && (
                                                 <th>
                                                     <input
