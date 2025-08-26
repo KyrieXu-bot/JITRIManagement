@@ -177,9 +177,9 @@ async function getCommissionForExcel(selectedOrders) {
     }
 }
 
-async function getTestForExcel(selectedOrders) {
+async function getTestForExcel(selectedTestItemIds) {
     // 将传入的 test_item_id 转为数组形式，以防止 SQL 注入
-    const placeholders = selectedOrders.map(() => '?').join(', ');
+    const placeholders = selectedTestItemIds.map(() => '?').join(', ');
     const query = `
     SELECT 
             t.original_no,
@@ -199,9 +199,8 @@ async function getTestForExcel(selectedOrders) {
             t.create_time,
             t.deadline,
             t.department_id,
-            r.start_time,
-            r.end_time,
             t.appoint_time,
+            t.latest_finish_time,
             IFNULL(e.equipment_name, '') AS equipment_name,
             e.model,
             (SELECT COALESCE(GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', '), '') 
@@ -246,10 +245,10 @@ async function getTestForExcel(selectedOrders) {
         LEFT JOIN 
             users u ON u.account = a.account
         WHERE t.test_item_id IN (${placeholders})
-        GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name, r.start_time, r.end_time;
+        GROUP BY t.test_item_id, e.equipment_name, e.model, c.customer_name, c.contact_name;
     `
     try {
-        const [results] = await db.query(query, selectedOrders);
+        const [results] = await db.query(query, selectedTestItemIds);
         return results;
     } catch (error) {
         console.error("Error fetching test items:", error);
@@ -258,9 +257,9 @@ async function getTestForExcel(selectedOrders) {
 }
 
 
-async function getTestForExcelForSales(selectedOrders) {
+async function getTestForExcelForSales(selectedTestItemIds) {
     // 将传入的 test_item_id 转为数组形式，以防止 SQL 注入
-    const placeholders = selectedOrders.map(() => '?').join(', ');
+    const placeholders = selectedTestItemIds.map(() => '?').join(', ');
     const query = `
     SELECT 
             t.test_item,
@@ -268,22 +267,27 @@ async function getTestForExcelForSales(selectedOrders) {
             t.order_num,
             t.note,
             t.machine_hours,
+            t.price_note,
             t.listed_price,
             t.create_time,
             c.customer_name,
-            c.contact_name
+            c.contact_name,
+            p.payer_name,
+            p.payer_contact_name
         FROM
             test_items t
         LEFT JOIN
             orders o ON t.order_num = o.order_num
         LEFT JOIN
             customers c ON o.customer_id = c.customer_id
+        LEFT JOIN
+            payments p ON o.payment_id = p.payment_id
         WHERE t.test_item_id IN (${placeholders})
-        GROUP BY t.test_item_id, c.customer_name, c.contact_name, t.order_num
+        GROUP BY t.test_item_id, c.customer_name, c.contact_name, t.order_num, p.payer_name, p.payer_contact_name
         order by t.order_num;
     `
     try {
-        const [results] = await db.query(query, selectedOrders);
+        const [results] = await db.query(query, selectedTestItemIds);
         return results;
     } catch (error) {
         console.error("Error fetching test items:", error);
@@ -437,6 +441,7 @@ async function getAllSamples(month, sampleSolutionType, orderNum) {
     if (orderNum) {
         query += `${whereAdded ? ' AND' : ' WHERE'} s.order_num LIKE ?`;
         params.push(`%${orderNum}%`);
+        whereAdded = true;
     }
 
     if (month) {
@@ -444,13 +449,33 @@ async function getAllSamples(month, sampleSolutionType, orderNum) {
         const monthComparison = `${year.slice(2)}${monthPart}`;
         query += `${whereAdded ? ' AND' : ' WHERE'} MID(s.order_num, 3, 4) = ?`;
         params.push(monthComparison);
+        whereAdded = true;
     }
-
 
     const [results] = await db.query(query, params);
     return results;
 }
 
+
+
+async function getAllReports() {
+    let query = `
+        SELECT 
+            r.order_num,
+            r.type,
+            r.paper_report_shipping_type,
+            r.report_additional_info,
+            r.header_type,
+            r.header_other,
+            r.format_type
+        FROM reports r
+    `;
+
+    const params = [];
+
+    const [results] = await db.query(query, params);
+    return results;
+}
 
 async function getEmployeeTestItems(status, departmentId, account, month, customerName, orderNum, searchColumn, searchValue, limit = 50, offset = 0) {
     const idParams = [];
@@ -612,11 +637,17 @@ async function getEmployeeTestItems(status, departmentId, account, month, custom
             t.sample_type,
             t.sample_preparation,
             t.price_note,
-            CASE 
-                WHEN EXISTS (
-                    SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
-                ) THEN 1 ELSE 0
-            END AS hasAttachments,
+            IFNULL((
+            SELECT GROUP_CONCAT(DISTINCT
+                CASE f.category
+                    WHEN '委托单附件' THEN '委'
+                    WHEN '实验数据原始文件/记录' THEN '数'
+                    WHEN '文件报告' THEN '报'
+                    ELSE NULL
+                END ORDER BY f.category SEPARATOR ',')
+            FROM project_files f
+            WHERE f.test_item_id = t.test_item_id
+            ), '0') AS attachment_types,
             c.customer_name,
             c.contact_name,
             pa.payer_name,
@@ -823,11 +854,17 @@ async function getAllTestItems(status, departmentId, month, customerName, orderN
             t.sample_type,
             t.sample_preparation,
             t.price_note,
-            CASE 
-                WHEN EXISTS (
-                    SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
-                ) THEN 1 ELSE 0
-            END AS hasAttachments,
+            IFNULL((
+                SELECT GROUP_CONCAT(DISTINCT
+                    CASE f.category
+                        WHEN '委托单附件' THEN '委'
+                        WHEN '实验数据原始文件/记录' THEN '数'
+                        WHEN '文件报告' THEN '报'
+                        ELSE NULL
+                    END ORDER BY f.category SEPARATOR ',')
+                FROM project_files f
+                WHERE f.test_item_id = t.test_item_id
+            ), '0') AS attachment_types,
             CASE
                 WHEN EXISTS (
                     SELECT 1 FROM project_files f
@@ -1213,11 +1250,17 @@ async function getAssignedTestsByUser(account, status, month, customerName, orde
             t.sample_type,
             t.sample_preparation,
             t.price_note,
-            CASE 
-                WHEN EXISTS (
-                    SELECT 1 FROM project_files f WHERE f.test_item_id = t.test_item_id
-                ) THEN 1 ELSE 0
-            END AS hasAttachments,
+            IFNULL((
+                SELECT GROUP_CONCAT(DISTINCT
+                    CASE f.category
+                        WHEN '委托单附件' THEN '委'
+                        WHEN '实验数据原始文件/记录' THEN '数'
+                        WHEN '文件报告' THEN '报'
+                        ELSE NULL
+                    END ORDER BY f.category SEPARATOR ',')
+                FROM project_files f
+            WHERE f.test_item_id = t.test_item_id
+            ), '0') AS attachment_types,
             c.customer_name,
             c.contact_name,
             pa.payer_name,
@@ -2740,8 +2783,12 @@ async function deliverTest(testItemId, status) {
 
 // 获取检测项目的详细信息
 async function getTestItemById(testItemId) {
-    const query = `SELECT original_no, test_item, test_method, size, quantity, note, status, department_id, deadline,order_num, price_id
-                   FROM test_items WHERE test_item_id = ?`;
+    const query = `
+    SELECT 
+        original_no, test_item, test_method, size, quantity, note, status, department_id, deadline,order_num, price_id,
+        material, sample_name, sample_type, sample_preparation, price_note
+    FROM test_items 
+    WHERE test_item_id = ?`;
     const [results] = await db.query(query, [testItemId]);
     return results[0];
 }
@@ -2790,6 +2837,11 @@ async function duplicateTestItem(testItemData) {
             original_no, 
             test_item, 
             test_method, 
+            sample_name,
+            material,
+            sample_type,
+            sample_preparation,
+            price_note,
             size, 
             quantity, 
             note, 
@@ -2801,13 +2853,18 @@ async function duplicateTestItem(testItemData) {
             assign_time,
             appoint_time,
             price_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(),NOW(), ?)`;
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(),NOW(), ?)`;
 
         const params = [
             testItemData.order_num,
             testItemData.original_no,
             newTestItemName,
             testItemData.test_method,
+            testItemData.sample_name,
+            testItemData.material,
+            testItemData.sample_type,
+            testItemData.sample_preparation,
+            testItemData.price_note,
             testItemData.size,
             testItemData.quantity,
             testItemData.note,
@@ -3198,6 +3255,16 @@ async function getAssignedTestsCountByUser(account, status, month, searchColumn,
                 )
             `;
             params.push(`%${searchValue}%`);
+        } else if (['payer_name', 'payer_contact_name'].includes(searchColumn)) {
+            query += `
+                AND EXISTS (
+                    SELECT 1 FROM orders o3
+                    JOIN payments p ON o3.payment_id = p.payment_id
+                    WHERE o3.order_num = t.order_num
+                    AND p.${searchColumn} LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
         } else {
             query += ` AND t.${searchColumn} LIKE ?`;
             params.push(`%${searchValue}%`);
@@ -3270,6 +3337,17 @@ async function getAllTestItemIds(status, departmentId, month, searchColumn, sear
                 )
             `;
             params.push(`%${searchValue}%`);
+        } else if (searchColumn === 'payer_name' || searchColumn === 'payer_contact_name') {
+            query += `
+                AND EXISTS (
+                    SELECT 1
+                    FROM orders o3
+                    JOIN payments p ON o3.payment_id = p.payment_id
+                    WHERE o3.order_num = t.order_num
+                    AND p.${searchColumn} LIKE ?
+                )
+            `;
+            params.push(`%${searchValue}%`);
         } else {
             query += ` AND t.${searchColumn} LIKE ?`;
             params.push(`%${searchValue}%`);
@@ -3295,6 +3373,7 @@ async function getSelectedOrderNums(ids) {
         WHERE test_item_id IN (?)`,
         [ids]
     );
+
     return rows;
 }
 
@@ -3448,25 +3527,74 @@ async function getTestItemSummary(role, account, departmentId) {
     return rows;
 }
 
-async function insertProjectFiles(fileDetails) {
-    if (!Array.isArray(fileDetails) || fileDetails.length === 0) return;
-    const placeholders = fileDetails.map(() => '(?, ?, ?, ?, ?)').join(',');
-    // 展平参数： [fn, fp, tid, cat, fn, fp, tid, cat, …]
-    const params = fileDetails.flatMap(f => [
-        f.project_id,
-        f.filename,
-        f.filepath,
-        f.test_item_id,
-        f.category
-    ]);
-    const sql = `
-        INSERT INTO project_files
-        (project_id, filename, filepath, test_item_id, category)
-        VALUES ${placeholders}
-    `;
-    await db.query(sql, params);
-}
+// async function insertProjectFiles(fileDetails) {
+//     if (!Array.isArray(fileDetails) || fileDetails.length === 0) return;
+//     const placeholders = fileDetails.map(() => '(?, ?, ?, ?, ?)').join(',');
+//     // 展平参数： [fn, fp, tid, cat, fn, fp, tid, cat, …]
+//     const params = fileDetails.flatMap(f => [
+//         f.project_id,
+//         f.filename,
+//         f.filepath,
+//         f.test_item_id,
+//         f.category
+//     ]);
+//     const sql = `
+//         INSERT INTO project_files
+//         (project_id, filename, filepath, test_item_id, category)
+//         VALUES ${placeholders}
+//     `;
+//     await db.query(sql, params);
+// }
 
+// fileDetails: [{ project_id, filename, filepath, test_item_id, category }, ...]
+// conn: 可选，外部传入的事务连接（如没传则内部自取连接）
+async function insertProjectFiles(fileDetails, conn = null) {
+    if (!Array.isArray(fileDetails) || fileDetails.length === 0) {
+      return { affectedRows: 0 };
+    }
+  
+    // 去重（避免相同 test_item_id + filename + category 重复入库)
+    const keyOf = f => `${f.test_item_id}@@${f.filename}@@${f.category}`;
+    const seen = new Set();
+    const deduped = [];
+    for (const f of fileDetails) {
+      const k = keyOf(f);
+      if (!seen.has(k)) {
+        seen.add(k);
+        deduped.push(f);
+      }
+    }
+    if (deduped.length === 0) return { affectedRows: 0 };
+  
+    const placeholders = deduped.map(() => '(?, ?, ?, ?, ?)').join(',');
+    const params = deduped.flatMap(f => [
+      f.project_id,
+      f.filename,
+      f.filepath,
+      f.test_item_id,
+      f.category
+    ]);
+  
+    const sql = `
+      INSERT INTO project_files
+        (project_id, filename, filepath, test_item_id, category)
+      VALUES ${placeholders}
+    `;
+  
+    let localConn = conn;
+    let needRelease = false;
+    if (!localConn) {
+      localConn = await db.getConnection();
+      needRelease = true;
+    }
+    try {
+      const [result] = await localConn.execute(sql, params);
+      return result;
+    } finally {
+      if (needRelease && localConn) localConn.release();
+    }
+  }
+  
 /**
  * 拉取委托单所需的全部数据
  * @param {string}  orderNum  - 订单编号
@@ -3627,7 +3755,33 @@ async function recordFileDownloadTime(filename, name, time) {
     }
 }
 
+async function cancelTestItem(test_item_id) {
+    const conn = await db.getConnection();
+
+    try {
+        await conn.beginTransaction();
+        await conn.query(`
+            UPDATE test_items
+            SET
+              machine_hours = 0,
+              work_hours = 0,
+              listed_price = 0,
+              discounted_price = 0,
+              status = 12
+            WHERE test_item_id = ?`,
+            [test_item_id]
+        );
+        await conn.commit();
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
+}
+
 module.exports = {
+    cancelTestItem,
     getConnection,
     findUserByAccount,
     deleteOrder,
@@ -3720,5 +3874,6 @@ module.exports = {
     getCommissionInfo,
     getTestsWithRawData,
     reassignSupervisor,
-    recordFileDownloadTime
+    recordFileDownloadTime,
+    getAllReports
 };

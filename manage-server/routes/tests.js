@@ -126,6 +126,8 @@ router.get('/count', async (req, res) => {
         'test_item',
         'customer_name',
         'contact_name',
+        'payer_name',
+        'payer_contact_name',
         'sales_names',
         'manager_names',
         'team_names',
@@ -369,19 +371,19 @@ router.post('/reassign', async (req, res) => {
 });
 
 router.post('/reassign-supervisor', async (req, res) => {
-      const { test_item_id, newAccount } = req.body;
-      if (!test_item_id || !newAccount) {
+    const { test_item_id, newAccount } = req.body;
+    if (!test_item_id || !newAccount) {
         return res.status(400).json({ message: '参数不完整' });
-      }
-      try {
+    }
+    try {
         await db.reassignSupervisor(test_item_id, newAccount);
         res.json({ message: 'ok' });
-      } catch (err) {
+    } catch (err) {
         console.error('reassign-supervisor error:', err);
         res.status(500).json({ message: '数据库错误' });
-      }
     }
-  );
+}
+);
 
 
 router.post('/rollback', async (req, res) => {
@@ -645,12 +647,12 @@ router.delete('/:testItemId', async (req, res) => {
 // 导出检测项目excel的路由
 router.post('/exportTestData', async (req, res) => {
     try {
-        const { selectedOrders } = req.body;
-        if (!selectedOrders || selectedOrders.length === 0) {
+        const { selectedTestItemIds } = req.body;
+        if (!selectedTestItemIds || selectedTestItemIds.length === 0) {
             return res.status(400).send('No test items provided');
         }
         // 获取数据库中的发票数据
-        const tests = await db.getTestForExcel(selectedOrders);  // 你可以根据实际情况调用数据库查询
+        const tests = await db.getTestForExcel(selectedTestItemIds);  // 你可以根据实际情况调用数据库查询
         // 返回查询结果
         res.json(tests);
         return tests;
@@ -663,12 +665,12 @@ router.post('/exportTestData', async (req, res) => {
 // 导出检测项目excel的路由
 router.post('/exportTestDataForSales', async (req, res) => {
     try {
-        const { selectedOrders } = req.body;
-        if (!selectedOrders || selectedOrders.length === 0) {
+        const { selectedTestItemIds } = req.body;
+        if (!selectedTestItemIds || selectedTestItemIds.length === 0) {
             return res.status(400).send('No test items provided');
         }
         // 获取数据库中的发票数据
-        const tests = await db.getTestForExcelForSales(selectedOrders);  // 你可以根据实际情况调用数据库查询
+        const tests = await db.getTestForExcelForSales(selectedTestItemIds);  // 你可以根据实际情况调用数据库查询
         // 返回查询结果
         res.json(tests);
         return tests;
@@ -696,6 +698,8 @@ router.post('/ids', async (req, res) => {
         'test_item',
         'customer_name',
         'contact_name',
+        'payer_name',
+        'payer_contact_name',
         'sales_names',
         'manager_names',
         'team_names',
@@ -735,7 +739,6 @@ router.post('/getOrderNums', async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ message: '参数 ids 不能为空' });
     }
-
     try {
         const rows = await db.getSelectedOrderNums(ids);
         if (!rows.length) {
@@ -760,57 +763,130 @@ router.get('/summary', async (req, res) => {
     }
 });
 
+// router.post(
+//     '/importAttachments',
+//     upload.single('file'),
+//     async (req, res) => {
+//         try {
+//             // 解析前端传来的 testItemIds
+//             let raw = req.body.testItemIds;
+//             const testItemIds = typeof raw === 'string'
+//                 ? JSON.parse(raw)
+//                 : raw;
+
+//             if (!req.file) {
+//                 return res.status(400).json({ success: false, message: '未收到文件' });
+//             }
+//             if (!Array.isArray(testItemIds) || testItemIds.length === 0) {
+//                 return res.status(400).json({ success: false, message: '请先选择检测项目' });
+//             }
+//             const projectId = Date.now();
+//             // 准备要插入的多条记录
+//             const filePath = `/uploads/${req.file.filename}`;
+//             const details = testItemIds.map(id => ({
+//                 filename: req.file.filename,
+//                 filepath: filePath,
+//                 test_item_id: id,
+//                 category: '委托单附件',
+//                 project_id: projectId
+//             }));
+
+//             // 调用你在 database.js 里写的 insertProjectFiles
+//             await db.insertProjectFiles(details);
+
+//             res.json({ success: true, message: '附件上传并关联成功' });
+//         } catch (err) {
+//             console.error('importAttachments error:', err);
+//             res.status(500).json({ success: false, message: '服务器错误' });
+//         }
+//     }
+// );
+
 router.post(
-    '/importAttachments',
-    upload.single('file'),
-    async (req, res) => {
-        try {
-            // 解析前端传来的 testItemIds
-            let raw = req.body.testItemIds;
-            const testItemIds = typeof raw === 'string'
-                ? JSON.parse(raw)
-                : raw;
+'/importAttachments',
+upload.single('file'),
+async (req, res) => {
+    let conn;
+    try {
+    // 解析 testItemIds
+    const raw = req.body.testItemIds;
+    const testItemIds = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
 
-            if (!req.file) {
-                return res.status(400).json({ success: false, message: '未收到文件' });
-            }
-            if (!Array.isArray(testItemIds) || testItemIds.length === 0) {
-                return res.status(400).json({ success: false, message: '请先选择检测项目' });
-            }
-            const projectId = Date.now();
-            // 准备要插入的多条记录
-            const filePath = `/uploads/${req.file.filename}`;
-            const details = testItemIds.map(id => ({
-                filename: req.file.filename,
-                filepath: filePath,
-                test_item_id: id,
-                category: '委托单附件',
-                project_id: projectId
-            }));
-
-            // 调用你在 database.js 里写的 insertProjectFiles
-            await db.insertProjectFiles(details);
-
-            res.json({ success: true, message: '附件上传并关联成功' });
-        } catch (err) {
-            console.error('importAttachments error:', err);
-            res.status(500).json({ success: false, message: '服务器错误' });
-        }
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: '未收到文件' });
     }
+    if (!Array.isArray(testItemIds) || testItemIds.length === 0) {
+        return res.status(400).json({ success: false, message: '请先选择检测项目' });
+    }
+
+    // 拿连接 & 开启事务
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+
+    // —— 关键保护：同一订单校验（避免串单）——
+    // 你表里 test_items 有 order_num 字段，直接查 DISTINCT
+    const [orders] = await conn.query(
+        `SELECT DISTINCT order_num 
+            FROM test_items 
+        WHERE test_item_id IN (?)
+            AND order_num IS NOT NULL`,
+        [testItemIds]
+    );
+    if (!orders || orders.length !== 1) {
+        await conn.rollback();
+        return res.status(400).json({ success: false, message: '请选择同一个委托单下的检测项目' });
+    }
+
+    // 组装批量插入数据
+    const projectId = Date.now();
+    const filename = req.file.filename;
+    const filepath = `/uploads/${filename}`;
+    const category = req.body.category || '委托单附件';
+
+    const details = testItemIds.map(id => ({
+        project_id: projectId,
+        filename,
+        filepath,
+        test_item_id: id,
+        category
+    }));
+
+    // 批量插入（走同一事务里的连接）
+    await db.insertProjectFiles(details, conn);
+
+    await conn.commit();
+
+    return res.json({
+        success: true,
+        message: '附件上传并关联成功',
+        project_id: projectId,
+        filename,
+        filepath
+    });
+    } catch (err) {
+    if (conn) {
+        try { await conn.rollback(); } catch (_) {}
+    }
+    console.error('importAttachments error:', err);
+    return res.status(500).json({ success: false, message: '服务器错误' });
+    } finally {
+    if (conn) conn.release();
+    }
+}
 );
 
 // POST /api/tests/exportCommissionWord
 router.post('/exportCommissionWord', async (req, res) => {
-    const { selectedOrders } = req.body;
+    const { selectedTestItemIds } = req.body;
     /* ---------- 1. 参数/一致性校验 ---------- */
-    const rows = await db.getSelectedOrderNums(selectedOrders);
+    const rows = await db.getSelectedOrderNums(selectedTestItemIds);
     const uniq = [...new Set(rows.map(r => r.order_num))];
     if (uniq.length !== 1) {
         return res.status(400).json({ message: '请选择同一个委托单下的检测项目' });
     }
     const orderNum = uniq[0];
     /* ---------- 2. 拉数据 ---------- */
-    const info = await db.getCommissionInfo(orderNum, selectedOrders);
+    const info = await db.getCommissionInfo(orderNum, selectedTestItemIds);
     if (!info) return res.status(404).send('委托单不存在');
     const order = (info.order && info.order[0]) || {};
     const report = (info.report && info.report[0]) || {};
@@ -852,12 +928,12 @@ router.post('/exportCommissionWord', async (req, res) => {
         paperReportType2Symbol: ck(report.paper_report_shipping_type === '2'),
         paperReportType3Symbol: ck(report.paper_report_shipping_type === '3'),
 
-        headerType1Symbol: ck(report.header_type === 1),
-        headerType2Symbol: ck(report.header_type === 2),
+        headerType1Symbol: ck(report.header_type === '1'),
+        headerType2Symbol: ck(report.header_type === '2'),
         header_additional_info: report.header_other || '',
 
-        reportForm1Symbol: ck(report.format_type === 1),
-        reportForm2Symbol: ck(report.format_type === 2),
+        reportForm1Symbol: ck(report.format_type === '1'),
+        reportForm2Symbol: ck(report.format_type === '2'),
         report_additional_info: report.report_additional_info || '',
 
         /* —— 样品处置 / 危险特性 —— */
@@ -933,7 +1009,6 @@ router.post('/exportCommissionWord', async (req, res) => {
         undefinedGetter: () => '',
     });
 
-    console.log("templateConsole:", templateData)
     try {
         doc.render(templateData);
     } catch (e) {
@@ -959,10 +1034,10 @@ router.post('/exportCommissionWord', async (req, res) => {
 
 /* ========= 流转单 Word ========= */
 router.post('/exportWorkflowWord', async (req, res) => {
-    const { selectedOrders } = req.body;
+    const { selectedTestItemIds } = req.body;
 
     /* 1. 参数校验：必须同一 order_num */
-    const tmp = await db.getSelectedOrderNums(selectedOrders);
+    const tmp = await db.getSelectedOrderNums(selectedTestItemIds);
     const uniqOrder = [...new Set(tmp.map(r => r.order_num))];
     if (uniqOrder.length !== 1) {
         return res.status(400).json({ message: '请选择同一个委托单下的检测项目' });
@@ -970,7 +1045,7 @@ router.post('/exportWorkflowWord', async (req, res) => {
     const orderNum = uniqOrder[0];
 
     /* 2. 取委托单完整信息（只拿所选项目） */
-    const info = await db.getCommissionInfo(orderNum, selectedOrders);
+    const info = await db.getCommissionInfo(orderNum, selectedTestItemIds);
     if (!info) return res.status(404).send('委托单不存在');
     const order = (info.order && info.order[0]) || {};
     const report = (info.report && info.report[0]) || {};
@@ -988,9 +1063,11 @@ router.post('/exportWorkflowWord', async (req, res) => {
             project_code: it.test_code
                 ? (condPart ? `${it.test_code}-${condPart}` : it.test_code)
                 : '',
-            method: it.test_method,
-            quantity: it.quantity,
-            note: it.note || ''
+            method: it.test_method || '',
+            quantity: it.quantity || '',
+            note: it.note || '',
+            original_no: it.original_no || '',
+            sample_name: it.sample_name || ''
         };
 
         // 机加工中心（test_code 以 LX 开头）
@@ -1013,7 +1090,6 @@ router.post('/exportWorkflowWord', async (req, res) => {
     const receiptDate = today.toISOString().slice(0, 10);   // yyyy-mm-dd
     const templateData = {
         order_num: orderNum,
-
         machiningCenterSymbol: machiningItems.length ? '☑' : '☐',
         mechanicsSymbol: hasDept(3) ? '☑' : '☐',
         microSymbol: hasDept(1) ? '☑' : '☐',
@@ -1031,6 +1107,20 @@ router.post('/exportWorkflowWord', async (req, res) => {
         reportContent3Symbol: ck(report.type.includes('3')),
         reportContent6Symbol: ck(report.type.includes('6')),
 
+        reportSeals1Symbol: ck(order.report_seals.includes('normal')),
+        reportSeals2Symbol: ck(order.report_seals.includes('cnas')),
+        reportSeals3Symbol: ck(order.report_seals.includes('cma')),
+
+        // —— 报告版式 ——  
+        reportForm1Symbol: ck(Number(report.format_type) === 1),
+        reportForm2Symbol: ck(Number(report.format_type) === 2),
+
+        // —— 报告抬头 ——  
+        headerType1Symbol: ck(Number(report.header_type) === 1),
+        headerType2Symbol: ck(Number(report.header_type) === 2),
+        header_additional_info: (report.header_other || ''),
+
+
         /* 测试时效（service_type） */
         serviceType1Symbol: ck(order.service_type === '1'),
         serviceType2Symbol: ck(order.service_type === '2'),
@@ -1043,6 +1133,57 @@ router.post('/exportWorkflowWord', async (req, res) => {
         returnMailSymbol: ck(sample.sample_solution_type === '3'),
         other_requirements: order.other_requirements || '',
 
+        hazardSafetySymbol: sample.hazards.includes('Safety')
+            ? '☑ 无危险性'
+            : null,
+        hazardFlammabilitySymbol: sample.hazards.includes('Flammability')
+            ? '☑ 易燃易爆'
+            : null,
+        hazardIrritationSymbol: sample.hazards.includes('Irritation')
+            ? '☑ 刺激性'
+            : null,
+        hazardVolatilitySymbol: sample.hazards.includes('Volatility')
+            ? '☑ 易挥发'
+            : null,
+        hazardFragileSymbol: sample.hazards.includes('Fragile')
+            ? '☑ 易碎'
+            : null,
+        hazardOtherSymbol: sample.hazards.includes('Other')
+            ? `☑ 其他: ${sample.hazard_other}`
+            : '',
+        magnetismNonMagneticSymbol: sample.magnetism === 'Non-magnetic'
+            ? '☑ 无磁'
+            : null,
+        magnetismWeakMagneticSymbol: sample.magnetism === 'Weak-magnetic'
+            ? '☑ 弱磁'
+            : null,
+        magnetismStrongMagneticSymbol: sample.magnetism === 'Strong-magnetic'
+            ? '☑ 强磁'
+            : null,
+        magnetismUnknownSymbol: sample.magnetism === 'Unknown'
+            ? '☑ 未知'
+            : null,
+        conductivityConductorSymbol: sample.conductivity === 'Conductor'
+            ? '☑ 导体'
+            : null,
+        conductivitySemiconductorSymbol: sample.conductivity === 'Semiconductor'
+            ? '☑ 半导体'
+            : null,
+        conductivityInsulatorSymbol: sample.conductivity === 'Insulator'
+            ? '☑ 绝缘体'
+            : null,
+        conductivityUnknownSymbol: sample.conductivity === 'Unknown'
+            ? '☑ 未知'
+            : null,
+        breakableYesSymbol: sample.breakable === 'yes'
+            ? '☑ 是'
+            : null,
+        brittleYesSymbol: sample.brittle === 'yes'
+            ? '☑ 是'
+            : null,
+        brittleNoSymbol: sample.brittle === 'no'
+            ? '☑ 否'
+            : null,
         projectLeader: '',   // 留空，后续手写
 
         machiningItems,
@@ -1076,12 +1217,23 @@ router.post('/exportWorkflowWord', async (req, res) => {
 
 router.get('/delivered/rawdata/:account', async (req, res) => {
     try {
-      const rows = await db.getTestsWithRawData(req.params.account);
-      res.json(rows);
+        const rows = await db.getTestsWithRawData(req.params.account);
+        res.json(rows);
     } catch (e) {
-      console.error(e);
-      res.status(500).json({ message: '查询失败', error: e.message });
+        console.error(e);
+        res.status(500).json({ message: '查询失败', error: e.message });
     }
-  });
+});
+
+router.post('/cancel', async (req, res) => {
+    const { test_item_id } = req.body;
+    try {
+      await db.cancelTestItem(test_item_id);
+      res.json({ success: true, message: '检测项目已取消' });
+    } catch (err) {
+      console.error('取消检测项目失败:', err);
+      res.status(500).json({ success: false, message: '取消失败', error: err.message });
+    }
+});
 
 module.exports = router;

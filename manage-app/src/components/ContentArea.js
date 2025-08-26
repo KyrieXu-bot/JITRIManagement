@@ -73,6 +73,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [searchTestItem, setSearchTestItem] = useState('');
     const [searchTestCondition, setSearchTestCondition] = useState('');
     const [selectedOrders, setSelectedOrders] = useState([]);
+    const [selectedTestItemIds, setSelectedTestItemIds] = useState([]);
     const [selectedInvoices, setSelectedInvoices] = useState(new Set());
     const [isAllSelected, setIsAllSelected] = useState(false);
     const [isAllSelectedInvoices, setIsAllSelectedInvoices] = useState(false);
@@ -135,7 +136,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const [showArchiveModal, setShowArchiveModal] = useState(false);
     const [archiveItem, setArchiveItem] = useState(null);
     const [archiveNote, setArchiveNote] = useState('');
-
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [selectedTestItem, setSelectedTestItem] = useState({});
     // —— 新增用于导出报告的 state —— 
     const [showReportModal, setShowReportModal] = useState(false);
     const [currentReportItem, setCurrentReportItem] = useState(null);
@@ -221,6 +223,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         note: '',
     });
 
+    const reportOptions = {
+        '测试图片或数据汇总': 1,
+        '中文报告': 2,
+        '英文报告': 3,
+        '仅电子版报告': 4,
+        '电子版+纸质版报告': 5,
+        '中英文对照报告': 6
+    }
     //检测项目状态标签
     const statusLabels = {
         0: '待分配',
@@ -235,7 +245,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         8: '报告驳回',
         9: '客户同意',
         10: '已归档',
-        11: '归档驳回'
+        11: '归档驳回',
+        12: '已取消'
+
     };
 
     // 委托单服务类型标签
@@ -260,6 +272,26 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         2: '客户自取',
         3: '寄回'
     }
+
+    // 纸质报告邮寄类型
+    const reportShippingTypeLabels = {
+        1: '邮寄到委托方',
+        2: '邮寄到付款方',
+        3: '其他'
+    }
+
+    // 样品处置标签
+    const headerTypeLabels = {
+        1: '同委托方名称和地址',
+        2: '其他'
+    }
+
+    // 样品处置标签
+    const reportFormatTypeLabels = {
+        1: '一单一报告',
+        2: '一项目一报告'
+    }
+
 
     //委托单结算状态标签
     const orderStatusLabels = {
@@ -308,15 +340,18 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
     const sampleFieldMap = {
-        order_num:             '委托单号',
-        sample_solution_type:  '样品处置',
-      };
-      
-      // Excel 列顺序
-      const sampleHeaders = [
+        order_num: '委托单号',
+        sample_solution_type: '样品处置',
+        sales_names: '业务员',
+        customer_name: '委托方名称',
+        contact_name: '委托方联系人'
+    };
+
+    // Excel 列顺序
+    const sampleHeaders = [
         '委托单号',
         '样品处置',
-      ];
+    ];
 
     // 在组件外部构建映射表
     const hazardMap = Object.fromEntries(
@@ -347,7 +382,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     const openImportModal = () => {
-        if (selectedOrders.length === 0) {
+        if (selectedTestItemIds.length === 0) {
             return alert('请先选择至少一个检测项目')
         }
         setImportError('')
@@ -370,7 +405,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         try {
             const formData = new FormData()
             formData.append('file', importFile)
-            formData.append('testItemIds', JSON.stringify(selectedOrders))
+            formData.append('testItemIds', JSON.stringify(selectedTestItemIds))
             const res = await axios.post(
                 `${config.API_BASE_URL}/api/tests/importAttachments`,
                 formData,
@@ -379,7 +414,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             if (res.data.success) {
                 setShowImportModal(false)
                 setImportFile(null)
-                setSelectedOrders([])
+                setSelectedTestItemIds([])
                 setIsAllSelected(false)
                 // 重新拉取数据
                 fetchData('tests');
@@ -474,8 +509,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             //     params.append('customerName', filterCustomer); 
             // }
             if (searchColumn && searchValue) {
-                console.log(searchColumn)
-
                 params.append(searchColumn, searchValue);
             }
             const response = await axios.get(`${config.API_BASE_URL}/api/tests/assignments/${account}?${params}`);
@@ -881,7 +914,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         if ((role === 'employee')) {
             if (selected === 'timeline') {
                 fetchTimeline()
-
             } else if (selected === 'getCommission') {
                 fetchData('orders');
             } else if (selected === 'handleTests') {
@@ -891,7 +923,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchDataForEmployee(account);
                 fetchMyReservation();
                 fetchEquipmentSchedule(); // 拉取新的预约数据
-
             } else if (selected === '') {
                 fetchDataForEmployee(account);
             }
@@ -931,8 +962,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 fetchData('orders');
             } else if (selected === 'getSamples') {
                 fetchTimePeriods('month');
-
                 fetchData('samples');
+            } else if (selected === 'getReports') {
+                fetchData('reports');
             } else if (selected === 'getTests') {
                 fetchData('tests');
                 fetchTimePeriods('month');
@@ -1142,7 +1174,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     const handleBatchAssignClick = () => {
-        console.log(selectedOrders)
         setShowAssignmentModal(true);
         setIsBatchMode(true); // 新增状态标记
     };
@@ -1341,7 +1372,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
     const openExportModal = () => {
-        if (selectedOrders.length === 0) {
+        if (selectedOrders.length === 0 && selectedTestItemIds.length === 0) {
             setAlertMessage('请先对多选框进行勾选再操作！')
             setShowAlert(true);
             return;
@@ -1352,9 +1383,10 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
     // 执行Excel导出检测项目的操作
     const exportTestExcel = async () => {
+
         setExportLoading(l => ({ ...l, testExcel: true }));
         try {
-            const response = await axios.post(`${config.API_BASE_URL}/api/tests/exportTestData`, { selectedOrders });
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/exportTestData`, { selectedTestItemIds });
             const data = response.data;
             // 定义字段名映射，将英文字段名转换为中文
             const fieldMapping = {
@@ -1370,8 +1402,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "order_status": "订单状态",
                 "listed_price": "标准价格",
                 "discounted_price": "业务价格",
-                "start_time": "预约开始时间",
-                "end_time": "预约结束时间",
                 "equipment_name": "设备名称",
                 "model": "设备型号",
                 "hasAttachments": "附件",
@@ -1387,6 +1417,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "note": "客户备注",
                 "status": "状态",
                 "appoint_time": "分配时间",
+                "latest_finish_time": "最后完成时间"
             };
             // 使用映射表调整 data 中的字段名
             const mappedData = data.map(item => {
@@ -1405,7 +1436,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         mappedItem[mappedKey] = department ? department.department_name : '';  // 找不到部门时为空
                     }
                     // 转换时间格式
-                    else if (['create_time', 'start_time', 'end_time', 'appoint_time'].includes(key)) {
+                    else if (['create_time', 'appoint_time', "latest_finish_time"].includes(key)) {
                         mappedItem[mappedKey] = formatDateToLocal(value); // 调用你定义的 formatDateToLocal 函数
                     }
                     else {
@@ -1427,8 +1458,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "订单状态",
                 "标准价格",
                 "业务价格",
-                "预约开始时间",
-                "预约结束时间",
                 "设备名称",
                 "设备型号",
                 "附件",
@@ -1442,7 +1471,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "尺寸",
                 "数量",
                 "状态",
-                "分配时间"
+                "分配时间",
+                "最后完成时间"
             ];
             generateExcel(mappedData, headers, '检测项目统计');
         } catch (error) {
@@ -1456,41 +1486,41 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const exportSamplesExcel = async () => {
         setExportLoading(l => ({ ...l, sampleExcel: true }));
         try {
-          const response = await axios.post(
-            `${config.API_BASE_URL}/api/samples/exportSampleData`,
-            { selectedSamples }
-          );
-          const raw = response.data;
-      
-          // 字段名映射 & 格式化
-          const mapped = raw.map(r => {
-            const obj = {};
-            Object.keys(r).forEach(k => {
-              if (!sampleFieldMap[k]) return;                // 忽略无用字段
-              let v = r[k];
-              if (k === 'sample_solution_type') {
-                v = sampleSolutionTypeLabels[v] ?? v;   // 找不到标签时保留数字
-              }
-              
-              // 例如把 0/1 转 “否/是” —— 根据业务自行添加
-              if (['magnetism','conductivity','breakable','brittle'].includes(k)) {
-                v = v ? '是' : '否';
-              }
-              obj[sampleFieldMap[k]] = v;
+            const response = await axios.post(
+                `${config.API_BASE_URL}/api/samples/exportSampleData`,
+                { selectedSamples }
+            );
+            const raw = response.data;
+
+            // 字段名映射 & 格式化
+            const mapped = raw.map(r => {
+                const obj = {};
+                Object.keys(r).forEach(k => {
+                    if (!sampleFieldMap[k]) return;                // 忽略无用字段
+                    let v = r[k];
+                    if (k === 'sample_solution_type') {
+                        v = sampleSolutionTypeLabels[v] ?? v;   // 找不到标签时保留数字
+                    }
+
+                    // 例如把 0/1 转 “否/是” —— 根据业务自行添加
+                    if (['magnetism', 'conductivity', 'breakable', 'brittle'].includes(k)) {
+                        v = v ? '是' : '否';
+                    }
+                    obj[sampleFieldMap[k]] = v;
+                });
+                return obj;
             });
-            return obj;
-          });
-      
-          // 生成 Excel
-          const ws = XLSX.utils.json_to_sheet(mapped, { header: sampleHeaders });
-          const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, '样品列表');
-          XLSX.writeFile(wb, '样品列表.xlsx');
+
+            // 生成 Excel
+            const ws = XLSX.utils.json_to_sheet(mapped, { header: sampleHeaders });
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '样品列表');
+            XLSX.writeFile(wb, '样品列表.xlsx');
         } catch (err) {
-          console.error('样品导出失败:', err);
-          setError('导出失败');
+            console.error('样品导出失败:', err);
+            setError('导出失败');
         } finally {
-          setExportLoading(l => ({ ...l, sampleExcel: false }));
+            setExportLoading(l => ({ ...l, sampleExcel: false }));
         }
     };
 
@@ -1498,7 +1528,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     /** 2. 委托单 Word */
     const exportCommissionWord = async () => {
         setExportLoading(l => ({ ...l, commissionWord: true }));
-        const { data } = await axios.post(`${config.API_BASE_URL}/api/tests/getOrderNums`, { ids: selectedOrders });
+        const { data } = await axios.post(`${config.API_BASE_URL}/api/tests/getOrderNums`, { ids: selectedTestItemIds });
         const uniqueOrderNums = [...new Set(data.map(r => r.order_num))];
         if (uniqueOrderNums.length !== 1) {
             setAlertMessage('请选择同一个委托单下的检测项目！')
@@ -1512,7 +1542,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             try {
                 const res = await axios.post(
                     `${config.API_BASE_URL}/api/tests/exportCommissionWord`,
-                    { selectedOrders },
+                    { selectedTestItemIds },
                     { responseType: 'blob' }          // 让 axios 返回二进制
                 );
                 downloadBlob(res.data, fileName);
@@ -1528,9 +1558,8 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     /** 3. 流转单 Word */
     const exportWorkflowWord = async () => {
         setExportLoading(l => ({ ...l, workflowWord: true }));
-        const { data } = await axios.post(`${config.API_BASE_URL}/api/tests/getOrderNums`, { ids: selectedOrders });
+        const { data } = await axios.post(`${config.API_BASE_URL}/api/tests/getOrderNums`, { ids: selectedTestItemIds });
         const unique = new Set(data.map(r => r.order_num))
-        console.log(unique)
         if (unique.size !== 1) {
             setAlertMessage('请选择同一个委托单下的检测项目！')
             setShowAlert(true);
@@ -1540,7 +1569,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             try {
                 const res = await axios.post(
                     `${config.API_BASE_URL}/api/tests/exportWorkflowWord`,
-                    { selectedOrders },
+                    { selectedTestItemIds },
                     { responseType: 'blob' }
                 );
                 downloadBlob(res.data, `${Array.from(unique)[0]}_流转单.docx`);
@@ -1565,6 +1594,26 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     };
 
 
+
+    const parseReportType = (typeString) => {
+        if (!typeString) return '';
+
+        // 去掉方括号并分割成数字数组
+        const ids = typeString
+            .replace(/[[\]\s]/g, '')
+            .split(',')
+            .filter(Boolean)
+            .map(Number);
+
+        // 将 reportOptions 反转为 {id: label}
+        const optionMap = Object.entries(reportOptions).reduce((acc, [label, id]) => {
+            acc[id] = label;
+            return acc;
+        }, {});
+
+        // 映射成中文标签
+        return ids.map(id => optionMap[id] || `未知(${id})`).join('，');
+    };
     // 把时间戳转成 yyyy-MM-dd
     const formatDateOnly = (iso) => {
         if (!iso) return '';
@@ -1579,7 +1628,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     const exportSalesTestExcel = async () => {
         setExportLoading(l => ({ ...l, salesTestExcel: true }));
         try {
-            const response = await axios.post(`${config.API_BASE_URL}/api/tests/exportTestDataForSales`, { selectedOrders });
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/exportTestDataForSales`, { selectedTestItemIds });
             const data = response.data;
             // 定义字段名映射，将英文字段名转换为中文
             const fieldMapping = {
@@ -1588,10 +1637,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "test_item": "检测项目",
                 "quantity": "数量",
                 "machine_hours": "机时",
+                "price_note":"价格备注",
                 "listed_price": "标准价格",
                 "note": "客户备注",
                 "customer_name": "委托单位",
-                "contact_name": "联系人",
+                "contact_name": "委托联系人",
+                "payer_name": "付款方",
+                "payer_contact_name": "付款联系人"
             };
             // 使用映射表调整 data 中的字段名
             const mappedData = data.map(item => {
@@ -1619,11 +1671,13 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 "单价",
                 "数量",
                 "机时",
+                "价格备注",
                 "标准价格",
                 "客户备注",
                 "委托单位",
-                "联系人",
-
+                "委托联系人",
+                "付款方",
+                "付款联系人"
             ];
             generateExcel(mappedData, headers, "业务员检测项目统计");
         } catch (error) {
@@ -1882,7 +1936,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
     //处理检测项目全选按钮
     const handleSelectAllTest = async () => {
         if (isAllSelected) {
-            setSelectedOrders([]);  // 如果已经全选，则取消全选
+            setSelectedTestItemIds([]);  // 如果已经全选，则取消全选
             setIsAllSelected(false);
         } else {
             try {
@@ -1901,7 +1955,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     `${config.API_BASE_URL}/api/tests/ids`,   // <- 用 POST
                     body
                 );
-                setSelectedOrders(ids);   // ids 是 [ test_item_id, … ]
+                setSelectedTestItemIds(ids);   // ids 是 [ test_item_id, … ]
                 setIsAllSelected(true);
             } catch (error) {
                 console.error("获取所有检测项目ID失败", error);
@@ -2133,6 +2187,30 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
         }
     };
 
+    const handleCancel = (item) => {
+        setSelectedTestItem(item);
+        setShowCancelModal(true);
+    };
+
+
+    const confirmCancel = async () => {
+        try {
+            const response = await axios.post(`${config.API_BASE_URL}/api/tests/cancel`, {
+                test_item_id: selectedTestItem.test_item_id
+            });
+            if (response.data.success) {
+                setShowSuccessToast(true); // 显示成功的Toast
+                setTimeout(() => setShowSuccessToast(false), 3000); // 3秒后自动隐藏Toast  
+                fetchData('tests');
+            } else {
+                setShowFailureToast(true)
+            }
+        } catch (err) {
+            console.error('取消失败', err);
+            setShowFailureToast(true)
+        }
+        setShowCancelModal(false);
+    };
 
     const updateItem = async () => {
         try {
@@ -2300,14 +2378,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
 
 
     const submitBatchAssignment = async () => {
-        if (!assignmentInfo || selectedOrders.length === 0) {
+        if (!assignmentInfo || selectedTestItemIds.length === 0) {
             setAlertMessage("请选择分配人员并至少选择一个检测项目");
             setShowAlert(true);
             return;
         }
         try {
             const response = await axios.post(`${config.API_BASE_URL}/api/tests/batch-assign`, {
-                testItemIds: selectedOrders,
+                testItemIds: selectedTestItemIds,
                 assignmentInfo,
                 equipment_id: assignmentData.equipment_id,
                 role
@@ -2317,7 +2395,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             fetchData('tests');
 
             if (response.data.success) {
-                setSelectedOrders([]);
+                setSelectedTestItemIds([]);
                 setShowSuccessToast(true);
                 setTimeout(() => setShowSuccessToast(false), 3000);
             } else {
@@ -2479,7 +2557,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
             return;  // 用户点击取消后，不执行任何操作
         }
         if (!businessCheckItem) return;
-
         const newStatus = action === 'approve' ? 9 : 6; // 9: 客户同意，6: 驳回
 
         try {
@@ -2845,16 +2922,23 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         ];
                     } else {
                         rows = currentItems.map((item, index) => (
-                            <tr key={index}
+                            <tr key={index} y
                                 className={item.status === '5' ? 'row-delivered' : ''}
                             >
                                 <td>
                                     <input
                                         type="checkbox"
-                                        checked={selectedOrders.includes(item.test_item_id)}
-                                        onChange={() => handleCheckboxChange(item.test_item_id)}
+                                        checked={selectedTestItemIds.includes(item.test_item_id)}
+                                        onChange={() => {
+                                            setSelectedTestItemIds(prev =>
+                                            prev.includes(item.test_item_id)
+                                                ? prev.filter(id => id !== item.test_item_id)
+                                                : [...prev, item.test_item_id]
+                                            );
+                                        }}
                                     />
                                 </td>
+                                    
                                 <td className='order-num-fixed'>{highlightText(item.order_num, searchValue)}</td>
                                 <td className='test-item-fixed'>{highlightText(item.test_item, searchValue)}</td>
                                 <td>{statusLabels[item.status]}</td>
@@ -2872,7 +2956,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>{highlightText(item.machine_hours, searchValue)}</td>
                                 <td>{highlightText(item.work_hours, searchValue)}</td>
                                 <td>{highlightText(item.listed_price, searchValue)}</td>
-                                <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
+                                <td>{item.attachment_types === '0' ? '无' : item.attachment_types}</td>
                                 <td>{item.appoint_time ? new Date(item.appoint_time).toLocaleString() : ''}</td>
                                 <td>{highlightText(item.original_no, searchValue)}</td>
                                 <td>{highlightText(item.price_note, searchValue)}</td>
@@ -3001,8 +3085,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>
                                     <input
                                         type="checkbox"
-                                        checked={selectedOrders.includes(item.test_item_id)}
-                                        onChange={() => handleCheckboxChange(item.test_item_id)}
+                                        checked={selectedTestItemIds.includes(item.test_item_id)}
+                                        onChange={() => {
+                                            setSelectedTestItemIds(prev =>
+                                            prev.includes(item.test_item_id)
+                                                ? prev.filter(id => id !== item.test_item_id)
+                                                : [...prev, item.test_item_id]
+                                            );
+                                        }}
                                     />
                                 </td>
                                 <td className='order-num-fixed'>{highlightText(item.order_num, searchValue)}</td>
@@ -3022,7 +3112,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>
                                     {item.sales_names ? highlightText(item.sales_names, searchValue) : '暂未分配'}
                                 </td>
-                                <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
+                                <td>{item.attachment_types === '0' ? '无' : item.attachment_types}</td>
                                 <td>{highlightText(item.price_note, searchValue)}</td>
                                 <td>{highlightText(item.note, searchValue)}</td>
                                 <td>{highlightText(item.test_note, searchValue)}</td>
@@ -3160,17 +3250,21 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                     } else {
                         rows = currentItems.map((item, index) => (
                             <tr key={index}>
-                                <td>
-                                    <input
+                                <input
                                         type="checkbox"
-                                        checked={selectedOrders.includes(item.test_item_id)}
-                                        onChange={() => handleCheckboxChange(item.test_item_id)}
-                                    />
-                                </td>
+                                        checked={selectedTestItemIds.includes(item.test_item_id)}
+                                        onChange={() => {
+                                            setSelectedTestItemIds(prev =>
+                                            prev.includes(item.test_item_id)
+                                                ? prev.filter(id => id !== item.test_item_id)
+                                                : [...prev, item.test_item_id]
+                                            );
+                                        }}
+                                />
                                 <td className='order-num-fixed'>{highlightText(item.order_num, searchValue)}</td>
                                 <td className='test-item-fixed'>{highlightText(item.test_item, searchValue)}</td>
                                 <td>{statusLabels[item.status]}</td>
-                                <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
+                                <td>{item.attachment_types === '0' ? '无' : item.attachment_types}</td>
                                 <td>{item.sample_name}</td>
                                 <td>{item.material}</td>
                                 <td>{highlightText(item.customer_name, searchValue)}</td>
@@ -3296,8 +3390,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             <td>
                                 <input
                                     type="checkbox"
-                                    checked={selectedOrders.includes(item.test_item_id)}
-                                    onChange={() => handleCheckboxChange(item.test_item_id)}
+                                    checked={selectedTestItemIds.includes(item.test_item_id)}
+                                    onChange={() => {
+                                        setSelectedTestItemIds(prev =>
+                                        prev.includes(item.test_item_id)
+                                            ? prev.filter(id => id !== item.test_item_id)
+                                            : [...prev, item.test_item_id]
+                                        );
+                                    }}
                                 />
                             </td>
                             <td className='order-num-fixed'>{highlightText(item.order_num, searchValue)}</td>
@@ -3337,7 +3437,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     highlightText(item.discounted_price, searchValue)
                                 )}
                             </td>
-                            <td>{item.hasAttachments === 1 ? "已上传" : "无"}</td>
+                            <td>{item.attachment_types === '0' ? '无' : item.attachment_types}</td>
                             <td>{statusLabels[item.status]}</td>
                             <td>{highlightText(item.original_no, searchValue)}</td>
                             <td>
@@ -3511,8 +3611,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>
                                     <input
                                         type="checkbox"
-                                        checked={selectedOrders.includes(item.test_item_id)}
-                                        onChange={() => handleCheckboxChange(item.test_item_id)}
+                                        checked={selectedTestItemIds.includes(item.test_item_id)}
+                                        onChange={() => {
+                                            setSelectedTestItemIds(prev =>
+                                            prev.includes(item.test_item_id)
+                                                ? prev.filter(id => id !== item.test_item_id)
+                                                : [...prev, item.test_item_id]
+                                            );
+                                        }}
                                     />
                                 </td>
                                 <td>{highlightText(item.order_num, searchValue)}</td>
@@ -3701,8 +3807,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             </td>
 
                                         )}
-
-
                                         <td>{highlightText(order.order_num, filterData)}</td>
                                         <td>{highlightText(order.customer_name, filterData)}</td>
                                         <td>{highlightText(order.contact_name, filterData)}</td>
@@ -3748,7 +3852,6 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                                     {/* <Button onClick={() => handleAddFinalPrice(invoice.invoice_id)}>设置最终价</Button> */}
                                                     <Button variant='secondary' onClick={() => handleRollbackAccount(invoice)}>回退</Button>
                                                     <Button onClick={() => handleAccount(invoice)}>入账</Button>
-
                                                 </div>
                                             </td>
                                         )}
@@ -3772,8 +3875,14 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 <td>
                                     <input
                                         type="checkbox"
-                                        checked={selectedOrders.includes(item.test_item_id)}
-                                        onChange={() => handleCheckboxChange(item.test_item_id)}
+                                        checked={selectedTestItemIds.includes(item.test_item_id)}
+                                        onChange={() => {
+                                            setSelectedTestItemIds(prev =>
+                                            prev.includes(item.test_item_id)
+                                                ? prev.filter(id => id !== item.test_item_id)
+                                                : [...prev, item.test_item_id]
+                                            );
+                                        }}
                                     />
                                 </td>
                                 <td>{item.order_num}</td>
@@ -3810,6 +3919,29 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                         );
                     });
                     break;
+
+                case 'getReports':
+                    headers = ["委托单号", "报告类型", "纸质报告邮寄类型", "附加信息", "报告抬头", "抬头补充信息", "报告版式",];
+                    rows = currentItems.map((item, index) => {
+                        return (
+                            <tr key={index}>
+                                <td>{item.order_num}</td>
+                                <td>{parseReportType(item.type)}</td>
+                                <td>{reportShippingTypeLabels[item.paper_report_shipping_type]}</td>
+                                <td>{item.report_additional_info}</td>
+                                <td>{headerTypeLabels[item.header_type]}</td>
+                                <td>{item.header_other}</td>
+                                <td>
+                                    {reportFormatTypeLabels[item.format_type]}
+                                </td>
+                                <td className="fixed-column">
+                                    <Button>修改(维护中)</Button>
+                                </td>
+                            </tr>
+                        );
+                    });
+                    break;
+
                 case 'getTests':
                     headers = ["委托单号", "客户名称", "联系人", "检测项目", "样品原号", "样品名称", "材质", "方法", "机时", "工时", "标准价格", "实收(含税)价", "状态", "实验人员", "业务人员", "价格备注", "客户备注", "实验备注", "审批意见"];
                     if (loading) {
@@ -3836,10 +3968,16 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                 {role === 'admin' && (
                                     <td>
                                         <input
-                                            type="checkbox"
-                                            checked={selectedOrders.includes(item.test_item_id)}
-                                            onChange={() => handleCheckboxChange(item.test_item_id)}
-                                        />
+                                        type="checkbox"
+                                        checked={selectedTestItemIds.includes(item.test_item_id)}
+                                        onChange={() => {
+                                            setSelectedTestItemIds(prev =>
+                                            prev.includes(item.test_item_id)
+                                                ? prev.filter(id => id !== item.test_item_id)
+                                                : [...prev, item.test_item_id]
+                                            );
+                                        }}
+                                    />
                                     </td>
                                 )}
                                 <td>{highlightText(item.order_num, searchValue)}</td>
@@ -3889,6 +4027,11 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                         <Button onClick={() => handleAssignment(item.test_item_id)}>分配</Button>
                                     )} */}
                                     <Button onClick={() => handleEdit(item)}>修改</Button>
+                                    {role === 'admin' && (
+                                        <Button variant="warning" onClick={() => handleCancel(item)}>
+                                            取消
+                                        </Button>
+                                    )}
                                     <Button variant="danger" onClick={() => handleDelete(item.test_item_id)}>删除</Button>
                                 </td>
                             </tr>
@@ -4075,7 +4218,9 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                             : selected === 'transactionHistory' ? '交易流水'
                                                 : selected === 'getChecked' ? '结算账单明细'
                                                     : selected === 'myReservation' ? '我的预约'
-                                                        : '首页'}</h2>
+                                                        : selected === 'getReports' ? '报告管理'
+                                                            : '首页'}
+                            </h2>
                             {selected === 'handleTests' || selected === 'getTests' ? (
                                 <div className="searchBar">
                                     <span>项目状态：</span>
@@ -4155,7 +4300,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                                     {role === 'leader' && (
                                         <Button
                                             onClick={handleBatchAssignClick}
-                                            disabled={selectedOrders.length === 0}
+                                            disabled={selectedTestItemIds.length === 0}
                                             style={{ marginRight: '10px' }}
                                         >
                                             一键分配项目
@@ -5894,7 +6039,7 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                             onChange={(e) => setFinalPrice(e.target.value)}>
                         </Form.Control>
                     </Form.Group>
-                </Modal.Body>
+                </Modal.Body> 
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowCheckoutModal(false)}>取消</Button>
                     <Button variant="primary" onClick={handleCheckout}>确认结算</Button>
@@ -6377,6 +6522,26 @@ const ContentArea = ({ departmentID, account, selected, role, groupId, name, onL
                 </Modal.Footer>
             </Modal>
 
+
+            <Modal show={showCancelModal} onHide={() => setShowCancelModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>确认取消该检测项目？</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p><strong>检测项目：</strong>{selectedTestItem.test_item}</p>
+                    <p><strong>委托单号：</strong>{selectedTestItem.order_num}</p>
+                    <p><strong>工时：</strong>{selectedTestItem.work_hours}</p>
+                    <p><strong>机时：</strong>{selectedTestItem.machine_hours}</p>
+                    <p><strong>标准价格：</strong>{selectedTestItem.listed_price}</p>
+                    <p><strong>优惠价格：</strong>{selectedTestItem.discounted_price}</p>
+                    <hr></hr>
+                    <h3>请和相关业务员确认后再操作</h3>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowCancelModal(false)}>关闭</Button>
+                    <Button variant="danger" onClick={confirmCancel}>确认取消</Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

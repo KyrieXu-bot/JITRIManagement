@@ -31,7 +31,6 @@ router.patch('/:orderNum', async (req, res) => {
         }
     }
     try {
-
         // 调用 db 方法进行数据库更新
         const [result] = await db.updateSamples(orderNum, filteredFields);
         if (result.affectedRows > 0) {
@@ -57,11 +56,23 @@ router.post('/exportSampleData', async (req, res) => {
         await connection.beginTransaction();
         const [rows] =  await connection.execute(
             `SELECT
-                s.sample_id,
                 s.order_num,
-                s.sample_solution_type
+                s.sample_solution_type,
+                ANY_VALUE(c.customer_name) AS customer_name,
+                ANY_VALUE(c.contact_name) AS contact_name,
+                (
+                    SELECT GROUP_CONCAT(DISTINCT ua.name ORDER BY ua.name SEPARATOR ', ')
+                    FROM test_items ti
+                    JOIN assignments aa ON ti.test_item_id = aa.test_item_id
+                    JOIN users ua ON ua.account = aa.account
+                    WHERE ti.order_num = s.order_num AND ua.role = 'sales'
+                    LIMIT 1
+                ) AS sales_names
             FROM samples s
-            WHERE s.sample_id IN (${placeholders})`,
+            LEFT JOIN orders o ON s.order_num = o.order_num
+            LEFT JOIN customers c ON o.customer_id = c.customer_id
+            WHERE s.sample_id IN (${placeholders})
+            GROUP BY s.order_num`,
             selectedSamples
         );
       res.json(rows);

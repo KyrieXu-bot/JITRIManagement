@@ -69,6 +69,9 @@ router.post('/', async (req, res) => {
           t.test_method, 
           t.size, 
           t.quantity, 
+          t.sample_name,
+          t.sample_type,
+          t.material,
           e.equipment_name, 
           e.model,
           e.parameters_and_accuracy,
@@ -127,11 +130,14 @@ router.post('/', async (req, res) => {
       // }
 
       const sanitizedItems = testItems.map((item, index) => ({
-        sample_name: `${order.order_num}-${index + 1}`,
+        sample_no: `${order.order_num}-${index + 1}`,
+        sample_name: item.sample_name || '',
         original_no: item.original_no || '',
         test_item: item.test_item || '',
         test_method: item.test_method || '',
         size: item.size || '',
+        material: item.material || '',
+        sample_type: item.sample_type || '',
         quantity: item.quantity != null ? item.quantity : '',
         equipment_no: item.equipment_no || '',
         equipment_name: item.equipment_name || '',
